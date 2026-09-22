@@ -104,9 +104,7 @@ result = detect_sync("भारत सरकार गृह मंत्रा�
 print(f"Primary language: {result.language}")
 print("Candidate breakdown:")
 for candidate in result.candidates:
-    print(
-        f"- {candidate.language} ({candidate.script}): {candidate.confidence * 100:.1f}%"
-    )
+    print(f"- {candidate.language} ({candidate.script}): {candidate.confidence * 100:.1f}%")
 ```
 
 ### Detection Result Structure

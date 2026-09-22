@@ -173,9 +173,7 @@ settings = Settings.load()
 
 registry = ProviderRegistry()
 if "bhashini" in settings.providers:
-    registry.register(
-        BhashiniTranslationProvider(BhashiniConfig.from_settings(settings))
-    )
+    registry.register(BhashiniTranslationProvider(BhashiniConfig.from_settings(settings)))
 registry.register(GoogleTranslateProvider())
 
 route = settings.routes.get("translation", ("bhashini", "googletrans"))
