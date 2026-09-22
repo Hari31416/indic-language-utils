@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "indic-language-utils"
-version = "0.1.0"
+version = "0.2.0"
 description = "Provider-neutral foundations for Indian language applications"
 readme = "README.md"
 requires-python = ">=3.11,<3.13"
@@ -19,7 +19,7 @@ classifiers = [
   "Programming Language :: Python :: 3.12",
   "Typing :: Typed",
 ]
-dependencies = []
+dependencies = ["httpx>=0.28,<1"]
 
 [project.urls]
 Documentation = "https://github.com/indic-language-utils/indic-language-utils"
@@ -41,6 +41,7 @@ packages = ["src/indic_language_utils"]
 addopts = "-ra --strict-markers --strict-config"
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = ["live_bhashini: requires explicit Bhashini credentials and network access"]
 
 [tool.ruff]
 target-version = "py311"
@@ -53,4 +54,3 @@ select = ["E", "F", "I", "UP", "B", "ASYNC", "RUF"]
 python_version = "3.11"
 strict = true
 files = ["src", "tests"]
-

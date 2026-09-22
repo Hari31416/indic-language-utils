@@ -2,7 +2,7 @@
 
 A Python 3.11 and 3.12 library for Indian-language translation, text language detection, transliteration, speech-to-text, and text-to-speech. The project uses `uv` and will be published on PyPI as `indic-language-utils`. Its Python import is `indic_language_utils`. The code is licensed under the MIT License.
 
-Phase 0 implements the shared library foundation. The architecture and ecosystem review is in [docs/architecture-proposal.md](docs/architecture-proposal.md). Translation is specified by the [Phase 1 translation prompt](docs/phase-1-translation-prompt.md).
+Phase 0 implements the shared library foundation, and Phase 1 adds structured translation with a Bhashini adapter. The architecture and ecosystem review is in [docs/architecture-proposal.md](docs/architecture-proposal.md).
 
 The intended shape is a small core with optional provider packages. Applications should be able to start with local or low-cost providers during a proof of concept, then change routing configuration for production without rewriting text and audio handling.
 
@@ -31,4 +31,4 @@ uv run pytest
 uv build
 ```
 
-The runtime package has no third-party dependencies. See [docs/core-boundaries.md](docs/core-boundaries.md) for Phase 0's scope and [docs/adapter-author-guide.md](docs/adapter-author-guide.md) for provider integration.
+The runtime uses HTTPX for Bhashini's reusable asynchronous HTTP client. See [docs/translation.md](docs/translation.md) for translation examples, [docs/core-boundaries.md](docs/core-boundaries.md) for the shared foundation's scope, and [docs/adapter-author-guide.md](docs/adapter-author-guide.md) for provider integration.
