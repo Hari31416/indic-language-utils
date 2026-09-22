@@ -24,6 +24,7 @@ Cross-cutting requirements include structured-text preservation, bounded concurr
 Install the locked development environment with `uv sync --dev`. The usual checks are:
 
 ```console
+uv run pre-commit install
 uv run ruff format .
 uv run ruff check .
 uv run mypy

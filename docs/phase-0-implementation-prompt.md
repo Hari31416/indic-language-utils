@@ -97,4 +97,3 @@ Engineering constraints
 
 Before finishing, run formatting, linting, type checking, tests, and package build checks. Review runtime dependencies and remove unused ones. Report the public foundation API, directory structure, dependency choices, commands run, test results, and deliberate deferrals to Phase 1.
 ```
-

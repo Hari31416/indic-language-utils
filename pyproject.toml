@@ -29,6 +29,7 @@ Source = "https://github.com/indic-language-utils/indic-language-utils"
 dev = [
   "build>=1.2.2",
   "mypy>=1.15",
+  "pre-commit>=4.6.2",
   "pytest>=8.3",
   "pytest-asyncio>=0.25",
   "ruff>=0.11",
