@@ -48,7 +48,7 @@ from indic_language_utils import detect_sync
 result = detect_sync("നമസ്കാരം, സുഖമാണോ?")
 print(f"Language: {result.language}")
 print(f"Script: {result.script}")
-print(f"Confidence: {result.confidence:.2%}")
+print(f"Confidence: {result.candidates[0].confidence:.2%}")
 print(f"Provider: {result.provider.provider}")
 ```
 
@@ -64,7 +64,7 @@ from indic_language_utils import detect
 async def main() -> None:
     result = await detect("ਸਤਿ ਸ੍ਰੀ ਅਕਾਲ, ਤੁਸੀਂ ਕਿਵੇਂ ਹੋ?")
     print(f"Language: {result.language}")
-    print(f"Confidence: {result.confidence:.2%}")
+    print(f"Confidence: {result.candidates[0].confidence:.2%}")
 
 
 asyncio.run(main())

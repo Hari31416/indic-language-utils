@@ -58,7 +58,7 @@ from indic_language_utils import detect_sync
 result = detect_sync("नमस्ते भारत! आप कैसे हैं?")
 print(result.language)  # hi-IN
 print(result.script)  # Deva
-print(f"{result.confidence:.2%}")
+print(f"{result.candidates[0].confidence:.2%}")
 ```
 
 Translate text:
