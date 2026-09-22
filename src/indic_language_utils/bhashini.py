@@ -12,6 +12,7 @@ import httpx
 
 from .concurrency import ConcurrencyLimiter
 from .config import Secret, Settings
+from .detection.models import DetectionOptions, LanguageCandidate, ProviderDetectionResult
 from .errors import (
     AuthenticationError,
     ConfigurationError,
@@ -84,11 +85,12 @@ class HttpxJsonTransport:
 class BhashiniConfig:
     endpoint: str
     api_key: Secret
-    translation_service_id: str | None
+    translation_service_id: str | None = None
     translation_service_ids: Mapping[str, str] = field(default_factory=dict)
     timeout_seconds: float = 20.0
     max_concurrency: int = 8
     retry_policy: RetryPolicy = field(default_factory=RetryPolicy)
+    detection_service_id: str | None = None
 
     def __post_init__(self) -> None:
         if not self.endpoint.startswith(("https://", "http://")):
@@ -102,9 +104,9 @@ class BhashiniConfig:
                 raise ConfigurationError("Bhashini translation service selector is duplicated")
             normalized[normalized_selector] = service_id
         object.__setattr__(self, "translation_service_ids", MappingProxyType(normalized))
-        if not self.translation_service_id and not normalized:
+        if not self.translation_service_id and not normalized and not self.detection_service_id:
             raise ConfigurationError(
-                "A default or language-specific Bhashini translation service ID is required"
+                "A default or language-specific Bhashini service ID is required"
             )
         if self.timeout_seconds <= 0 or self.max_concurrency < 1:
             raise ConfigurationError("Bhashini timeout and concurrency must be positive")
@@ -115,7 +117,12 @@ class BhashiniConfig:
         try:
             endpoint = values["BHASHINI_ENDPOINT_URL"]
             api_key = Secret(values["BHASHINI_API_KEY"])
-            translation_service_id = values["BHASHINI_TRANSLATION_SERVICE_ID"]
+            translation_service_id = values.get("BHASHINI_TRANSLATION_SERVICE_ID")
+            detection_service_id = values.get("BHASHINI_DETECTION_SERVICE_ID") or values.get(
+                "BHASHINI_TLD_SERVICE_ID"
+            )
+            if translation_service_id is None and detection_service_id is None:
+                raise KeyError("BHASHINI_TRANSLATION_SERVICE_ID")
             timeout = float(values.get("BHASHINI_TIMEOUT_SECONDS", "20"))
             concurrency = int(values.get("BHASHINI_MAX_CONCURRENCY", "8"))
         except (KeyError, ValueError) as exc:
@@ -126,6 +133,7 @@ class BhashiniConfig:
             translation_service_id,
             timeout_seconds=timeout,
             max_concurrency=concurrency,
+            detection_service_id=detection_service_id,
         )
 
     @classmethod
@@ -146,6 +154,11 @@ class BhashiniConfig:
             translation_service_id = values.get("BHASHINI_TRANSLATION_SERVICE_ID") or (
                 provider.translation_service_id if provider else None
             )
+            detection_service_id = (
+                values.get("BHASHINI_DETECTION_SERVICE_ID")
+                or values.get("BHASHINI_TLD_SERVICE_ID")
+                or (provider.detection_service_id if provider else None)
+            )
             api_key = Secret(values["BHASHINI_API_KEY"])
             timeout = float(
                 values.get(
@@ -160,7 +173,11 @@ class BhashiniConfig:
                 )
             )
             translation_service_ids = provider.translation_service_ids if provider else {}
-            if endpoint is None or (translation_service_id is None and not translation_service_ids):
+            if endpoint is None or (
+                translation_service_id is None
+                and not translation_service_ids
+                and detection_service_id is None
+            ):
                 raise KeyError
         except (KeyError, ValueError) as exc:
             raise ConfigurationError("Bhashini configuration is incomplete or invalid") from exc
@@ -177,6 +194,7 @@ class BhashiniConfig:
             timeout,
             concurrency,
             retry_policy,
+            detection_service_id=detection_service_id,
         )
 
 
@@ -190,7 +208,14 @@ class BhashiniTranslationProvider:
         self._owns_transport = transport is None
         self._limiter = ConcurrencyLimiter(config.max_concurrency)
         languages = frozenset(item.tag for item in DEFAULT_LANGUAGE_REGISTRY.definitions())
-        self.capabilities = (CapabilityDeclaration(CapabilityId.TRANSLATION, languages=languages),)
+        caps: list[CapabilityDeclaration] = [
+            CapabilityDeclaration(CapabilityId.TRANSLATION, languages=languages)
+        ]
+        if config.detection_service_id:
+            caps.append(
+                CapabilityDeclaration(CapabilityId.TEXT_LANGUAGE_DETECTION, languages=languages)
+            )
+        self.capabilities = tuple(caps)
 
     async def start(self) -> None:
         if self._transport is None:
@@ -297,50 +322,25 @@ class BhashiniTranslationProvider:
             )
         return selected
 
+    async def detect_batch(
+        self,
+        texts: tuple[str, ...],
+        *,
+        options: DetectionOptions,
+        request_id: str,
+    ) -> tuple[ProviderDetectionResult, ...]:
+        if not self.config.detection_service_id:
+            raise ConfigurationError(
+                "A Bhashini detection service ID is required for language detection",
+                provider=self.identity.provider,
+                capability=CapabilityId.TEXT_LANGUAGE_DETECTION.value,
+            )
+        delegate = BhashiniDetectionProvider(self.config, transport=self._transport)
+        return await delegate.detect_batch(texts, options=options, request_id=request_id)
+
     def _raise_for_status(self, response: JsonResponse, request_id: str) -> None:
-        if response.status_code < 400:
-            return
-        if response.status_code == 401:
-            raise AuthenticationError(
-                "Bhashini authentication failed",
-                provider=self.identity.provider,
-                capability=CapabilityId.TRANSLATION.value,
-                request_id=request_id,
-            )
-        if response.status_code == 403:
-            raise PermissionDeniedError(
-                "Bhashini denied the request",
-                provider=self.identity.provider,
-                capability=CapabilityId.TRANSLATION.value,
-                request_id=request_id,
-            )
-        if response.status_code == 429:
-            raise RateLimitError(
-                "Bhashini rate limit exceeded",
-                provider=self.identity.provider,
-                capability=CapabilityId.TRANSLATION.value,
-                request_id=request_id,
-                retry_after=_retry_after(response.headers),
-            )
-        if response.status_code in {408, 504}:
-            raise ProviderTimeoutError(
-                "Bhashini request timed out",
-                provider=self.identity.provider,
-                capability=CapabilityId.TRANSLATION.value,
-                request_id=request_id,
-            )
-        if response.status_code >= 500:
-            raise TransientProviderError(
-                "Bhashini service failed",
-                provider=self.identity.provider,
-                capability=CapabilityId.TRANSLATION.value,
-                request_id=request_id,
-            )
-        raise InvalidInputError(
-            "Bhashini rejected the request",
-            provider=self.identity.provider,
-            capability=CapabilityId.TRANSLATION.value,
-            request_id=request_id,
+        _raise_bhashini_status(
+            self.identity.provider, CapabilityId.TRANSLATION, response, request_id
         )
 
     def _parse(
@@ -370,6 +370,235 @@ class BhashiniTranslationProvider:
             ) from exc
 
 
+class BhashiniDetectionProvider:
+    identity = ProviderIdentity("bhashini", "Bhashini")
+    capabilities: tuple[CapabilityDeclaration, ...]
+
+    def __init__(
+        self,
+        config: BhashiniConfig,
+        *,
+        transport: JsonTransport | None = None,
+        task_type: str = "txt-lang-detection",
+    ) -> None:
+        if not config.detection_service_id:
+            raise ConfigurationError(
+                "A Bhashini detection service ID is required for language detection"
+            )
+        self.config = config
+        self._transport = transport
+        self._owns_transport = transport is None
+        self._task_type = task_type
+        self._limiter = ConcurrencyLimiter(config.max_concurrency)
+        languages = frozenset(item.tag for item in DEFAULT_LANGUAGE_REGISTRY.definitions())
+        self.capabilities = (
+            CapabilityDeclaration(CapabilityId.TEXT_LANGUAGE_DETECTION, languages=languages),
+        )
+
+    async def start(self) -> None:
+        if self._transport is None:
+            self._transport = HttpxJsonTransport()
+
+    async def close(self) -> None:
+        if self._transport is not None and self._owns_transport:
+            await self._transport.close()
+            self._transport = None
+
+    async def __aenter__(self) -> BhashiniDetectionProvider:
+        await self.start()
+        return self
+
+    async def __aexit__(self, *_: object) -> None:
+        await self.close()
+
+    async def detect_batch(
+        self,
+        texts: tuple[str, ...],
+        *,
+        options: DetectionOptions,
+        request_id: str,
+    ) -> tuple[ProviderDetectionResult, ...]:
+        if not texts or any(not text or not text.strip() for text in texts):
+            raise InvalidInputError(
+                "Bhashini detection inputs cannot be empty",
+                provider=self.identity.provider,
+                capability=CapabilityId.TEXT_LANGUAGE_DETECTION.value,
+                request_id=request_id,
+            )
+        payload = self._payload(texts)
+        transport = self._transport
+        owns_call_transport = False
+        if transport is None:
+            transport = HttpxJsonTransport()
+            owns_call_transport = True
+
+        async def send() -> JsonResponse:
+            async with self._limiter.slot(
+                self.identity.provider, CapabilityId.TEXT_LANGUAGE_DETECTION
+            ):
+                response = await transport.post(
+                    self.config.endpoint,
+                    headers={
+                        "Authorization": self.config.api_key.reveal(),
+                        "Content-Type": "application/json",
+                    },
+                    json=payload,
+                    timeout_seconds=self.config.timeout_seconds,
+                )
+            _raise_bhashini_status(
+                self.identity.provider, CapabilityId.TEXT_LANGUAGE_DETECTION, response, request_id
+            )
+            return response
+
+        try:
+            response = await retry(send, self.config.retry_policy)
+            return self._parse(response.data, len(texts), request_id)
+        finally:
+            if owns_call_transport:
+                await transport.close()
+
+    def _payload(self, texts: tuple[str, ...]) -> dict[str, object]:
+        return {
+            "pipelineTasks": [
+                {
+                    "taskType": self._task_type,
+                    "config": {
+                        "serviceId": self.config.detection_service_id,
+                    },
+                }
+            ],
+            "inputData": {"input": [{"source": text} for text in texts]},
+        }
+
+    def _parse(
+        self, data: object, expected: int, request_id: str
+    ) -> tuple[ProviderDetectionResult, ...]:
+        try:
+            root = _mapping(data)
+            pipeline = _list(root["pipelineResponse"])
+            task = _mapping(pipeline[0])
+            raw_config = task.get("config")
+            config = _mapping(raw_config) if raw_config is not None else {}
+            model_id_value = config.get("modelId")
+            model_id = str(model_id_value) if model_id_value else None
+            output = _list(task["output"])
+            if len(output) != expected:
+                raise TypeError(f"Expected {expected} outputs, got {len(output)}")
+
+            results: list[ProviderDetectionResult] = []
+            for item in output:
+                mapping_item = _mapping(item)
+                candidates: list[LanguageCandidate] = []
+                if "langPrediction" in mapping_item:
+                    preds = _list(mapping_item["langPrediction"])
+                    for p in preds:
+                        pred_map = _mapping(p)
+                        raw_code = _string(
+                            pred_map.get("langCode")
+                            or pred_map.get("language")
+                            or pred_map.get("lang")
+                        )
+                        score = float(pred_map.get("langScore") or pred_map.get("score") or 1.0)
+                        norm_tag = (
+                            DEFAULT_LANGUAGE_REGISTRY.normalize(raw_code)
+                            if raw_code in DEFAULT_LANGUAGE_REGISTRY
+                            else LanguageTag.parse(raw_code)
+                        )
+                        candidates.append(LanguageCandidate(norm_tag, max(0.0, min(1.0, score))))
+                elif "langCode" in mapping_item or "language" in mapping_item:
+                    raw_code = _string(mapping_item.get("langCode") or mapping_item.get("language"))
+                    score = float(
+                        mapping_item.get("score") or mapping_item.get("confidence") or 1.0
+                    )
+                    norm_tag = (
+                        DEFAULT_LANGUAGE_REGISTRY.normalize(raw_code)
+                        if raw_code in DEFAULT_LANGUAGE_REGISTRY
+                        else LanguageTag.parse(raw_code)
+                    )
+                    candidates.append(LanguageCandidate(norm_tag, max(0.0, min(1.0, score))))
+                elif "target" in mapping_item:
+                    raw_code = _string(mapping_item["target"])
+                    norm_tag = (
+                        DEFAULT_LANGUAGE_REGISTRY.normalize(raw_code)
+                        if raw_code in DEFAULT_LANGUAGE_REGISTRY
+                        else LanguageTag.parse(raw_code)
+                    )
+                    candidates.append(LanguageCandidate(norm_tag, 1.0))
+                else:
+                    raise TypeError("Unrecognized language prediction format")
+
+                if not candidates:
+                    raise TypeError("No candidates parsed")
+
+                results.append(
+                    ProviderDetectionResult(
+                        candidates=tuple(candidates),
+                        model_id=model_id,
+                        request_id=request_id,
+                    )
+                )
+            return tuple(results)
+        except (KeyError, IndexError, TypeError, ValueError) as exc:
+            raise MalformedProviderResponseError(
+                "Bhashini returned a malformed detection response",
+                provider=self.identity.provider,
+                capability=CapabilityId.TEXT_LANGUAGE_DETECTION.value,
+                request_id=request_id,
+            ) from exc
+
+
+def _raise_bhashini_status(
+    provider: str,
+    capability: CapabilityId,
+    response: JsonResponse,
+    request_id: str,
+) -> None:
+    if response.status_code < 400:
+        return
+    if response.status_code == 401:
+        raise AuthenticationError(
+            "Bhashini authentication failed",
+            provider=provider,
+            capability=capability.value,
+            request_id=request_id,
+        )
+    if response.status_code == 403:
+        raise PermissionDeniedError(
+            "Bhashini denied the request",
+            provider=provider,
+            capability=capability.value,
+            request_id=request_id,
+        )
+    if response.status_code == 429:
+        raise RateLimitError(
+            "Bhashini rate limit exceeded",
+            provider=provider,
+            capability=capability.value,
+            request_id=request_id,
+            retry_after=_retry_after(response.headers),
+        )
+    if response.status_code in {408, 504}:
+        raise ProviderTimeoutError(
+            "Bhashini request timed out",
+            provider=provider,
+            capability=capability.value,
+            request_id=request_id,
+        )
+    if response.status_code >= 500:
+        raise TransientProviderError(
+            "Bhashini service failed",
+            provider=provider,
+            capability=capability.value,
+            request_id=request_id,
+        )
+    raise InvalidInputError(
+        "Bhashini rejected the request",
+        provider=provider,
+        capability=capability.value,
+        request_id=request_id,
+    )
+
+
 def bhashini_language_code(tag: LanguageTag) -> str:
     normalized = DEFAULT_LANGUAGE_REGISTRY.normalize(tag)
     return normalized.language
@@ -394,6 +623,12 @@ def _mapping(value: object) -> Mapping[str, Any]:
 
 def _list(value: object) -> list[Any]:
     if not isinstance(value, list):
+        raise TypeError
+    return value
+
+
+def _string(value: object) -> str:
+    if not isinstance(value, str):
         raise TypeError
     return value
 

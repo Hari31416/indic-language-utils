@@ -23,6 +23,7 @@ dependencies = ["httpx>=0.28,<1"]
 
 [project.optional-dependencies]
 googletrans = ["googletrans>=4.0.2"]
+local-tld = ["fasttext-langdetect>=1.1.1"]
 
 [project.urls]
 Documentation = "https://github.com/indic-language-utils/indic-language-utils"
@@ -31,6 +32,7 @@ Source = "https://github.com/indic-language-utils/indic-language-utils"
 [dependency-groups]
 dev = [
   "build>=1.2.2",
+  "fasttext-langdetect>=1.1.1",
   "googletrans>=4.0.2",
   "mypy>=1.15",
   "pre-commit>=4.6.2",

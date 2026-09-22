@@ -7,9 +7,38 @@ try:
 except PackageNotFoundError:  # pragma: no cover - source tree without installation
     __version__ = "0.0.0"
 
-from .bhashini import BhashiniConfig, BhashiniTranslationProvider
+from .bhashini import BhashiniConfig, BhashiniDetectionProvider, BhashiniTranslationProvider
 from .cache import CacheKeyBuilder, MemoryCache, NullCache, SingleFlight, SQLiteCache
-from .config import CacheSettings, ProviderSettings, RetrySettings, Settings, TelemetrySettings
+from .config import (
+    CacheSettings,
+    ProviderSettings,
+    RetrySettings,
+    Secret,
+    Settings,
+    TelemetrySettings,
+)
+from .detection import (
+    DetectionClient,
+    DetectionOptions,
+    DetectionProvider,
+    DetectionProviderMetadata,
+    DetectionRequest,
+    DetectionResult,
+    DetectionResultCodec,
+    FastTextDetectionConfig,
+    FastTextDetectionProvider,
+    LanguageCandidate,
+    ProviderDetectionResult,
+    SyncDetectionClient,
+    create_detection_cache,
+    detect,
+    detect_batch,
+    detect_batch_sync,
+    detect_script,
+    detect_sync,
+    get_detection_client,
+    get_sync_detection_client,
+)
 from .errors import LanguageUtilsError
 from .google_translate import (
     GoogletransConfig,
@@ -28,6 +57,7 @@ from .models import (
 )
 from .processors import ProcessorIdentity, VersionedProcessor
 from .providers import CapabilityDeclaration, CapabilityId, ProviderRegistry
+from .routing import OrderedRouter, RouteCandidate, RouteRequirement
 from .translation import (
     DEFAULT_TRANSLATION_PROCESSORS,
     CatalogEntry,
@@ -61,6 +91,7 @@ __all__ = [
     "DEFAULT_LANGUAGE_REGISTRY",
     "DEFAULT_TRANSLATION_PROCESSORS",
     "BhashiniConfig",
+    "BhashiniDetectionProvider",
     "BhashiniTranslationProvider",
     "CacheKeyBuilder",
     "CacheMetadata",
@@ -70,11 +101,21 @@ __all__ = [
     "CatalogEntry",
     "CatalogStatus",
     "DefaultTranslationStructureProcessor",
+    "DetectionClient",
+    "DetectionOptions",
+    "DetectionProvider",
+    "DetectionProviderMetadata",
+    "DetectionRequest",
+    "DetectionResult",
+    "DetectionResultCodec",
     "ExecutionTiming",
+    "FastTextDetectionConfig",
+    "FastTextDetectionProvider",
     "GoogleTranslateConfig",
     "GoogleTranslateProvider",
     "GoogletransConfig",
     "GoogletransTranslationProvider",
+    "LanguageCandidate",
     "LanguageRegistry",
     "LanguageTag",
     "LanguageUtilsError",
@@ -83,17 +124,23 @@ __all__ = [
     "ModelIdentity",
     "NullCache",
     "OperationContext",
+    "OrderedRouter",
     "PreparedText",
     "ProcessorIdentity",
     "ProtectedContentProcessor",
+    "ProviderDetectionResult",
     "ProviderIdentity",
     "ProviderRegistry",
     "ProviderSettings",
     "RetrySettings",
+    "RouteCandidate",
+    "RouteRequirement",
     "SQLiteCache",
+    "Secret",
     "Segment",
     "Settings",
     "SingleFlight",
+    "SyncDetectionClient",
     "SyncTranslationClient",
     "TelemetrySettings",
     "TextFormat",
@@ -109,7 +156,15 @@ __all__ = [
     "VersionedProcessor",
     "WarningInfo",
     "__version__",
+    "create_detection_cache",
     "create_translation_cache",
+    "detect",
+    "detect_batch",
+    "detect_batch_sync",
+    "detect_script",
+    "detect_sync",
+    "get_detection_client",
+    "get_sync_detection_client",
     "get_sync_translation_client",
     "get_translation_client",
     "translate",
