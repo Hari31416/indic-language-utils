@@ -117,6 +117,38 @@ max_concurrency = 8
 "en-IN>ta-IN" = "service-for-english-to-tamil"
 ```
 
+### Sarvam AI Provider
+
+The `SarvamTranslationProvider` calls the Sarvam AI translation API (`POST https://api.sarvam.ai/translate`). It supports translation between English and 22 scheduled Indian languages using Sarvam models (such as `sarvam-translate:v1` or `mayura:v1`).
+
+Environment variables:
+
+```bash
+export SARVAM_API_KEY="your-sarvam-api-key"
+export SARVAM_ENDPOINT_URL="https://api.sarvam.ai"
+export SARVAM_MODEL="sarvam-translate:v1"
+```
+
+Usage in Python:
+
+```python
+from indic_language_utils import (
+    SarvamConfig,
+    SarvamTranslationProvider,
+    Secret,
+    get_sync_translation_client,
+)
+
+config = SarvamConfig(
+    api_key=Secret("your-sarvam-api-key"),
+    model="sarvam-translate:v1",
+)
+provider = SarvamTranslationProvider(config)
+client = get_sync_translation_client(providers=[provider])
+
+result = client.translate("Hello world", "en", "hi")
+```
+
 ### Google Translate Provider
 
 The `GoogleTranslateProvider` integrates the unofficial `googletrans` package. It requires no API keys or accounts and serves as an effective provider for local development, tests, and non-critical fallbacks.

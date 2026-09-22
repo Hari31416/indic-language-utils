@@ -54,9 +54,15 @@ max_concurrency = 8
 timeout_seconds = 20.0
 max_concurrency = 4
 
+[providers.sarvam]
+endpoint = "https://api.sarvam.ai"
+model = "sarvam-translate:v1"
+timeout_seconds = 20.0
+max_concurrency = 8
+
 [routes]
-translation = ["bhashini", "googletrans"]
-text_language_detection = ["bhashini", "fasttext"]
+translation = ["sarvam", "bhashini", "googletrans"]
+text_language_detection = ["sarvam", "bhashini", "fasttext"]
 ```
 
 Relative cache paths resolve relative to the current working directory of the process. In production containers or multi-directory environments, specify an absolute path.
@@ -83,10 +89,23 @@ export BHASHINI_TIMEOUT_SECONDS="20"
 export BHASHINI_MAX_CONCURRENCY="8"
 ```
 
+Sarvam AI credentials and overrides:
+
+```bash
+# Required for Sarvam live API calls
+export SARVAM_API_KEY="your-sarvam-api-key"
+
+# Optional overrides
+export SARVAM_ENDPOINT_URL="https://api.sarvam.ai"
+export SARVAM_MODEL="sarvam-translate:v1"
+export SARVAM_TIMEOUT_SECONDS="20"
+export SARVAM_MAX_CONCURRENCY="8"
+```
+
 To quickly select an active translation provider during development without editing configuration files:
 
 ```bash
-export TRANSLATION_SERVICE_PROVIDER="googletrans"
+export TRANSLATION_SERVICE_PROVIDER="sarvam"
 ```
 
 ### Shared System Settings

@@ -203,6 +203,53 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
+### Sarvam AI Provider
+
+The `SarvamDetectionProvider` calls the Sarvam AI Language Identification API (`POST https://api.sarvam.ai/text-lid`). It identifies the language and script of input text across 22 scheduled Indian languages plus English:
+
+```bash
+export SARVAM_API_KEY="your-sarvam-api-key"
+export SARVAM_ENDPOINT_URL="https://api.sarvam.ai"
+```
+
+Programmatic instantiation:
+
+```python
+import asyncio
+from indic_language_utils import (
+    CapabilityId,
+    DetectionClient,
+    OrderedRouter,
+    ProviderRegistry,
+    SarvamConfig,
+    SarvamDetectionProvider,
+    Secret,
+)
+
+
+async def main() -> None:
+    config = SarvamConfig(
+        api_key=Secret("your-api-key"),
+        endpoint="https://api.sarvam.ai",
+        max_concurrency=8,
+    )
+    provider = SarvamDetectionProvider(config)
+    registry = ProviderRegistry()
+    registry.register(provider)
+
+    router = OrderedRouter(
+        registry,
+        {CapabilityId.TEXT_LANGUAGE_DETECTION: ("sarvam",)},
+    )
+
+    async with DetectionClient(router=router) as client:
+        result = await client.detect("தமிழ்நாடு அரசு")
+        print(f"Detected: {result.language} via {result.provider.provider}")
+
+
+asyncio.run(main())
+```
+
 ## Resilient Routing and Failover
 
 In production systems, combine cloud inference with local models to ensure uninterrupted operation during network outages:

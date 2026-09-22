@@ -28,6 +28,7 @@ Bhashini configuration, and the first detection and translation calls.
 | Provider             | Capability              | Mode               | Prerequisites                 |
 | :------------------- | :---------------------- | :----------------- | :---------------------------- |
 | **Bhashini**         | Translation, Detection  | Cloud API          | API key, Endpoint, Service ID |
+| **Sarvam AI**        | Translation, Detection  | Cloud API          | API key (`SARVAM_API_KEY`)    |
 | **FastText**         | Text Language Detection | Offline / Local    | `[local-tld]` extra           |
 | **Google Translate** | Translation             | Cloud (unofficial) | `[googletrans]` extra         |
 
@@ -56,15 +57,21 @@ translation_service_id = "default-translation-model-id"
 detection_service_id = "default-tld-model-id"
 max_concurrency = 8
 
+[providers.sarvam]
+endpoint = "https://api.sarvam.ai"
+model = "sarvam-translate:v1"
+max_concurrency = 8
+
 [routes]
-translation = ["bhashini", "googletrans"]
-text_language_detection = ["bhashini", "fasttext"]
+translation = ["sarvam", "bhashini", "googletrans"]
+text_language_detection = ["sarvam", "bhashini", "fasttext"]
 ```
 
 Supply credentials securely through environment variables:
 
 ```bash
 export BHASHINI_API_KEY="your-bhashini-api-key"
+export SARVAM_API_KEY="your-sarvam-api-key"
 ```
 
 ## Documentation
