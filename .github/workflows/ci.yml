@@ -27,4 +27,4 @@ jobs:
           uv venv "$wheel_venv"
           uv pip install --python "$wheel_venv/bin/python" dist/*.whl
           cd /tmp
-          "$wheel_venv/bin/python" -c 'import indic_language_utils; assert indic_language_utils.__version__ == "0.5.0"'
+          "$wheel_venv/bin/python" -c 'import indic_language_utils; assert indic_language_utils.__version__ == "0.1.0"'
