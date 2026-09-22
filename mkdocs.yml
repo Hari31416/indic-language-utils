@@ -34,7 +34,6 @@ nav:
   - Detection: detection.md
   - Configuration: configuration.md
   - Processors: processors.md
-  - Adapter Author Guide: adapter-author-guide.md
 
 markdown_extensions:
   - admonition
