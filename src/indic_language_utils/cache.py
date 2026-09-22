@@ -5,14 +5,26 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import os
+import sqlite3
 import time
 from collections import OrderedDict
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
-from typing import Generic, Protocol, TypeVar
+from pathlib import Path
+from typing import Generic, Protocol, TypeVar, runtime_checkable
 
 T = TypeVar("T")
 Clock = Callable[[], float]
+
+
+@runtime_checkable
+class CacheCodec(Protocol[T]):
+    """Encode cache values without tying the cache to pickle or a model library."""
+
+    def encode(self, value: T) -> bytes: ...
+
+    def decode(self, value: bytes) -> T: ...
 
 
 class AsyncCache(Protocol[T]):
@@ -92,6 +104,182 @@ class MemoryCache(Generic[T]):
     async def clear(self) -> None:
         async with self._lock:
             self._entries.clear()
+
+
+class SQLiteCache(Generic[T]):
+    """A persistent, bounded TTL/LRU cache backed by SQLite."""
+
+    def __init__(
+        self,
+        path: str | Path,
+        codec: CacheCodec[T],
+        *,
+        namespace: str = "indic-language-utils",
+        max_entries: int = 10_000,
+        default_ttl: float | None = 86_400,
+        timeout_seconds: float = 5.0,
+        clock: Clock = time.time,
+    ) -> None:
+        self._path = Path(path).expanduser().resolve()
+        if not namespace:
+            raise ValueError("Cache namespace cannot be empty")
+        if max_entries < 1 or (default_ttl is not None and default_ttl < 0):
+            raise ValueError("Cache size must be positive and TTL cannot be negative")
+        if timeout_seconds <= 0:
+            raise ValueError("SQLite timeout must be positive")
+        self._codec = codec
+        self._namespace = namespace
+        self._max_entries = max_entries
+        self._default_ttl = default_ttl
+        self._timeout_seconds = timeout_seconds
+        self._clock = clock
+        self._initialized = False
+        self._initialization_lock = asyncio.Lock()
+
+    @property
+    def path(self) -> Path:
+        return self._path
+
+    async def get(self, key: str) -> T | None:
+        await self._ensure_initialized()
+        encoded = await asyncio.to_thread(self._get_sync, key)
+        if encoded is None:
+            return None
+        try:
+            return self._codec.decode(encoded)
+        except (KeyError, TypeError, ValueError, UnicodeError, json.JSONDecodeError):
+            await self.delete(key)
+            return None
+
+    async def set(self, key: str, value: T, *, ttl: float | None = None) -> None:
+        effective_ttl = self._default_ttl if ttl is None else ttl
+        if effective_ttl is not None and effective_ttl < 0:
+            raise ValueError("TTL cannot be negative")
+        encoded = self._codec.encode(value)
+        await self._ensure_initialized()
+        await asyncio.to_thread(self._set_sync, key, encoded, effective_ttl)
+
+    async def delete(self, key: str) -> bool:
+        await self._ensure_initialized()
+        return await asyncio.to_thread(self._delete_sync, key)
+
+    async def clear(self) -> None:
+        await self._ensure_initialized()
+        await asyncio.to_thread(self._clear_sync)
+
+    async def _ensure_initialized(self) -> None:
+        if self._initialized:
+            return
+        async with self._initialization_lock:
+            if self._initialized:
+                return
+            await asyncio.to_thread(self._initialize_sync)
+            self._initialized = True
+
+    def _connect(self) -> sqlite3.Connection:
+        connection = sqlite3.connect(self._path, timeout=self._timeout_seconds)
+        connection.execute(f"PRAGMA busy_timeout = {int(self._timeout_seconds * 1_000)}")
+        return connection
+
+    def _initialize_sync(self) -> None:
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        is_new = not self._path.exists()
+        with self._connect() as connection:
+            connection.execute("PRAGMA journal_mode = WAL")
+            connection.execute("PRAGMA synchronous = NORMAL")
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS cache_entries (
+                    namespace TEXT NOT NULL,
+                    key TEXT NOT NULL,
+                    value BLOB NOT NULL,
+                    expires_at REAL,
+                    accessed_at REAL NOT NULL,
+                    PRIMARY KEY (namespace, key)
+                )
+                """
+            )
+            connection.execute(
+                """
+                CREATE INDEX IF NOT EXISTS cache_entries_expiry
+                ON cache_entries (namespace, expires_at)
+                """
+            )
+        if is_new:
+            os.chmod(self._path, 0o600)
+
+    def _get_sync(self, key: str) -> bytes | None:
+        now = self._clock()
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT value, expires_at FROM cache_entries
+                WHERE namespace = ? AND key = ?
+                """,
+                (self._namespace, key),
+            ).fetchone()
+            if row is None:
+                return None
+            value, expires_at = row
+            if expires_at is not None and expires_at <= now:
+                connection.execute(
+                    "DELETE FROM cache_entries WHERE namespace = ? AND key = ?",
+                    (self._namespace, key),
+                )
+                return None
+            connection.execute(
+                """
+                UPDATE cache_entries SET accessed_at = ?
+                WHERE namespace = ? AND key = ?
+                """,
+                (now, self._namespace, key),
+            )
+            return bytes(value)
+
+    def _set_sync(self, key: str, value: bytes, ttl: float | None) -> None:
+        now = self._clock()
+        expires_at = None if ttl is None else now + ttl
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute(
+                "DELETE FROM cache_entries WHERE namespace = ? AND expires_at <= ?",
+                (self._namespace, now),
+            )
+            connection.execute(
+                """
+                INSERT INTO cache_entries (namespace, key, value, expires_at, accessed_at)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(namespace, key) DO UPDATE SET
+                    value = excluded.value,
+                    expires_at = excluded.expires_at,
+                    accessed_at = excluded.accessed_at
+                """,
+                (self._namespace, key, value, expires_at, now),
+            )
+            connection.execute(
+                """
+                DELETE FROM cache_entries
+                WHERE namespace = ? AND key IN (
+                    SELECT key FROM cache_entries
+                    WHERE namespace = ?
+                    ORDER BY accessed_at DESC, key DESC
+                    LIMIT -1 OFFSET ?
+                )
+                """,
+                (self._namespace, self._namespace, self._max_entries),
+            )
+
+    def _delete_sync(self, key: str) -> bool:
+        with self._connect() as connection:
+            cursor = connection.execute(
+                "DELETE FROM cache_entries WHERE namespace = ? AND key = ?",
+                (self._namespace, key),
+            )
+            return cursor.rowcount > 0
+
+    def _clear_sync(self) -> None:
+        with self._connect() as connection:
+            connection.execute("DELETE FROM cache_entries WHERE namespace = ?", (self._namespace,))
 
 
 @dataclass(frozen=True, slots=True)

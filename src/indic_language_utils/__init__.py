@@ -8,7 +8,7 @@ except PackageNotFoundError:  # pragma: no cover - source tree without installat
     __version__ = "0.0.0"
 
 from .bhashini import BhashiniConfig, BhashiniTranslationProvider
-from .cache import CacheKeyBuilder, MemoryCache, NullCache, SingleFlight
+from .cache import CacheKeyBuilder, MemoryCache, NullCache, SingleFlight, SQLiteCache
 from .config import CacheSettings, ProviderSettings, RetrySettings, Settings, TelemetrySettings
 from .errors import LanguageUtilsError
 from .languages import DEFAULT_LANGUAGE_REGISTRY, LanguageRegistry, LanguageTag
@@ -31,6 +31,8 @@ from .translation import (
     TranslationOptions,
     TranslationRequest,
     TranslationResult,
+    TranslationResultCodec,
+    create_translation_cache,
 )
 
 __all__ = [
@@ -57,6 +59,7 @@ __all__ = [
     "ProviderRegistry",
     "ProviderSettings",
     "RetrySettings",
+    "SQLiteCache",
     "Settings",
     "SingleFlight",
     "SyncTranslationClient",
@@ -66,6 +69,8 @@ __all__ = [
     "TranslationOptions",
     "TranslationRequest",
     "TranslationResult",
+    "TranslationResultCodec",
     "WarningInfo",
     "__version__",
+    "create_translation_cache",
 ]

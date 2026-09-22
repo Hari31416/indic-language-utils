@@ -55,7 +55,34 @@ Rate limits, timeouts, and temporary provider failures use the shared retry poli
 
 ## Caching and catalogs
 
-Pass `MemoryCache` to opt into runtime caching. Cache identity includes the input hash, language pair, provider, service ID, options, processor versions, and catalog version. Raw input, credentials, and tenant names do not appear in cache keys.
+Caching remains off by default. Use `MemoryCache` for a process-local cache or configure `SQLiteCache` for persistence across restarts:
+
+```python
+from indic_language_utils import CacheKeyBuilder, CacheSettings, create_translation_cache
+
+cache_settings = CacheSettings(
+    enabled=True,
+    backend="sqlite",
+    path="/var/lib/indic-language-utils/translations.sqlite3",
+    namespace="my-application",
+    max_entries=50_000,
+    ttl_seconds=86_400,
+)
+cache = create_translation_cache(cache_settings)
+client = TranslationClient(
+    router,
+    cache=cache,
+    cache_keys=CacheKeyBuilder(cache_settings.namespace),
+)
+```
+
+The equivalent environment settings are `ILU_CACHE_ENABLED`, `ILU_CACHE_BACKEND`, `ILU_CACHE_PATH`, `ILU_CACHE_NAMESPACE`, `ILU_CACHE_MAX_ENTRIES`, and `ILU_CACHE_TTL_SECONDS`.
+
+The SQLite cache uses WAL mode and a busy timeout so several processes on one host can share it. Writes remove expired entries and enforce an LRU size bound. Namespaced `clear()` calls do not remove another application's entries. New database files receive owner-only permissions on POSIX systems.
+
+Cache identity includes the input hash, language pair, provider, service ID, options, processor versions, and catalog version. Raw input, credentials, and tenant names do not appear in cache keys. Persistent values use versioned JSON, not pickle. The database contains translated output and provider metadata without encryption, so place it on storage whose permissions, encryption, backup, and retention policy match the data being translated.
+
+SQLite is intended for scripts, PoCs, and single-host deployments. It is not a shared cache for multiple hosts. A network cache such as Redis remains outside the current implementation.
 
 `LocalizationCatalog` is separate reviewed data. A catalog entry applies only when its stable message ID, exact source text, source language, and target language all match, and its status is `reviewed`. The library does not replace terms inside longer sentences.
 

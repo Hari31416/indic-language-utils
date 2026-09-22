@@ -40,6 +40,7 @@ class CacheSettings:
     namespace: str = "indic-language-utils"
     max_entries: int = 1024
     ttl_seconds: float = 300.0
+    path: str = ".cache/indic-language-utils.sqlite3"
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,6 +80,7 @@ class Settings:
                 namespace=value("CACHE_NAMESPACE", "indic-language-utils"),
                 max_entries=int(value("CACHE_MAX_ENTRIES", "1024")),
                 ttl_seconds=float(value("CACHE_TTL_SECONDS", "300")),
+                path=value("CACHE_PATH", ".cache/indic-language-utils.sqlite3"),
             )
             retry_settings = RetrySettings(
                 max_attempts=int(value("RETRY_MAX_ATTEMPTS", "3")),
@@ -102,6 +104,10 @@ class Settings:
             raise ConfigurationError("retry.max_attempts must be positive")
         if self.cache.max_entries < 1 or self.cache.ttl_seconds < 0:
             raise ConfigurationError("Cache size must be positive and TTL cannot be negative")
+        if self.cache.backend not in {"null", "memory", "sqlite"}:
+            raise ConfigurationError("Cache backend must be null, memory, or sqlite")
+        if self.cache.backend == "sqlite" and not self.cache.path:
+            raise ConfigurationError("SQLite cache path cannot be empty")
         for name, provider in self.providers.items():
             if not name or provider.timeout_seconds <= 0 or provider.max_concurrency < 1:
                 raise ConfigurationError("Provider settings are invalid", provider=name or None)

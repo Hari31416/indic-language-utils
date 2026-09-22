@@ -1,5 +1,6 @@
 """Public translation API."""
 
+from .cache import TranslationResultCodec, create_translation_cache
 from .catalog import CatalogEntry, CatalogStatus, LocalizationCatalog
 from .client import TranslationClient
 from .models import (
@@ -26,4 +27,6 @@ __all__ = [
     "TranslationProviderMetadata",
     "TranslationRequest",
     "TranslationResult",
+    "TranslationResultCodec",
+    "create_translation_cache",
 ]
