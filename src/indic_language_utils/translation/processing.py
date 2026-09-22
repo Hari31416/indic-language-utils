@@ -18,7 +18,7 @@ _PROTECTED = re.compile(
 _LIST_PREFIX = re.compile(r"^(?P<prefix>[ \t]*(?:[-+*]|\d+[.)]|>)[ \t]+)(?P<body>.*)$")
 _MARKDOWN_PREFIX = re.compile(r"^(?P<prefix>[ \t]*(?:#{1,6}[ \t]+)?)(?P<body>.*)$")
 _SENTENCE_BOUNDARY = re.compile(r"(?<=[.!?।॥])\s+")
-_PLACEHOLDER = re.compile(r"\[\[ILU-P-(\d{6})\]\]")
+_PLACEHOLDER = re.compile(r"\[{1,2}\s*(?:ILU-P-|[^\d\[\]]*?)\s*(\d{6})\s*\]{1,2}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -144,7 +144,12 @@ class ProtectedContentProcessor:
         return _protect(segment)
 
     def restore(self, text: str, segment: Segment, options: TranslationOptions) -> str:
-        return restore_protected(text, segment.protected)
+        return restore_protected(
+            text,
+            segment.protected,
+            allow_reordered=options.allow_reordered_placeholders,
+            best_effort=options.best_effort,
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -254,11 +259,32 @@ def _protect(segment: Segment) -> Segment:
     )
 
 
-def restore_protected(text: str, protected: tuple[str, ...]) -> str:
-    found = tuple(int(value) for value in _PLACEHOLDER.findall(text))
-    expected = tuple(range(len(protected)))
-    if found != expected:
-        raise OutputValidationError("Protected placeholders are missing, duplicated, or reordered")
-    for index, value in enumerate(protected):
-        text = text.replace(f"[[ILU-P-{index:06d}]]", value)
+def restore_protected(
+    text: str,
+    protected: tuple[str, ...],
+    *,
+    allow_reordered: bool = True,
+    best_effort: bool = False,
+) -> str:
+    matches = list(_PLACEHOLDER.finditer(text))
+    found_indices = [int(m.group(1)) for m in matches]
+    expected_indices = set(range(len(protected)))
+
+    missing_indices = expected_indices - set(found_indices)
+    extra_indices = set(found_indices) - expected_indices
+    has_duplicates = len(found_indices) != len(set(found_indices))
+    order_invalid = not allow_reordered and tuple(found_indices) != tuple(range(len(protected)))
+
+    if (missing_indices or extra_indices or has_duplicates or order_invalid) and not best_effort:
+        raise OutputValidationError("Protected placeholders are missing, duplicated, or invalid")
+
+    for match in reversed(matches):
+        idx = int(match.group(1))
+        replacement = protected[idx] if idx < len(protected) else match.group(0)
+        text = text[: match.start()] + replacement + text[match.end() :]
+
+    if best_effort and missing_indices:
+        for idx in sorted(missing_indices):
+            text += f" {protected[idx]}"
+
     return text

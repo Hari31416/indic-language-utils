@@ -19,6 +19,8 @@ class TranslationOptions:
     text_format: TextFormat = TextFormat.PLAIN
     max_segment_characters: int = 1_000
     max_batch_items: int = 16
+    allow_reordered_placeholders: bool = True
+    best_effort: bool = False
 
     def __post_init__(self) -> None:
         if self.max_segment_characters < 1 or self.max_batch_items < 1:

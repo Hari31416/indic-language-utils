@@ -169,3 +169,15 @@ async def test_processor_identity_participates_in_cache_keys() -> None:
     result = await custom_client.translate(request)
     assert result.text == "hello"
     assert len(provider.calls) == 2
+
+
+@pytest.mark.asyncio
+async def test_best_effort_returns_source_text_with_warning_on_failure() -> None:
+    failing = FakeTranslationProvider(
+        fail_with=TransientProviderError("server down", provider="fake")
+    )
+    request = TranslationRequest("hello", EN, HI, options=TranslationOptions(best_effort=True))
+    result = await TranslationClient(router_for(failing)).translate(request)
+    assert result.text == "hello"
+    assert result.provider.provider == "fallback-source"
+    assert any(w.code == "translation_fallback" for w in result.warnings)

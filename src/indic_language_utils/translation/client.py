@@ -15,7 +15,7 @@ from ..errors import (
     RateLimitError,
     TransientProviderError,
 )
-from ..models import CacheMetadata
+from ..models import CacheMetadata, WarningInfo
 from ..providers import CapabilityId
 from ..routing import OrderedRouter, RouteRequirement
 from ..telemetry import EventLogger, MetricHook, NoOpMetrics, NoOpTracing, TraceHook
@@ -147,6 +147,24 @@ class TranslationClient:
             except _FALLBACK_ERRORS as exc:
                 last_error = exc
         if last_error is not None:
+            if request.options.best_effort:
+                return TranslationResult(
+                    request.text,
+                    request.source,
+                    request.target,
+                    TranslationProviderMetadata("fallback-source", unofficial=True),
+                    request.context.request_id,
+                    time.monotonic() - started,
+                    CacheMetadata(False, type(self._cache).__name__, self._cache_keys.version),
+                    fallback_count=fallback_count,
+                    warnings=(
+                        WarningInfo(
+                            "translation_fallback",
+                            f"Translation failed ({last_error}); "
+                            "returned source text in best-effort mode",
+                        ),
+                    ),
+                )
             raise last_error
         raise AssertionError("Router returned no candidates")
 
@@ -275,6 +293,8 @@ class TranslationClient:
                     "format": request.options.text_format.value,
                     "max_segment_characters": request.options.max_segment_characters,
                     "max_batch_items": request.options.max_batch_items,
+                    "allow_reordered_placeholders": request.options.allow_reordered_placeholders,
+                    "best_effort": request.options.best_effort,
                 },
                 "processors": self._processors.cache_identity,
                 "catalog": self._catalog.version,

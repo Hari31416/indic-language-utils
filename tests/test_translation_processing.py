@@ -29,11 +29,17 @@ def test_markdown_reconstruction_preserves_structure_and_visible_text() -> None:
     assert result == source.replace("Heading", "शीर्षक").replace("Visit", "देखें")
 
 
-def test_missing_or_reordered_placeholders_fail() -> None:
+def test_missing_or_reordered_placeholders_validation() -> None:
     with pytest.raises(OutputValidationError):
         restore_protected("missing", ("https://example.gov",))
+    # Strict order rejection when allow_reordered=False
     with pytest.raises(OutputValidationError):
-        restore_protected("[[ILU-P-000001]][[ILU-P-000000]]", ("one", "two"))
+        restore_protected("[[ILU-P-000001]][[ILU-P-000000]]", ("one", "two"), allow_reordered=False)
+    # Reordered placeholders succeed by default (natural SOV grammar)
+    assert restore_protected("[[ILU-P-000001]][[ILU-P-000000]]", ("one", "two")) == "twoone"
+    # Best-effort recovery prevents failure on missing placeholders
+    recovered = restore_protected("missing", ("https://example.gov",), best_effort=True)
+    assert "https://example.gov" in recovered
 
 
 def test_segmentation_preserves_every_character() -> None:
