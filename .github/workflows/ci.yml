@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: uv sync --locked --dev
+      - run: uv run ruff format --check .
+      - run: uv run ruff check .
+      - run: uv run mypy
+      - run: uv run pytest
+      - run: uv build
+      - name: Test the built wheel
+        run: |
+          wheel_venv="$(mktemp -d)/venv"
+          uv venv "$wheel_venv"
+          uv pip install --python "$wheel_venv/bin/python" dist/*.whl
+          cd /tmp
+          "$wheel_venv/bin/python" -c 'import indic_language_utils; assert indic_language_utils.__version__ == "0.1.0"'
