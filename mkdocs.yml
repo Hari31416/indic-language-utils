@@ -29,6 +29,7 @@ theme:
 
 nav:
   - Overview: index.md
+  - Installation and quick start: getting-started.md
   - User Guide: user-guide.md
   - Translation: translation.md
   - Detection: detection.md

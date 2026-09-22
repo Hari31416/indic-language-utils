@@ -30,6 +30,15 @@ jobs:
         with:
           enable-cache: true
 
+      - name: Verify Tag Matches Package Version
+        run: |
+          package_version="$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
+          tag_version="${GITHUB_REF_NAME#v}"
+          if [ "$tag_version" != "$package_version" ]; then
+            echo "Tag version $tag_version does not match package version $package_version."
+            exit 1
+          fi
+
       - name: Run Tests
         run: uv run pytest
 

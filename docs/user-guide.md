@@ -24,32 +24,10 @@ The library currently supports the following capabilities:
 - Multi-Backend Caching: Caches operation results in process memory or persistent SQLite databases with WAL mode and size limits.
 - Structured Content Protection: Isolates headings, bullet markers, code spans, links, and formatting before invoking neural translation.
 
-## Installation and Optional Dependencies
+## Installation
 
-The core package provides shared abstractions, Bhashini cloud adapters, and script detection with minimal dependencies:
-
-```console
-pip install indic-language-utils
-```
-
-Optional dependency extras add local machine learning models or third-party web adapters:
-
-```console
-# Local FastText language detection
-pip install "indic-language-utils[local-tld]"
-
-# Unofficial Google Translate adapter
-pip install "indic-language-utils[googletrans]"
-
-# All optional adapters
-pip install "indic-language-utils[local-tld,googletrans]"
-```
-
-When using `uv` in development or deployment environments:
-
-```console
-uv add "indic-language-utils[local-tld,googletrans]"
-```
+See the [installation and quick start guide](getting-started.md) for provider extras, a
+credential-free development setup, Bhashini environment variables, and working examples.
 
 ## Supported Providers
 
@@ -59,7 +37,8 @@ The system provides built-in adapters for multiple local and cloud providers:
 - FastText: Offline, high-speed language detection using Facebook's compressed language identification model (`lid.176.ftz`). Requires no network access or credentials.
 - Google Translate: Unofficial translation adapter powered by `googletrans`, useful for local development and testing without credentials.
 
-Custom adapters can be created and registered by implementing the provider protocols defined in [adapter-author-guide.md](adapter-author-guide.md).
+Custom adapters can be registered by implementing the translation or detection provider protocols
+and adding their capability declarations to a `ProviderRegistry`.
 
 ## Language Tags and Registry
 
@@ -252,4 +231,3 @@ Explore the detailed capability guides for practical recipes and API references:
 - [detection.md](detection.md): Comprehensive guide to text language detection, script identification, and candidate ranking.
 - [configuration.md](configuration.md): Complete configuration file format, precedence rules, and environment variables.
 - [processors.md](processors.md): Deep dive into translation processor pipelines and custom segment processors.
-- [adapter-author-guide.md](adapter-author-guide.md): Guide to authoring and contributing new provider adapters.

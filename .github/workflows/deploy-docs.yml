@@ -39,7 +39,7 @@ jobs:
         run: uv sync --group docs
 
       - name: Build Docs
-        run: uv run mkdocs build --clean
+        run: uv run mkdocs build --clean --strict
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

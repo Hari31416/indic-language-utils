@@ -16,134 +16,12 @@ Provider-neutral foundations for Indian language operations in Python.
 - Canonical Normalization: Shared language registry recognizing all 22 Eighth Schedule Indian languages plus English, mapping aliases and regional codes to BCP 47.
 - Localization Catalogs: Match reviewed human translations for critical UI strings before dispatching to neural engines.
 
-## Installation
+## Getting started
 
-Install the core package using `pip`:
-
-```bash
-pip install indic-language-utils
-```
-
-Or with `uv`:
-
-```bash
-uv add indic-language-utils
-```
-
-### Optional Dependency Extras
-
-Install optional provider packages based on your requirements:
-
-```bash
-# Local offline FastText language detection
-pip install "indic-language-utils[local-tld]"
-
-# Unofficial Google Translate adapter
-pip install "indic-language-utils[googletrans]"
-
-# All optional adapters
-pip install "indic-language-utils[local-tld,googletrans]"
-```
-
-## Quick Start
-
-### Text Language and Script Detection
-
-Detect natural language and script synchronously:
-
-```python
-from indic_language_utils import detect_sync
-
-result = detect_sync("नमस्ते भारत! आप कैसे हैं?")
-print(f"Language: {result.language}")  # hi-IN
-print(f"Script: {result.script}")  # Deva
-print(f"Confidence: {result.confidence:.2%}")
-```
-
-Inspect multiple candidate predictions and scores:
-
-```python
-from indic_language_utils import DetectionOptions, detect_sync
-
-options = DetectionOptions(max_candidates=3, threshold=0.05)
-result = detect_sync("தமிழ்நாடு அரசு தலைமைச் செயலகம்", options=options)
-
-for candidate in result.candidates:
-    print(f"- {candidate.language} ({candidate.script}): {candidate.confidence:.2%}")
-```
-
-### Text Translation
-
-Translate single strings with automatic language code normalization:
-
-```python
-from indic_language_utils import translate_sync
-
-result = translate_sync("Welcome to digital governance services.", "en", "hi")
-print(result.text)  # डिजिटल शासन सेवाओं में आपका स्वागत है।
-```
-
-Translate in asynchronous applications:
-
-```python
-import asyncio
-from indic_language_utils import translate
-
-
-async def main() -> None:
-    result = await translate("How can I help you today?", "en", "ta")
-    print(result.text)
-
-
-asyncio.run(main())
-```
-
-### Batch Processing
-
-Process multiple texts while guaranteeing input order:
-
-```python
-from indic_language_utils import translate_batch_sync
-
-inputs = [
-    "Please verify your mobile number.",
-    "An OTP has been sent to your registered device.",
-    "Do not share your credentials with anyone.",
-]
-
-results = translate_batch_sync(inputs, "en", "hi")
-for src, res in zip(inputs, results, strict=True):
-    print(f"{src} -> {res.text}")
-```
-
-### Markdown Translation with Protected Content
-
-Preserve Markdown layout, URLs, inline code, and code blocks using `TextFormat.MARKDOWN` and `best_effort=True`:
-
-````python
-from indic_language_utils import TextFormat, TranslationOptions, translate_sync
-
-markdown_input = """# Citizen Registration Portal
-
-Please keep the following information ready:
-- Application Reference: `APP-9021-X`
-- Portal Link: [National Portal](https://services.india.gov.in)
-- Verification Code: `4488`
-
-```bash
-curl -X GET https://api.example.gov.in/status
-```
-
-Submit your grievance before the deadline."""
-
-options = TranslationOptions(
-    text_format=TextFormat.MARKDOWN,
-    best_effort=True,
-)
-
-result = translate_sync(markdown_input, "en", "hi", options=options)
-print(result.text)
-````
+Install the core package with `pip install indic-language-utils`. Provider selection is explicit,
+and local detection requires an optional extra. The
+[installation and quick start guide](docs/getting-started.md) covers a credential-free setup,
+Bhashini configuration, and the first detection and translation calls.
 
 ## Supported Providers
 
@@ -193,12 +71,12 @@ export BHASHINI_API_KEY="your-bhashini-api-key"
 
 Comprehensive guides are available in the documentation site:
 
+- [Installation and Quick Start](docs/getting-started.md): Provider setup and first calls.
 - [User Guide](docs/user-guide.md): Architecture overview, core capabilities, and usage styles.
 - [Translation Guide](docs/translation.md): Synchronous and asynchronous translation, Markdown preservation, and catalogs.
 - [Detection Guide](docs/detection.md): Local FastText and cloud Bhashini detection, script analysis, and candidate scoring.
 - [Configuration Reference](docs/configuration.md): Project TOML file formats, precedence rules, and environment variables.
 - [Processor Pipelines](docs/processors.md): Structural processors, segment processors, and custom pipeline authoring.
-- [Adapter Author Guide](docs/adapter-author-guide.md): Implementing and contributing new provider adapters.
 - [Architecture Proposal](plans/architecture-proposal.md): Design philosophy and ecosystem review.
 - [Changelog](CHANGELOG.md): Release history adhering to Keep a Changelog.
 
