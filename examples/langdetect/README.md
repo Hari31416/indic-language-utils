@@ -5,6 +5,7 @@ This directory provides working examples of text language detection (TLD) using 
 ## Available Examples
 
 - [fasttext_demo.py](fasttext_demo.py) - Offline, high-speed language and script detection using FastText (`lid.176.ftz`).
+- [sarvam_demo.py](sarvam_demo.py) - Cloud-based language and script identification using Sarvam AI.
 - [bhashini_demo.py](bhashini_demo.py) - Cloud-based language identification using the Government of India Bhashini ecosystem.
 - [multi_service_demo.py](multi_service_demo.py) - Resilient multi-provider routing with automatic cloud-to-local failover, `SingleFlight` deduplication, and caching.
 
@@ -14,6 +15,12 @@ For local FastText detection, install the optional `local-tld` dependency group:
 
 ```bash
 uv sync --extra local-tld
+```
+
+For live Sarvam AI inference:
+
+```bash
+SARVAM_API_KEY="your-sarvam-api-key"
 ```
 
 For live Bhashini inference, ensure your credentials are set in `.env` or your shell:
@@ -29,6 +36,12 @@ Run the FastText local detection demo (no API keys required):
 
 ```bash
 uv run python examples/langdetect/fasttext_demo.py
+```
+
+Run the Sarvam AI cloud detection demo:
+
+```bash
+uv run --env-file .env python examples/langdetect/sarvam_demo.py
 ```
 
 Run the Bhashini cloud detection demo:

@@ -18,6 +18,12 @@ To execute the runnable demo script against live Bhashini inference:
 uv run --env-file .env python examples/translation/demo.py
 ```
 
+To execute the Sarvam AI translation demo:
+
+```bash
+uv run --env-file .env python examples/translation/sarvam_demo.py
+```
+
 To execute the Google Translate demo without requiring any API keys:
 
 ```bash
