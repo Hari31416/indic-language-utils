@@ -100,3 +100,62 @@ def test_get_translation_client_bhashini_registration() -> None:
         },
     )
     assert "bhashini" in [p.identity.provider for p in client.router.registry.all()]
+
+
+def test_get_translation_client_googletrans_registration() -> None:
+    client = get_translation_client(env={"TRANSLATION_SERVICE_PROVIDER": "googletrans"})
+    assert "googletrans" in [p.identity.provider for p in client.router.registry.all()]
+
+
+def test_get_translation_client_bhashini_and_googletrans_fallback_order() -> None:
+    env = {
+        "BHASHINI_ENDPOINT_URL": "https://example.com/bhashini",
+        "BHASHINI_API_KEY": "dummy-key",
+        "BHASHINI_TRANSLATION_SERVICE_ID": "service-1",
+    }
+    settings = Settings.load(env=env)
+    client = get_translation_client(settings, env=env)
+    provider_names = [p.identity.provider for p in client.router.registry.all()]
+    assert "bhashini" in provider_names
+    assert "googletrans" in provider_names
+
+    from indic_language_utils.providers import CapabilityId
+    from indic_language_utils.routing import RouteRequirement
+
+    candidates = client.router.candidates(RouteRequirement(CapabilityId.TRANSLATION))
+    assert tuple(c.provider.identity.provider for c in candidates) == ("bhashini", "googletrans")
+
+
+def test_get_translation_client_translation_service_provider_override() -> None:
+    env = {
+        "BHASHINI_ENDPOINT_URL": "https://example.com/bhashini",
+        "BHASHINI_API_KEY": "dummy-key",
+        "BHASHINI_TRANSLATION_SERVICE_ID": "service-1",
+        "TRANSLATION_SERVICE_PROVIDER": "googletrans",
+    }
+    settings = Settings.load(env=env)
+    client = get_translation_client(settings, env=env)
+
+    from indic_language_utils.providers import CapabilityId
+    from indic_language_utils.routing import RouteRequirement
+
+    candidates = client.router.candidates(RouteRequirement(CapabilityId.TRANSLATION))
+    assert tuple(c.provider.identity.provider for c in candidates) == ("googletrans", "bhashini")
+
+
+def test_get_translation_client_googletrans_not_selected() -> None:
+    from indic_language_utils.config import ProviderSettings
+
+    settings = Settings(
+        providers={"bhashini": ProviderSettings(endpoint="https://example.com")},
+        routes={"translation": ("bhashini",)},
+    )
+    env = {
+        "BHASHINI_ENDPOINT_URL": "https://example.com/bhashini",
+        "BHASHINI_API_KEY": "dummy-key",
+        "BHASHINI_TRANSLATION_SERVICE_ID": "service-1",
+    }
+    client = get_translation_client(settings, env=env)
+    provider_names = [p.identity.provider for p in client.router.registry.all()]
+    assert "bhashini" in provider_names
+    assert "googletrans" not in provider_names

@@ -11,6 +11,12 @@ from .bhashini import BhashiniConfig, BhashiniTranslationProvider
 from .cache import CacheKeyBuilder, MemoryCache, NullCache, SingleFlight, SQLiteCache
 from .config import CacheSettings, ProviderSettings, RetrySettings, Settings, TelemetrySettings
 from .errors import LanguageUtilsError
+from .google_translate import (
+    GoogletransConfig,
+    GoogleTranslateConfig,
+    GoogleTranslateProvider,
+    GoogletransTranslationProvider,
+)
 from .languages import DEFAULT_LANGUAGE_REGISTRY, LanguageRegistry, LanguageTag
 from .models import (
     CacheMetadata,
@@ -65,6 +71,10 @@ __all__ = [
     "CatalogStatus",
     "DefaultTranslationStructureProcessor",
     "ExecutionTiming",
+    "GoogleTranslateConfig",
+    "GoogleTranslateProvider",
+    "GoogletransConfig",
+    "GoogletransTranslationProvider",
     "LanguageRegistry",
     "LanguageTag",
     "LanguageUtilsError",

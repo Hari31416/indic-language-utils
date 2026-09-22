@@ -23,5 +23,9 @@ translation_service_id = "ai4bharat/indictrans-v2-all-gpu--t4"
 timeout_seconds = 20.0
 max_concurrency = 8
 
+[providers.googletrans]
+timeout_seconds = 20.0
+max_concurrency = 4
+
 [routes]
-translation = ["bhashini"]
+translation = ["bhashini", "googletrans"]

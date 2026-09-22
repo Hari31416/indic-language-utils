@@ -18,6 +18,12 @@ To execute the runnable demo script against live Bhashini inference:
 uv run --env-file .env python examples/translation/demo.py
 ```
 
+To execute the Google Translate demo without requiring any API keys:
+
+```console
+uv run python examples/translation/googletrans_demo.py
+```
+
 ## Quick One-Liner Translation
 
 For quick translation without manual initialization, use `translate_sync` or `translate`:
@@ -95,6 +101,38 @@ client = get_sync_translation_client()
 result = client.translate("Thank you for your feedback.", "en", "hi")
 print(result.text)  # आपकी प्रतिक्रिया के लिए धन्यवाद।
 ```
+
+## Google Translate Provider
+
+You can also use the unofficial Google Translate provider (`googletrans`) directly without requiring any API keys:
+
+```python
+from indic_language_utils import GoogleTranslateProvider, get_sync_translation_client
+
+provider = GoogleTranslateProvider()
+client = get_sync_translation_client(providers=[provider])
+result = client.translate("Welcome to India!", "en", "hi")
+print(result.text)
+```
+
+Alternatively, select it as the active translation service provider via environment variable:
+
+```bash
+export TRANSLATION_SERVICE_PROVIDER="googletrans"
+```
+
+Or configure it as a fallback in `.indic-language-utils.toml`:
+
+```toml
+[providers.googletrans]
+timeout_seconds = 20.0
+max_concurrency = 4
+
+[routes]
+translation = ["bhashini", "googletrans"]
+```
+
+See [googletrans_demo.py](googletrans_demo.py) for complete runnable examples.
 
 ## Multi-Language Translation
 

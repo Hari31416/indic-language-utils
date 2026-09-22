@@ -7,7 +7,7 @@ import os
 from collections.abc import Mapping, Sequence
 
 from ..config import Settings
-from ..errors import ConfigurationError, InvalidInputError
+from ..errors import ConfigurationError, InvalidInputError, MissingOptionalDependencyError
 from ..languages import LanguageTag
 from ..providers import CapabilityId, ProviderRegistry
 from ..routing import OrderedRouter
@@ -49,6 +49,25 @@ def get_translation_client(
             except ConfigurationError:
                 pass
 
+        has_googletrans = (
+            "googletrans" in settings.providers
+            or any("googletrans" in p_list for p_list in settings.routes.values())
+            or env_map.get("TRANSLATION_SERVICE_PROVIDER") in {"googletrans", "google"}
+        )
+        if has_googletrans:
+            try:
+                from ..google_translate import (
+                    HAVE_GOOGLETRANS,
+                    GoogleTranslateConfig,
+                    GoogleTranslateProvider,
+                )
+
+                if HAVE_GOOGLETRANS:
+                    gt_config = GoogleTranslateConfig.from_settings(settings, env=env)
+                    registry.register(GoogleTranslateProvider(gt_config))
+            except (ConfigurationError, MissingOptionalDependencyError):
+                pass
+
     registered_names = {p.identity.provider for p in registry.all()}
     routes: dict[CapabilityId, tuple[str, ...]] = {}
     if providers is not None:
@@ -69,12 +88,26 @@ def get_translation_client(
             except ValueError:
                 pass
 
+        env_map = os.environ if env is None else env
+        active_service = env_map.get("TRANSLATION_SERVICE_PROVIDER")
+        if active_service in registered_names and CapabilityId.TRANSLATION in routes:
+            current_route = routes[CapabilityId.TRANSLATION]
+            routes[CapabilityId.TRANSLATION] = (
+                active_service,
+                *(p for p in current_route if p != active_service),
+            )
+
         if CapabilityId.TRANSLATION not in routes or not routes[CapabilityId.TRANSLATION]:
             trans_providers = tuple(
                 p.identity.provider
                 for p in registry.all()
                 if registry.declaration(p.identity.provider, CapabilityId.TRANSLATION) is not None
             )
+            if active_service in registered_names and trans_providers:
+                trans_providers = (
+                    active_service,
+                    *(p for p in trans_providers if p != active_service),
+                )
             if trans_providers:
                 routes[CapabilityId.TRANSLATION] = trans_providers
 
