@@ -349,7 +349,8 @@ class BhashiniTranslationProvider:
             translations = tuple(str(_mapping(item)["target"]) for item in output)
             if not translations or any(not value.strip() for value in translations):
                 raise TypeError
-            config = _mapping(task.get("config", {}))
+            raw_config = task.get("config")
+            config = _mapping(raw_config) if raw_config is not None else {}
             model_id_value = config.get("modelId")
             model_id = str(model_id_value) if model_id_value else None
             return translations, model_id

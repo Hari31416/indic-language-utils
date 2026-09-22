@@ -12,7 +12,7 @@ from indic_language_utils.bhashini import (
     JsonResponse,
     bhashini_language_code,
 )
-from indic_language_utils.config import Secret
+from indic_language_utils.config import Secret, Settings
 from indic_language_utils.errors import (
     AuthenticationError,
     ConfigurationError,
@@ -212,23 +212,25 @@ def test_mapping_only_config_rejects_unconfigured_pair() -> None:
         )
 
 
+def _live_bhashini_config() -> BhashiniConfig | None:
+    if not os.environ.get("BHASHINI_API_KEY"):
+        return None
+    try:
+        return BhashiniConfig.from_settings(Settings.load())
+    except Exception:
+        return None
+
+
 @pytest.mark.live_bhashini
 @pytest.mark.skipif(
-    not all(
-        os.environ.get(name)
-        for name in ("BHASHINI_ENDPOINT_URL", "BHASHINI_API_KEY", "BHASHINI_TRANSLATION_SERVICE_ID")
-    ),
-    reason="live Bhashini credentials are not configured",
+    _live_bhashini_config() is None,
+    reason="live Bhashini credentials or settings are not configured",
 )
 @pytest.mark.asyncio
 async def test_live_bhashini_translation() -> None:
-    provider = BhashiniTranslationProvider(
-        BhashiniConfig(
-            os.environ["BHASHINI_ENDPOINT_URL"],
-            Secret(os.environ["BHASHINI_API_KEY"]),
-            os.environ["BHASHINI_TRANSLATION_SERVICE_ID"],
-        )
-    )
+    config = _live_bhashini_config()
+    assert config is not None
+    provider = BhashiniTranslationProvider(config)
     async with provider:
         result = await provider.translate_batch(
             ("Hello",),

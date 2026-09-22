@@ -1,0 +1,27 @@
+[cache]
+enabled = true
+backend = "sqlite"
+path = ".cache/translations.sqlite3"
+namespace = "nyaya-setu"
+max_entries = 50000
+ttl_seconds = 86400
+
+[retry]
+max_attempts = 3
+base_delay_seconds = 0.5
+max_delay_seconds = 2.0
+
+[telemetry]
+logging_enabled = true
+metrics_enabled = true
+traces_enabled = true
+include_content = false
+
+[providers.bhashini]
+endpoint = "https://dhruva-api.bhashini.gov.in/services/inference/pipeline"
+translation_service_id = "ai4bharat/indictrans-v2-all-gpu--t4"
+timeout_seconds = 20.0
+max_concurrency = 8
+
+[routes]
+translation = ["bhashini"]
