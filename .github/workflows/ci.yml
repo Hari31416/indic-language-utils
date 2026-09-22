@@ -23,8 +23,9 @@ jobs:
       - run: uv build
       - name: Test the built wheel
         run: |
+          expected_version="$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
           wheel_venv="$(mktemp -d)/venv"
           uv venv "$wheel_venv"
           uv pip install --python "$wheel_venv/bin/python" dist/*.whl
           cd /tmp
-          "$wheel_venv/bin/python" -c 'import indic_language_utils; assert indic_language_utils.__version__ == "0.1.0"'
+          EXPECTED_VERSION="$expected_version" "$wheel_venv/bin/python" -c 'import os; import indic_language_utils; assert indic_language_utils.__version__ == os.environ["EXPECTED_VERSION"]'

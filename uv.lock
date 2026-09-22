@@ -366,7 +366,7 @@ wheels = [
 
 [[package]]
 name = "indic-language-utils"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },
