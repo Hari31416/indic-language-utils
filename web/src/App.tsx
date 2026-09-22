@@ -80,7 +80,7 @@ export const App: React.FC = () => {
               API Docs
             </a>
             <a
-              href="https://github.com/indic-language-utils/indic-language-utils"
+              href="https://github.com/hari31416/indic-language-utils"
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 bg-slate-800/80 hover:bg-slate-700 hover:text-white transition"
