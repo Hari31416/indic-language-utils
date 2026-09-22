@@ -1,0 +1,47 @@
+site_name: indic-language-utils
+site_description: Provider-neutral foundations for Indian language applications
+site_author: indic-language-utils contributors
+repo_url: https://github.com/indic-language-utils/indic-language-utils
+repo_name: indic-language-utils/indic-language-utils
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+
+nav:
+  - Overview: index.md
+  - User Guide: user-guide.md
+  - Translation: translation.md
+  - Detection: detection.md
+  - Configuration: configuration.md
+  - Processors: processors.md
+  - Adapter Author Guide: adapter-author-guide.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - tables
+  - attr_list

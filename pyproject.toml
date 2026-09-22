@@ -40,6 +40,10 @@ dev = [
   "pytest-asyncio>=0.25",
   "ruff>=0.11",
 ]
+docs = [
+    "mkdocs>=1.6.1",
+    "mkdocs-material>=9.7.7",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/indic_language_utils"]
