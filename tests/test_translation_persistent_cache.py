@@ -28,13 +28,20 @@ async def test_translation_result_codec_round_trip(tmp_path: Path) -> None:
     result = await TranslationClient(router_for(provider)).translate(
         TranslationRequest("private source", EN, HI)
     )
+    encoded = TranslationResultCodec().encode(result)
+    assert b"private source" in encoded
+    decoded = TranslationResultCodec().decode(encoded)
+    assert decoded == result
+    assert decoded.source_text == "private source"
+
     cache: SQLiteCache[TranslationResult] = SQLiteCache(
         tmp_path / "translations.sqlite3", TranslationResultCodec()
     )
     await cache.set("key", result)
     restored = await cache.get("key")
     assert restored == result
-    assert b"private source" not in cache.path.read_bytes()
+    assert restored is not None
+    assert restored.source_text == "private source"
 
 
 @pytest.mark.asyncio

@@ -200,6 +200,7 @@ class TranslationClient:
                 request.context.request_id,
                 time.monotonic() - started,
                 CacheMetadata(True, "catalog", self._cache_keys.version),
+                source_text=request.text,
             )
         if request.source == request.target:
             return TranslationResult(
@@ -210,6 +211,7 @@ class TranslationClient:
                 request.context.request_id,
                 time.monotonic() - started,
                 CacheMetadata(False, "none", self._cache_keys.version),
+                source_text=request.text,
             )
 
         candidates = self._router.candidates(
@@ -275,6 +277,7 @@ class TranslationClient:
                             "returned source text in best-effort mode",
                         ),
                     ),
+                    source_text=request.text,
                 )
             raise last_error
         raise AssertionError("Router returned no candidates")
@@ -299,6 +302,7 @@ class TranslationClient:
                 time.monotonic() - started,
                 CacheMetadata(False, type(self._cache).__name__, self._cache_keys.version),
                 fallback_count,
+                source_text=request.text,
             )
             await self._cache.set(key, result)
             return result
@@ -331,6 +335,7 @@ class TranslationClient:
             CacheMetadata(False, type(self._cache).__name__, self._cache_keys.version),
             fallback_count,
             metadata.warnings,
+            source_text=request.text,
         )
         await self._cache.set(key, result)
         attributes = {

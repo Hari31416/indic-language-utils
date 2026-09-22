@@ -23,6 +23,7 @@ class TranslationResultCodec(CacheCodec[TranslationResult]):
         payload = {
             "schema_version": self.schema_version,
             "text": value.text,
+            "source_text": value.source_text,
             "source": str(value.source),
             "target": str(value.target),
             "provider": {
@@ -78,6 +79,7 @@ class TranslationResultCodec(CacheCodec[TranslationResult]):
                 WarningInfo(_string(_mapping(item)["code"]), _string(_mapping(item)["message"]))
                 for item in warning_values
             ),
+            source_text=_string(payload.get("source_text", "")),
         )
 
 

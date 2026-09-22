@@ -92,3 +92,4 @@ class TranslationResult:
     cache: CacheMetadata
     fallback_count: int = 0
     warnings: tuple[WarningInfo, ...] = ()
+    source_text: str = ""
