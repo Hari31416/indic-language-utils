@@ -182,6 +182,7 @@ class BhashiniConfig:
 
 class BhashiniTranslationProvider:
     identity = ProviderIdentity("bhashini", "Bhashini")
+    capabilities: tuple[CapabilityDeclaration, ...]
 
     def __init__(self, config: BhashiniConfig, *, transport: JsonTransport | None = None) -> None:
         self.config = config
@@ -223,15 +224,17 @@ class BhashiniTranslationProvider:
                 capability=CapabilityId.TRANSLATION.value,
                 request_id=request_id,
             )
-        if self._transport is None:
-            raise ConfigurationError("Bhashini provider must be started before use")
         payload = self._payload(texts, source, target)
         service_id = self.service_id_for(source, target)
+        transport = self._transport
+        owns_call_transport = False
+        if transport is None:
+            transport = HttpxJsonTransport()
+            owns_call_transport = True
 
         async def send() -> JsonResponse:
-            assert self._transport is not None
             async with self._limiter.slot(self.identity.provider, CapabilityId.TRANSLATION):
-                response = await self._transport.post(
+                response = await transport.post(
                     self.config.endpoint,
                     headers={
                         "Authorization": self.config.api_key.reveal(),
@@ -243,15 +246,19 @@ class BhashiniTranslationProvider:
             self._raise_for_status(response, request_id)
             return response
 
-        response = await retry(send, self.config.retry_policy)
-        translations, model_id = self._parse(response.data, len(texts), request_id)
-        provider_request_id = _header(response.headers, "x-request-id")
-        return ProviderTranslationResult(
-            translations,
-            service_id=service_id,
-            model_id=model_id,
-            request_id=provider_request_id,
-        )
+        try:
+            response = await retry(send, self.config.retry_policy)
+            translations, model_id = self._parse(response.data, len(texts), request_id)
+            provider_request_id = _header(response.headers, "x-request-id")
+            return ProviderTranslationResult(
+                translations,
+                service_id=service_id,
+                model_id=model_id,
+                request_id=provider_request_id,
+            )
+        finally:
+            if owns_call_transport:
+                await transport.close()
 
     def _payload(
         self, texts: tuple[str, ...], source: LanguageTag, target: LanguageTag

@@ -1,0 +1,186 @@
+"""User-friendly entry points and factory functions for translation."""
+
+from __future__ import annotations
+
+import asyncio
+import os
+from collections.abc import Mapping, Sequence
+
+from ..config import Settings
+from ..errors import ConfigurationError, InvalidInputError
+from ..languages import LanguageTag
+from ..providers import CapabilityId, ProviderRegistry
+from ..routing import OrderedRouter
+from .cache import create_translation_cache
+from .client import TranslationClient
+from .models import TranslationOptions, TranslationResult
+from .protocols import TranslationProvider
+from .sync import SyncTranslationClient
+
+
+def get_translation_client(
+    settings: Settings | None = None,
+    *,
+    providers: Sequence[TranslationProvider] | None = None,
+    env: Mapping[str, str] | None = None,
+) -> TranslationClient:
+    """Build and configure a TranslationClient with providers, routes, and cache.
+
+    If settings are not provided, they are loaded from discovered configuration files
+    and the environment. If providers are not provided, built-in providers (such as
+    Bhashini) are registered if configured or if their credentials exist in the environment.
+    """
+    if settings is None:
+        settings = Settings.load(env=env)
+
+    registry = ProviderRegistry()
+    if providers is not None:
+        for provider in providers:
+            registry.register(provider)
+    else:
+        env_map = os.environ if env is None else env
+        has_bhashini = "bhashini" in settings.providers or "BHASHINI_API_KEY" in env_map
+        if has_bhashini:
+            try:
+                from ..bhashini import BhashiniConfig, BhashiniTranslationProvider
+
+                bhashini_config = BhashiniConfig.from_settings(settings, env=env)
+                registry.register(BhashiniTranslationProvider(bhashini_config))
+            except ConfigurationError:
+                pass
+
+    registered_names = {p.identity.provider for p in registry.all()}
+    routes: dict[CapabilityId, tuple[str, ...]] = {}
+    if providers is not None:
+        trans_providers = tuple(
+            p.identity.provider
+            for p in registry.all()
+            if registry.declaration(p.identity.provider, CapabilityId.TRANSLATION) is not None
+        )
+        if trans_providers:
+            routes[CapabilityId.TRANSLATION] = trans_providers
+    else:
+        for cap_str, provider_names in settings.routes.items():
+            try:
+                cap_id = CapabilityId(cap_str)
+                valid_names = tuple(name for name in provider_names if name in registered_names)
+                if valid_names:
+                    routes[cap_id] = valid_names
+            except ValueError:
+                pass
+
+        if CapabilityId.TRANSLATION not in routes or not routes[CapabilityId.TRANSLATION]:
+            trans_providers = tuple(
+                p.identity.provider
+                for p in registry.all()
+                if registry.declaration(p.identity.provider, CapabilityId.TRANSLATION) is not None
+            )
+            if trans_providers:
+                routes[CapabilityId.TRANSLATION] = trans_providers
+
+    router = OrderedRouter(registry, routes)
+    cache = create_translation_cache(settings.cache)
+    return TranslationClient(router=router, cache=cache)
+
+
+def get_sync_translation_client(
+    settings: Settings | None = None,
+    *,
+    providers: Sequence[TranslationProvider] | None = None,
+    env: Mapping[str, str] | None = None,
+) -> SyncTranslationClient:
+    """Build and configure a synchronous TranslationClient facade."""
+    return SyncTranslationClient(
+        get_translation_client(settings=settings, providers=providers, env=env)
+    )
+
+
+async def translate(
+    text: str,
+    source: str | LanguageTag,
+    target: str | LanguageTag,
+    *,
+    options: TranslationOptions | None = None,
+    settings: Settings | None = None,
+    providers: Sequence[TranslationProvider] | None = None,
+    env: Mapping[str, str] | None = None,
+) -> TranslationResult:
+    """Translate a single text using a managed async TranslationClient lifecycle."""
+    async with get_translation_client(settings=settings, providers=providers, env=env) as client:
+        return await client.translate(text, source, target, options=options)
+
+
+def translate_sync(
+    text: str,
+    source: str | LanguageTag,
+    target: str | LanguageTag,
+    *,
+    options: TranslationOptions | None = None,
+    settings: Settings | None = None,
+    providers: Sequence[TranslationProvider] | None = None,
+    env: Mapping[str, str] | None = None,
+) -> TranslationResult:
+    """Translate a single text synchronously using a managed client lifecycle."""
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(
+            translate(
+                text,
+                source,
+                target,
+                options=options,
+                settings=settings,
+                providers=providers,
+                env=env,
+            )
+        )
+    raise InvalidInputError(
+        "translate_sync cannot run inside an active event loop; use await translate(...)"
+    )
+
+
+async def translate_batch(
+    texts: Sequence[str],
+    source: str | LanguageTag,
+    target: str | LanguageTag,
+    *,
+    options: TranslationOptions | None = None,
+    settings: Settings | None = None,
+    providers: Sequence[TranslationProvider] | None = None,
+    env: Mapping[str, str] | None = None,
+) -> tuple[TranslationResult, ...]:
+    """Translate multiple texts using a managed async TranslationClient lifecycle."""
+    async with get_translation_client(settings=settings, providers=providers, env=env) as client:
+        return await client.translate_batch(texts, source, target, options=options)
+
+
+def translate_batch_sync(
+    texts: Sequence[str],
+    source: str | LanguageTag,
+    target: str | LanguageTag,
+    *,
+    options: TranslationOptions | None = None,
+    settings: Settings | None = None,
+    providers: Sequence[TranslationProvider] | None = None,
+    env: Mapping[str, str] | None = None,
+) -> tuple[TranslationResult, ...]:
+    """Translate multiple texts synchronously using a managed client lifecycle."""
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(
+            translate_batch(
+                texts,
+                source,
+                target,
+                options=options,
+                settings=settings,
+                providers=providers,
+                env=env,
+            )
+        )
+    raise InvalidInputError(
+        "translate_batch_sync cannot run inside an active event loop; "
+        "use await translate_batch(...)"
+    )

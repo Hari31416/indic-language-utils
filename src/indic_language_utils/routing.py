@@ -30,6 +30,10 @@ class OrderedRouter:
         self._registry = registry
         self._routes = routes
 
+    @property
+    def registry(self) -> ProviderRegistry:
+        return self._registry
+
     def candidates(self, requirement: RouteRequirement) -> tuple[RouteCandidate, ...]:
         names = self._routes.get(requirement.capability)
         if not names:

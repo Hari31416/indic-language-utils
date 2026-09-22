@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import time
+from collections.abc import Sequence
 from dataclasses import replace
-from typing import cast
+from typing import cast, overload
 
 from ..cache import AsyncCache, CacheKeyBuilder, NullCache, SingleFlight
 from ..errors import (
@@ -15,13 +16,15 @@ from ..errors import (
     RateLimitError,
     TransientProviderError,
 )
-from ..models import CacheMetadata, WarningInfo
-from ..providers import CapabilityId
+from ..languages import LanguageTag
+from ..models import CacheMetadata, OperationContext, WarningInfo
+from ..providers import AsyncLifecycle, CapabilityId, ResourceManager
 from ..routing import OrderedRouter, RouteRequirement
 from ..telemetry import EventLogger, MetricHook, NoOpMetrics, NoOpTracing, TraceHook
 from .catalog import LocalizationCatalog
 from .models import (
     ProviderTranslationResult,
+    TranslationOptions,
     TranslationProviderMetadata,
     TranslationRequest,
     TranslationResult,
@@ -64,15 +67,123 @@ class TranslationClient:
         self._tracing = tracing or NoOpTracing()
         self._processors = processors or DEFAULT_TRANSLATION_PROCESSORS
         self._single_flight: SingleFlight[TranslationResult] = SingleFlight()
+        self._resources: ResourceManager | None = None
 
-    async def translate(self, request: TranslationRequest) -> TranslationResult:
+    @property
+    def router(self) -> OrderedRouter:
+        return self._router
+
+    async def start(self) -> None:
+        lifecycles: list[AsyncLifecycle] = [
+            provider
+            for provider in self._router.registry.all()
+            if isinstance(provider, AsyncLifecycle)
+        ]
+        if lifecycles:
+            self._resources = ResourceManager(*lifecycles)
+            await self._resources.start()
+
+    async def close(self) -> None:
+        if self._resources is not None:
+            await self._resources.close()
+            self._resources = None
+
+    async def __aenter__(self) -> TranslationClient:
+        await self.start()
+        return self
+
+    async def __aexit__(self, *_: object) -> None:
+        await self.close()
+
+    @overload
+    async def translate(self, request: TranslationRequest, /) -> TranslationResult: ...
+
+    @overload
+    async def translate(
+        self,
+        text: str,
+        source: str | LanguageTag,
+        target: str | LanguageTag,
+        /,
+        *,
+        options: TranslationOptions | None = None,
+        context: OperationContext | None = None,
+        message_id: str | None = None,
+    ) -> TranslationResult: ...
+
+    async def translate(
+        self,
+        request_or_text: TranslationRequest | str,
+        source: str | LanguageTag | None = None,
+        target: str | LanguageTag | None = None,
+        *,
+        options: TranslationOptions | None = None,
+        context: OperationContext | None = None,
+        message_id: str | None = None,
+    ) -> TranslationResult:
+        if isinstance(request_or_text, TranslationRequest):
+            request = request_or_text
+        else:
+            if source is None or target is None:
+                raise ValueError("Source and target languages are required when translating text")
+            request = TranslationRequest(
+                request_or_text,
+                source,
+                target,
+                options=options,
+                context=context,
+                message_id=message_id,
+            )
         return (await self.translate_batch((request,)))[0]
 
+    @overload
     async def translate_batch(
-        self, requests: tuple[TranslationRequest, ...]
+        self,
+        requests: Sequence[TranslationRequest],
+        /,
+    ) -> tuple[TranslationResult, ...]: ...
+
+    @overload
+    async def translate_batch(
+        self,
+        texts: Sequence[str],
+        source: str | LanguageTag,
+        target: str | LanguageTag,
+        /,
+        *,
+        options: TranslationOptions | None = None,
+        context: OperationContext | None = None,
+    ) -> tuple[TranslationResult, ...]: ...
+
+    async def translate_batch(
+        self,
+        requests_or_texts: Sequence[TranslationRequest] | Sequence[str],
+        source: str | LanguageTag | None = None,
+        target: str | LanguageTag | None = None,
+        *,
+        options: TranslationOptions | None = None,
+        context: OperationContext | None = None,
     ) -> tuple[TranslationResult, ...]:
-        if not requests:
+        if not requests_or_texts:
             return ()
+        first = requests_or_texts[0]
+        if isinstance(first, TranslationRequest):
+            requests: tuple[TranslationRequest, ...] = tuple(
+                cast(Sequence[TranslationRequest], requests_or_texts)
+            )
+        else:
+            if source is None or target is None:
+                raise ValueError("Source and target languages are required when translating texts")
+            requests = tuple(
+                TranslationRequest(
+                    text,
+                    source,
+                    target,
+                    options=options,
+                    context=context,
+                )
+                for text in cast(Sequence[str], requests_or_texts)
+            )
         return tuple(await asyncio.gather(*(self._translate_one(request) for request in requests)))
 
     async def _translate_one(self, request: TranslationRequest) -> TranslationResult:

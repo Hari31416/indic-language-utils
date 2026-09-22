@@ -18,74 +18,39 @@ To execute the runnable demo script against live Bhashini inference:
 uv run --env-file .env python examples/translation/demo.py
 ```
 
-## Special Character Handling in Bhashini
+## Quick One-Liner Translation
 
-Bhashini's underlying neural machine translation model (IndicTrans2) is sensitive to special characters, punctuation, and non-target script strings:
-
-- **Placeholder Transliteration**: Bhashini attempts to translate or transliterate Latin letters within placeholders (for example, turning `ILU-P-000000` into `आईएलयू-पी-000000` in Hindi or `ஐஎல்யு-பி-000000` in Tamil). The library's placeholder restoration handles script transliteration by targeting the numerical identifier.
-- **Bracket and Punctuation Mutation**: Bhashini may drop double brackets down to single brackets or insert whitespace around symbols (e.g., returning `[[...000001]` or `[ ... ]`). The restoration regex accommodates these mutations.
-- **Boundary Punctuation Loss**: Punctuation symbols such as trailing asterisks (`*`) or tildes (`~`) at segment boundaries are often dropped by the translation model.
-- **Structural Isolation**: The library isolates Markdown structural prefixes (such as `#`, `##`, `-`, `*`, `1.`) and code fences before invoking Bhashini, ensuring structural elements are not sent through neural translation.
-
-## Example 1: Asynchronous Text Translation
-
-Translate single sentences or paragraphs asynchronously:
+For quick translation without manual initialization, use `translate_sync` or `translate`:
 
 ```python
-import asyncio
-from indic_language_utils import (
-    BhashiniConfig,
-    BhashiniTranslationProvider,
-    CapabilityId,
-    DEFAULT_LANGUAGE_REGISTRY,
-    ProviderRegistry,
-    Settings,
-    TranslationClient,
-    TranslationRequest,
-)
-from indic_language_utils.routing import OrderedRouter
+from indic_language_utils import translate, translate_sync
 
+# Synchronous one-liner
+result_sync = translate_sync("Welcome to India!", "en", "hi")
+print(result_sync.text)  # भारत में आपका स्वागत है!
 
-async def main() -> None:
-    settings = Settings.load()
-    provider = BhashiniTranslationProvider(BhashiniConfig.from_settings(settings))
-
-    registry = ProviderRegistry()
-    registry.register(provider)
-    router = OrderedRouter(registry, {CapabilityId.TRANSLATION: ("bhashini",)})
-
-    en = DEFAULT_LANGUAGE_REGISTRY.normalize("en")
-    hi = DEFAULT_LANGUAGE_REGISTRY.normalize("hi")
-
-    async with provider:
-        client = TranslationClient(router)
-        request = TranslationRequest("Welcome to the citizen services portal.", en, hi)
-        result = await client.translate(request)
-        print("Translation:", result.text)
-
-
-asyncio.run(main())
+# Asynchronous one-liner
+# result_async = await translate("Welcome to India!", "en", "hi")
 ```
 
-Output:
+Language parameters accept standard string language codes (`"en"`, `"hi"`, `"ta"`, `"te"`, `"kn"`, `"bn"`, `"mr"`, `"gu"`, `"ml"`, `"pa"`, `"or"`, `"as"`, `"ur"`, etc.) without requiring manual registry normalization.
 
-```text
-Translation: नागरिक सेवा पोर्टल में आपका स्वागत है।
-```
-
-## Example 2: Batch Translation
+## Batch Translation
 
 Translate multiple inputs in a single batch call. Input ordering is guaranteed to be preserved:
 
 ```python
-requests = (
-    TranslationRequest("Please verify your mobile number.", en, hi),
-    TranslationRequest("An OTP has been sent to your registered device.", en, hi),
-    TranslationRequest("Do not share your credentials with anyone.", en, hi),
-)
-batch_results = await client.translate_batch(requests)
-for req, res in zip(requests, batch_results, strict=True):
-    print(f"{req.text} -> {res.text}")
+from indic_language_utils import translate_batch_sync
+
+messages = [
+    "Please verify your mobile number.",
+    "An OTP has been sent to your registered device.",
+    "Do not share your credentials with anyone.",
+]
+
+results = translate_batch_sync(messages, "en", "hi")
+for req, res in zip(messages, results, strict=True):
+    print(f"{req} -> {res.text}")
 ```
 
 Output:
@@ -96,29 +61,63 @@ An OTP has been sent to your registered device. -> आपके पंजीक�
 Do not share your credentials with anyone. -> अपनी साख किसी के साथ साझा न करें।
 ```
 
-## Example 3: Multiple Language Targets
+## Managed Translation Client with Caching
 
-Translate from English to different Indian languages using canonical BCP-47 language tags:
-
-```python
-ta = DEFAULT_LANGUAGE_REGISTRY.normalize("ta")
-req_tamil = TranslationRequest("Your grievance status is resolved.", en, ta)
-res_tamil = await client.translate(req_tamil)
-print("Tamil:", res_tamil.text)
-```
-
-Output:
-
-```text
-Tamil: உங்கள் குறைதீர்ப்பு நிலை தீர்க்கப்பட்டது.
-```
-
-## Example 4: Markdown Preservation
-
-Enable `TextFormat.MARKDOWN` to translate human-readable text while keeping headings, lists, inline code spans, links, and fenced blocks intact:
+When performing multiple translations or managing application lifecycle, use `get_translation_client`:
 
 ```python
-from indic_language_utils import TextFormat, TranslationOptions
+import asyncio
+from indic_language_utils import get_translation_client
+
+
+async def main() -> None:
+    async with get_translation_client() as client:
+        # First call hits the translation provider
+        res1 = await client.translate("Welcome to citizen services.", "en", "hi")
+        print(f"Translation: {res1.text} (Cached: {res1.cache.hit})")
+
+        # Second identical call resolves instantly from persistent cache
+        res2 = await client.translate("Welcome to citizen services.", "en", "hi")
+        print(f"Translation: {res2.text} (Cached: {res2.cache.hit})")
+
+
+asyncio.run(main())
+```
+
+## Synchronous Client Facade
+
+If your application runs in a synchronous codebase without an event loop, use `get_sync_translation_client`:
+
+```python
+from indic_language_utils import get_sync_translation_client
+
+client = get_sync_translation_client()
+result = client.translate("Thank you for your feedback.", "en", "hi")
+print(result.text)  # आपकी प्रतिक्रिया के लिए धन्यवाद।
+```
+
+## Multi-Language Translation
+
+Translate from English to any supported Indian language using canonical BCP-47 codes:
+
+```python
+from indic_language_utils import translate_sync
+
+# Tamil
+res_ta = translate_sync("Your grievance status is resolved.", "en", "ta")
+print("Tamil:", res_ta.text)  # உங்கள் குறைதீர்ப்பு நிலை தீர்க்கப்பட்டது.
+
+# Telugu
+res_te = translate_sync("Your grievance status is resolved.", "en", "te")
+print("Telugu:", res_te.text)
+```
+
+## Markdown Preservation
+
+Enable `TextFormat.MARKDOWN` to translate human-readable text while preserving headings, lists, inline code spans, links, and code blocks:
+
+```python
+from indic_language_utils import TextFormat, TranslationOptions, translate_sync
 
 markdown_input = """# Citizen Registration Portal
 
@@ -133,14 +132,12 @@ curl -X GET https://api.example.gov.in/status
 
 Submit your grievance before the deadline."""
 
-result = await client.translate(
-    TranslationRequest(
-        markdown_input,
-        en,
-        hi,
-        options=TranslationOptions(text_format=TextFormat.MARKDOWN),
-    )
+options = TranslationOptions(
+    text_format=TextFormat.MARKDOWN,
+    best_effort=True,
 )
+
+result = translate_sync(markdown_input, "en", "hi", options=options)
 print(result.text)
 ```
 
@@ -161,40 +158,27 @@ curl -X GET https://api.example.gov.in/status
 समय सीमा से पहले अपनी शिकायत दर्ज करा दें।
 ```
 
-## Example 5: Persistent SQLite Caching
+## Special Character Handling in Bhashini
 
-Attach a persistent cache to prevent redundant API calls:
+Bhashini's underlying neural machine translation model (IndicTrans2) is sensitive to special characters, punctuation, and non-target script strings:
 
-```python
-from indic_language_utils import CacheKeyBuilder, create_translation_cache
-
-cache = create_translation_cache(settings.cache)
-client = TranslationClient(
-    router,
-    cache=cache,
-    cache_keys=CacheKeyBuilder(settings.cache.namespace),
-)
-
-# First call performs network inference (cache hit: False)
-res1 = await client.translate(request)
-
-# Repeated call resolves immediately from local SQLite database (cache hit: True)
-res2 = await client.translate(request)
-print(f"Elapsed: {res2.elapsed_seconds:.4f}s, Cache Hit: {res2.cache.hit}")
-```
+- **Placeholder Transliteration**: Bhashini attempts to translate or transliterate Latin letters within placeholders (for example, turning `ILU-P-000000` into `आईएलयू-पी-000000` in Hindi or `ஐஎல்யு-பி-000000` in Tamil). The library's placeholder restoration handles script transliteration by targeting the numerical identifier.
+- **Bracket and Punctuation Mutation**: Bhashini may drop double brackets down to single brackets or insert whitespace around symbols (e.g., returning `[[...000001]` or `[ ... ]`). The restoration regex accommodates these mutations.
+- **Boundary Punctuation Loss**: Punctuation symbols such as trailing asterisks (`*`) or tildes (`~`) at segment boundaries are often dropped by the translation model.
+- **Structural Isolation**: The library isolates Markdown structural prefixes (such as `#`, `##`, `-`, `*`, `1.`) and code fences before invoking Bhashini, ensuring structural elements are not sent through neural translation.
 
 ## Robustness and Best-Effort Production Mode
 
 To protect downstream services from crashing when translation providers drop tokens or encounter errors, enable `best_effort=True`:
 
 ```python
-from indic_language_utils import TextFormat, TranslationOptions, TranslationRequest
+from indic_language_utils import TextFormat, TranslationOptions, translate_sync
 
 options = TranslationOptions(
     text_format=TextFormat.MARKDOWN,
     best_effort=True,
 )
-result = await client.translate(TranslationRequest(text, en, hi, options=options))
+result = translate_sync(text, "en", "hi", options=options)
 ```
 
 Key features of best-effort mode:

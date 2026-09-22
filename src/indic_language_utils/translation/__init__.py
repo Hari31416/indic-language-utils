@@ -3,6 +3,14 @@
 from .cache import TranslationResultCodec, create_translation_cache
 from .catalog import CatalogEntry, CatalogStatus, LocalizationCatalog
 from .client import TranslationClient
+from .helpers import (
+    get_sync_translation_client,
+    get_translation_client,
+    translate,
+    translate_batch,
+    translate_batch_sync,
+    translate_sync,
+)
 from .models import (
     ProviderTranslationResult,
     TextFormat,
@@ -49,4 +57,10 @@ __all__ = [
     "TranslationStructureProcessor",
     "UnicodeNormalizationProcessor",
     "create_translation_cache",
+    "get_sync_translation_client",
+    "get_translation_client",
+    "translate",
+    "translate_batch",
+    "translate_batch_sync",
+    "translate_sync",
 ]

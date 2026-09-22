@@ -1,94 +1,87 @@
-"""Runnable examples demonstrating the translation service with live Bhashini inference."""
+"""Runnable examples demonstrating translation with live Bhashini inference."""
 
 from __future__ import annotations
 
 import asyncio
 
 from indic_language_utils import (
-    DEFAULT_LANGUAGE_REGISTRY,
-    BhashiniConfig,
-    BhashiniTranslationProvider,
-    CacheKeyBuilder,
-    CapabilityId,
-    ProviderRegistry,
-    Settings,
     TextFormat,
-    TranslationClient,
     TranslationOptions,
-    TranslationRequest,
-    create_translation_cache,
+    get_sync_translation_client,
+    get_translation_client,
+    translate,
+    translate_batch,
+    translate_batch_sync,
+    translate_sync,
 )
-from indic_language_utils.routing import OrderedRouter
 
 
-async def main() -> None:
-    # 1. Load configuration and initialize Bhashini provider
-    settings = Settings.load()
-    provider = BhashiniTranslationProvider(BhashiniConfig.from_settings(settings))
+def run_sync_examples() -> None:
+    print("==================================================")
+    print("1. Synchronous Translation (Quick One-Liners)")
+    print("==================================================")
+    # Quick one-liner translation
+    res = translate_sync("Welcome to India!", "en", "hi")
+    print("Source:     ", "Welcome to India!")
+    print("Translation:", res.text)
+    print()
 
-    registry = ProviderRegistry()
-    registry.register(provider)
-    router = OrderedRouter(registry, {CapabilityId.TRANSLATION: ("bhashini",)})
+    # Quick batch translation
+    messages = [
+        "Please verify your mobile number.",
+        "An OTP has been sent to your registered device.",
+        "Do not share your credentials with anyone.",
+    ]
+    batch_results = translate_batch_sync(messages, "en", "hi")
+    print("Batch Translation (English to Hindi):")
+    for text, r in zip(messages, batch_results, strict=True):
+        print(f"  - {text} -> {r.text}")
+    print()
 
-    # Normalized canonical language tags
-    en = DEFAULT_LANGUAGE_REGISTRY.normalize("en")
-    hi = DEFAULT_LANGUAGE_REGISTRY.normalize("hi")
-    ta = DEFAULT_LANGUAGE_REGISTRY.normalize("ta")
+    # Synchronous client facade
+    sync_client = get_sync_translation_client()
+    res_facade = sync_client.translate("Thank you for your feedback.", "en", "hi")
+    print("Sync Client Facade:", res_facade.text)
+    print()
 
-    # Persistent SQLite cache configured from .indic-language-utils.toml
-    cache = create_translation_cache(settings.cache)
-    cache_keys = CacheKeyBuilder(settings.cache.namespace)
 
-    async with provider:
-        client = TranslationClient(router, cache=cache, cache_keys=cache_keys)
+async def run_async_examples() -> None:
+    print("==================================================")
+    print("2. Asynchronous Translation (Quick One-Liners)")
+    print("==================================================")
+    res_async = await translate("Namaste world!", "en", "hi")
+    print("Async One-Liner:", res_async.text)
 
-        # ---------------------------------------------------------
-        # Example 1: Single Text Translation & Caching
-        # ---------------------------------------------------------
-        print("=== 1. Single Text Translation & SQLite Caching ===")
-        req1 = TranslationRequest("Welcome to the citizen services portal.", en, hi)
+    batch_async = await translate_batch(["Good morning", "Good night"], "en", "hi")
+    for r in batch_async:
+        print(f"Async Batch Item: {r.text}")
+    print()
 
-        res1 = await client.translate(req1)
-        print("Source:     ", req1.text)
+    print("==================================================")
+    print("3. Managed Async TranslationClient with Caching")
+    print("==================================================")
+    async with get_translation_client() as client:
+        # First call hits provider and stores in SQLite cache
+        res1 = await client.translate("Welcome to the citizen services portal.", "en", "hi")
+        print("Source:     ", "Welcome to the citizen services portal.")
         print("Translation:", res1.text)
         print(f"Elapsed:     {res1.elapsed_seconds:.3f}s (Cache Hit: {res1.cache.hit})")
 
-        # Second identical request hits the cache instantly
-        res1_cached = await client.translate(req1)
+        # Second identical call resolves instantly from cache
+        res1_cached = await client.translate("Welcome to the citizen services portal.", "en", "hi")
         print(
-            f"Elapsed:     {res1_cached.elapsed_seconds:.4f}s "
-            f"(Cache Hit: {res1_cached.cache.hit})\n"
+            f"Elapsed:     {res1_cached.elapsed_seconds:.4f}s (Cache Hit: {res1_cached.cache.hit})"
         )
-
-        # ---------------------------------------------------------
-        # Example 2: Batch Translation (Preserves Ordering)
-        # ---------------------------------------------------------
-        print("=== 2. Batch Translation (English to Hindi) ===")
-        batch_requests = (
-            TranslationRequest("Please verify your mobile number.", en, hi),
-            TranslationRequest("An OTP has been sent to your registered device.", en, hi),
-            TranslationRequest("Do not share your credentials with anyone.", en, hi),
-        )
-        batch_results = await client.translate_batch(batch_requests)
-        for req, res in zip(batch_requests, batch_results, strict=True):
-            print(f"- Source:      {req.text}")
-            print(f"  Translation: {res.text}")
         print()
 
-        # ---------------------------------------------------------
-        # Example 3: Multiple Language Targets (English to Tamil)
-        # ---------------------------------------------------------
-        print("=== 3. Translation to Another Language (English to Tamil) ===")
-        req_tamil = TranslationRequest("Your grievance status is resolved.", en, ta)
-        res_tamil = await client.translate(req_tamil)
-        print("Source:     ", req_tamil.text)
-        print("Translation (Tamil):", res_tamil.text)
-        print(f"Elapsed:     {res_tamil.elapsed_seconds:.3f}s\n")
+        # Multi-language support (English to Tamil)
+        print("Translation to Tamil:")
+        res_tamil = await client.translate("Your grievance status is resolved.", "en", "ta")
+        print("Tamil Translation:", res_tamil.text)
+        print()
 
-        # ---------------------------------------------------------
-        # Example 4: Markdown Preservation
-        # ---------------------------------------------------------
-        print("=== 4. Markdown Preservation with Protected Elements ===")
+        # Markdown preservation with best_effort=True
+        print("Markdown Preservation:")
         markdown_input = """# Citizen Registration Portal
 
 Please keep the following information ready:
@@ -103,16 +96,21 @@ curl -X GET https://api.example.gov.in/status
 Submit your grievance before the deadline."""
 
         res_md = await client.translate(
-            TranslationRequest(
-                markdown_input,
-                en,
-                hi,
-                options=TranslationOptions(text_format=TextFormat.MARKDOWN),
-            )
+            markdown_input,
+            "en",
+            "hi",
+            options=TranslationOptions(
+                text_format=TextFormat.MARKDOWN,
+                best_effort=True,
+            ),
         )
-        print("Source Markdown:\n" + markdown_input + "\n")
         print("Translated Markdown:\n" + res_md.text + "\n")
 
 
+def main() -> None:
+    run_sync_examples()
+    asyncio.run(run_async_examples())
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

@@ -43,6 +43,12 @@ from .translation import (
     TranslationStructureProcessor,
     UnicodeNormalizationProcessor,
     create_translation_cache,
+    get_sync_translation_client,
+    get_translation_client,
+    translate,
+    translate_batch,
+    translate_batch_sync,
+    translate_sync,
 )
 
 __all__ = [
@@ -94,4 +100,10 @@ __all__ = [
     "WarningInfo",
     "__version__",
     "create_translation_cache",
+    "get_sync_translation_client",
+    "get_translation_client",
+    "translate",
+    "translate_batch",
+    "translate_batch_sync",
+    "translate_sync",
 ]
