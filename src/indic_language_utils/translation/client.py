@@ -107,7 +107,12 @@ class TranslationClient:
         last_error: BaseException | None = None
         for fallback_count, candidate in enumerate(candidates):
             provider = cast(TranslationProvider, candidate.provider)
-            service_id = getattr(provider, "service_id", None)
+            resolver = getattr(provider, "service_id_for", None)
+            service_id = (
+                resolver(request.source, request.target)
+                if callable(resolver)
+                else getattr(provider, "service_id", None)
+            )
             key = self._key(request, provider.identity.provider, service_id)
             cached = await self._cache.get(key)
             if cached is not None:

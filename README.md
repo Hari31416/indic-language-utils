@@ -31,4 +31,4 @@ uv run pytest
 uv build
 ```
 
-The runtime uses HTTPX for Bhashini's reusable asynchronous HTTP client. See [docs/translation.md](docs/translation.md) for translation examples, [docs/processors.md](docs/processors.md) for processor composition, [docs/core-boundaries.md](docs/core-boundaries.md) for the shared foundation's scope, and [docs/adapter-author-guide.md](docs/adapter-author-guide.md) for provider integration.
+The runtime uses HTTPX for Bhashini's reusable asynchronous HTTP client. See [docs/configuration.md](docs/configuration.md) for TOML and environment loading, [docs/translation.md](docs/translation.md) for translation examples, [docs/processors.md](docs/processors.md) for processor composition, [docs/core-boundaries.md](docs/core-boundaries.md) for the shared foundation's scope, and [docs/adapter-author-guide.md](docs/adapter-author-guide.md) for provider integration.

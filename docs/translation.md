@@ -12,7 +12,7 @@ export BHASHINI_API_KEY="..."
 export BHASHINI_TRANSLATION_SERVICE_ID="..."
 ```
 
-The library does not default the service ID. Bhashini service availability depends on the selected pipeline and language pair.
+The library does not supply a service ID. Configuration can provide a default `translation_service_id` plus language-specific `translation_service_ids`. Exact language-pair overrides take precedence over target-language overrides and the default.
 
 ## Asynchronous use
 
@@ -23,12 +23,14 @@ from indic_language_utils import (
     CapabilityId,
     DEFAULT_LANGUAGE_REGISTRY,
     ProviderRegistry,
+    Settings,
     TranslationClient,
     TranslationRequest,
 )
 from indic_language_utils.routing import OrderedRouter
 
-provider = BhashiniTranslationProvider(BhashiniConfig.from_env())
+settings = Settings.load()
+provider = BhashiniTranslationProvider(BhashiniConfig.from_settings(settings))
 registry = ProviderRegistry()
 registry.register(provider)
 router = OrderedRouter(registry, {CapabilityId.TRANSLATION: ("bhashini",)})

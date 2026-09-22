@@ -17,6 +17,7 @@ from indic_language_utils.errors import (
     AuthenticationError,
     ConfigurationError,
     MalformedProviderResponseError,
+    UnsupportedLanguagePairError,
 )
 from indic_language_utils.languages import DEFAULT_LANGUAGE_REGISTRY
 from indic_language_utils.retry import RetryPolicy
@@ -156,7 +157,7 @@ async def test_mismatched_batch_is_returned_for_client_level_recovery() -> None:
         )
 
 
-def test_service_id_is_required_and_odia_alias_maps_inside_adapter() -> None:
+def test_translation_service_id_is_required_and_odia_alias_maps_inside_adapter() -> None:
     with pytest.raises(ConfigurationError):
         BhashiniConfig("https://example.test", Secret("key"), "")
     assert bhashini_language_code(DEFAULT_LANGUAGE_REGISTRY.normalize("ori_Orya")) == "or"
@@ -171,10 +172,44 @@ def test_environment_configuration() -> None:
             "BHASHINI_MAX_CONCURRENCY": "3",
         }
     )
-    assert loaded.service_id == "service"
+    assert loaded.translation_service_id == "service"
     assert loaded.max_concurrency == 3
     with pytest.raises(ConfigurationError):
         BhashiniConfig.from_env({})
+
+
+def test_language_specific_translation_service_resolution() -> None:
+    configured = BhashiniConfig(
+        "https://example.test/inference",
+        Secret("key"),
+        "default-service",
+        {
+            "hi": "target-hindi-service",
+            "en>hi": "english-hindi-service",
+        },
+    )
+    provider = BhashiniTranslationProvider(configured, transport=FakeTransport([]))
+    en = DEFAULT_LANGUAGE_REGISTRY.normalize("en")
+    hi = DEFAULT_LANGUAGE_REGISTRY.normalize("hi")
+    ta = DEFAULT_LANGUAGE_REGISTRY.normalize("ta")
+    assert provider.service_id_for(en, hi) == "english-hindi-service"
+    assert provider.service_id_for(ta, hi) == "target-hindi-service"
+    assert provider.service_id_for(en, ta) == "default-service"
+
+
+def test_mapping_only_config_rejects_unconfigured_pair() -> None:
+    configured = BhashiniConfig(
+        "https://example.test/inference",
+        Secret("key"),
+        None,
+        {"hi-IN": "hindi-service"},
+    )
+    provider = BhashiniTranslationProvider(configured, transport=FakeTransport([]))
+    with pytest.raises(UnsupportedLanguagePairError):
+        provider.service_id_for(
+            DEFAULT_LANGUAGE_REGISTRY.normalize("en"),
+            DEFAULT_LANGUAGE_REGISTRY.normalize("ta"),
+        )
 
 
 @pytest.mark.live_bhashini
