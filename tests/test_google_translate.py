@@ -16,13 +16,6 @@ from indic_language_utils.errors import (
     TransientProviderError,
     UnsupportedLanguagePairError,
 )
-from indic_language_utils.google_translate import (
-    GoogletransConfig,
-    GoogleTranslateConfig,
-    GoogleTranslateProvider,
-    GoogletransTranslationProvider,
-    google_translate_language_code,
-)
 from indic_language_utils.languages import DEFAULT_LANGUAGE_REGISTRY
 from indic_language_utils.providers import CapabilityId, ProviderRegistry
 from indic_language_utils.retry import RetryPolicy
@@ -30,6 +23,13 @@ from indic_language_utils.routing import OrderedRouter
 from indic_language_utils.translation import (
     TranslationClient,
     TranslationOptions,
+)
+from indic_language_utils.translation.google_translate import (
+    GoogletransConfig,
+    GoogleTranslateConfig,
+    GoogleTranslateProvider,
+    GoogletransTranslationProvider,
+    google_translate_language_code,
 )
 
 from .translation_support import FakeTranslationProvider
@@ -365,7 +365,7 @@ async def test_translation_client_fallback_to_google_translate() -> None:
 
 
 def test_google_translate_missing_dependency(monkeypatch: pytest.MonkeyPatch) -> None:
-    import indic_language_utils.google_translate as gt_mod
+    import indic_language_utils.translation.google_translate as gt_mod
     from indic_language_utils.errors import MissingOptionalDependencyError
 
     monkeypatch.setattr(gt_mod, "HAVE_GOOGLETRANS", False)

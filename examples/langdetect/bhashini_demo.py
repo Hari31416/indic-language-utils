@@ -14,7 +14,7 @@ from indic_language_utils import (
     Secret,
     get_sync_detection_client,
 )
-from indic_language_utils.bhashini import JsonResponse
+from indic_language_utils.providers.bhashini import JsonResponse
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger("bhashini_demo")

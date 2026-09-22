@@ -6,12 +6,6 @@ from dataclasses import dataclass, field
 
 import pytest
 
-from indic_language_utils.bhashini import (
-    BhashiniConfig,
-    BhashiniTranslationProvider,
-    JsonResponse,
-    bhashini_language_code,
-)
 from indic_language_utils.config import Secret, Settings
 from indic_language_utils.errors import (
     AuthenticationError,
@@ -20,8 +14,16 @@ from indic_language_utils.errors import (
     UnsupportedLanguagePairError,
 )
 from indic_language_utils.languages import DEFAULT_LANGUAGE_REGISTRY
+from indic_language_utils.providers.bhashini import (
+    BhashiniConfig,
+    JsonResponse,
+    bhashini_language_code,
+)
 from indic_language_utils.retry import RetryPolicy
 from indic_language_utils.translation import TranslationOptions
+from indic_language_utils.translation.bhashini_translate import (
+    BhashiniTranslationProvider,
+)
 
 
 @dataclass

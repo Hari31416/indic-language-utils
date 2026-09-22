@@ -1,5 +1,6 @@
 """Text language detection capability models, contracts, clients, and adapters."""
 
+from .bhashini_detect import BhashiniDetectionProvider
 from .cache import DetectionResultCodec, create_detection_cache
 from .client import DetectionClient
 from .fasttext import (
@@ -27,6 +28,7 @@ from .protocols import DetectionProvider
 from .sync import SyncDetectionClient
 
 __all__ = [
+    "BhashiniDetectionProvider",
     "DetectionClient",
     "DetectionOptions",
     "DetectionProvider",

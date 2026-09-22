@@ -7,7 +7,6 @@ try:
 except PackageNotFoundError:  # pragma: no cover - source tree without installation
     __version__ = "0.0.0"
 
-from .bhashini import BhashiniConfig, BhashiniDetectionProvider, BhashiniTranslationProvider
 from .cache import CacheKeyBuilder, MemoryCache, NullCache, SingleFlight, SQLiteCache
 from .config import (
     CacheSettings,
@@ -18,6 +17,7 @@ from .config import (
     TelemetrySettings,
 )
 from .detection import (
+    BhashiniDetectionProvider,
     DetectionClient,
     DetectionOptions,
     DetectionProvider,
@@ -40,12 +40,6 @@ from .detection import (
     get_sync_detection_client,
 )
 from .errors import LanguageUtilsError
-from .google_translate import (
-    GoogletransConfig,
-    GoogleTranslateConfig,
-    GoogleTranslateProvider,
-    GoogletransTranslationProvider,
-)
 from .languages import DEFAULT_LANGUAGE_REGISTRY, LanguageRegistry, LanguageTag
 from .models import (
     CacheMetadata,
@@ -56,13 +50,23 @@ from .models import (
     WarningInfo,
 )
 from .processors import ProcessorIdentity, VersionedProcessor
-from .providers import CapabilityDeclaration, CapabilityId, ProviderRegistry
+from .providers import (
+    BhashiniConfig,
+    CapabilityDeclaration,
+    CapabilityId,
+    ProviderRegistry,
+)
 from .routing import OrderedRouter, RouteCandidate, RouteRequirement
 from .translation import (
     DEFAULT_TRANSLATION_PROCESSORS,
+    BhashiniTranslationProvider,
     CatalogEntry,
     CatalogStatus,
     DefaultTranslationStructureProcessor,
+    GoogletransConfig,
+    GoogleTranslateConfig,
+    GoogleTranslateProvider,
+    GoogletransTranslationProvider,
     LocalizationCatalog,
     PreparedText,
     ProtectedContentProcessor,

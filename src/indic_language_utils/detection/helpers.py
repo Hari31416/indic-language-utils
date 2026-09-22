@@ -43,7 +43,8 @@ def get_detection_client(
         )
         if has_bhashini:
             try:
-                from ..bhashini import BhashiniConfig, BhashiniDetectionProvider
+                from ..providers.bhashini import BhashiniConfig
+                from .bhashini_detect import BhashiniDetectionProvider
 
                 bhashini_config = BhashiniConfig.from_settings(settings, env=env)
                 if bhashini_config.detection_service_id:

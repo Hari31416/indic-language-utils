@@ -1,8 +1,15 @@
 """Public translation API."""
 
+from .bhashini_translate import BhashiniTranslationProvider
 from .cache import TranslationResultCodec, create_translation_cache
 from .catalog import CatalogEntry, CatalogStatus, LocalizationCatalog
 from .client import TranslationClient
+from .google_translate import (
+    GoogletransConfig,
+    GoogleTranslateConfig,
+    GoogleTranslateProvider,
+    GoogletransTranslationProvider,
+)
 from .helpers import (
     get_sync_translation_client,
     get_translation_client,
@@ -35,9 +42,14 @@ from .sync import SyncTranslationClient
 
 __all__ = [
     "DEFAULT_TRANSLATION_PROCESSORS",
+    "BhashiniTranslationProvider",
     "CatalogEntry",
     "CatalogStatus",
     "DefaultTranslationStructureProcessor",
+    "GoogleTranslateConfig",
+    "GoogleTranslateProvider",
+    "GoogletransConfig",
+    "GoogletransTranslationProvider",
     "LocalizationCatalog",
     "PreparedText",
     "ProtectedContentProcessor",

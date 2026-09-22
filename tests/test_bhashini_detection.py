@@ -5,13 +5,10 @@ from dataclasses import dataclass, field
 
 import pytest
 
-from indic_language_utils.bhashini import (
-    BhashiniConfig,
-    BhashiniDetectionProvider,
-    BhashiniTranslationProvider,
-    JsonResponse,
-)
 from indic_language_utils.config import ProviderSettings, Secret, Settings
+from indic_language_utils.detection.bhashini_detect import (
+    BhashiniDetectionProvider,
+)
 from indic_language_utils.detection.client import DetectionClient
 from indic_language_utils.detection.models import DetectionOptions
 from indic_language_utils.errors import (
@@ -23,8 +20,15 @@ from indic_language_utils.errors import (
 )
 from indic_language_utils.languages import DEFAULT_LANGUAGE_REGISTRY
 from indic_language_utils.providers import CapabilityId, ProviderRegistry
+from indic_language_utils.providers.bhashini import (
+    BhashiniConfig,
+    JsonResponse,
+)
 from indic_language_utils.retry import RetryPolicy
 from indic_language_utils.routing import OrderedRouter
+from indic_language_utils.translation.bhashini_translate import (
+    BhashiniTranslationProvider,
+)
 
 
 @dataclass

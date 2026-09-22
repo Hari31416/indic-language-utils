@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from indic_language_utils.bhashini import BhashiniConfig
 from indic_language_utils.config import Settings, discover_config_files
 from indic_language_utils.errors import ConfigurationError
+from indic_language_utils.providers.bhashini import BhashiniConfig
 
 
 def write(path: Path, content: str) -> Path:

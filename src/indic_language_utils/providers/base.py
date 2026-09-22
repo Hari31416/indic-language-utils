@@ -6,9 +6,9 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Protocol, runtime_checkable
 
-from .errors import ConfigurationError
-from .languages import LanguageTag
-from .models import ProviderIdentity
+from ..errors import ConfigurationError
+from ..languages import LanguageTag
+from ..models import ProviderIdentity
 
 
 class CapabilityId(StrEnum):

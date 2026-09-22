@@ -2,7 +2,7 @@
 enabled = true
 backend = "sqlite"
 path = ".cache/translations.sqlite3"
-namespace = "nyaya-setu"
+namespace = "language-utils"
 max_entries = 50000
 ttl_seconds = 86400
 

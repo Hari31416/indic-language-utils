@@ -10,9 +10,9 @@ from typing import Any, Protocol, runtime_checkable
 
 import httpx
 
-from .concurrency import ConcurrencyLimiter
-from .config import Settings
-from .errors import (
+from ..concurrency import ConcurrencyLimiter
+from ..config import Settings
+from ..errors import (
     ConfigurationError,
     InvalidInputError,
     MalformedProviderResponseError,
@@ -22,11 +22,11 @@ from .errors import (
     TransientProviderError,
     UnsupportedLanguagePairError,
 )
-from .languages import DEFAULT_LANGUAGE_REGISTRY, LanguageTag
-from .models import ProviderIdentity
-from .providers import CapabilityDeclaration, CapabilityId
-from .retry import RetryPolicy, retry
-from .translation.models import ProviderTranslationResult, TranslationOptions
+from ..languages import DEFAULT_LANGUAGE_REGISTRY, LanguageTag
+from ..models import ProviderIdentity
+from ..providers import CapabilityDeclaration, CapabilityId
+from ..retry import RetryPolicy, retry
+from .models import ProviderTranslationResult, TranslationOptions
 
 try:
     import googletrans  # type: ignore[import-untyped]

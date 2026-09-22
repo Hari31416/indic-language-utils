@@ -21,8 +21,8 @@ from indic_language_utils import (
     Secret,
     create_detection_cache,
 )
-from indic_language_utils.bhashini import JsonResponse
 from indic_language_utils.errors import TransientProviderError
+from indic_language_utils.providers.bhashini import JsonResponse
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger("multi_service_demo")

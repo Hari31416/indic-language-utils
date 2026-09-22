@@ -42,7 +42,8 @@ def get_translation_client(
         has_bhashini = "bhashini" in settings.providers or "BHASHINI_API_KEY" in env_map
         if has_bhashini:
             try:
-                from ..bhashini import BhashiniConfig, BhashiniTranslationProvider
+                from ..providers.bhashini import BhashiniConfig
+                from .bhashini_translate import BhashiniTranslationProvider
 
                 bhashini_config = BhashiniConfig.from_settings(settings, env=env)
                 registry.register(BhashiniTranslationProvider(bhashini_config))
@@ -56,7 +57,7 @@ def get_translation_client(
         )
         if has_googletrans:
             try:
-                from ..google_translate import (
+                from .google_translate import (
                     HAVE_GOOGLETRANS,
                     GoogleTranslateConfig,
                     GoogleTranslateProvider,
