@@ -1,8 +1,8 @@
 site_name: indic-language-utils
 site_description: Provider-neutral foundations for Indian language applications
 site_author: indic-language-utils contributors
-repo_url: https://github.com/indic-language-utils/indic-language-utils
-repo_name: indic-language-utils/indic-language-utils
+repo_url: https://github.com/hari31416/indic-language-utils
+repo_name: hari31416/indic-language-utils
 
 theme:
   name: material
