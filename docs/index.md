@@ -54,7 +54,7 @@ print(result.text)  # डिजिटल शासन सेवाओं मे�
 
 ### Markdown Translation with Protected Content
 
-```python
+````python
 from indic_language_utils import TextFormat, TranslationOptions, translate_sync
 
 markdown_text = """# User Portal
@@ -76,7 +76,7 @@ options = TranslationOptions(
 
 result = translate_sync(markdown_text, "en", "ta", options=options)
 print(result.text)
-```
+````
 
 ## Documentation Roadmap
 

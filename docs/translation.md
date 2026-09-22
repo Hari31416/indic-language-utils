@@ -200,7 +200,7 @@ Standard neural translation engines frequently mutilate Markdown markup, transla
 
 Set `text_format=TextFormat.MARKDOWN` to preserve formatting syntax:
 
-```python
+````python
 from indic_language_utils import TextFormat, TranslationOptions, translate_sync
 
 markdown_text = """# Citizen Registration Portal
@@ -223,7 +223,7 @@ options = TranslationOptions(
 
 result = translate_sync(markdown_text, "en", "hi", options=options)
 print(result.text)
-```
+````
 
 The structure processor protects:
 
