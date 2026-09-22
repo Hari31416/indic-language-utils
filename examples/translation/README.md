@@ -14,13 +14,13 @@ The provider inference endpoint and default translation model (`ai4bharat/indict
 
 To execute the runnable demo script against live Bhashini inference:
 
-```console
+```bash
 uv run --env-file .env python examples/translation/demo.py
 ```
 
 To execute the Google Translate demo without requiring any API keys:
 
-```console
+```bash
 uv run python examples/translation/googletrans_demo.py
 ```
 

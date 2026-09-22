@@ -97,7 +97,7 @@ Bhashini is the Government of India language technology initiative, hosting high
 
 Configuration requires an inference endpoint, authorization key, and translation service ID:
 
-```console
+```bash
 export BHASHINI_ENDPOINT_URL="https://dhruva-api.bhashini.gov.in/services/inference/pipeline"
 export BHASHINI_API_KEY="your-api-key"
 export BHASHINI_TRANSLATION_SERVICE_ID="your-default-service-id"
@@ -123,7 +123,7 @@ The `GoogleTranslateProvider` integrates the unofficial `googletrans` package. I
 
 Install the optional dependency:
 
-```console
+```bash
 pip install "indic-language-utils[googletrans]"
 ```
 

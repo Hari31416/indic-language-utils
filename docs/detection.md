@@ -128,7 +128,7 @@ Every detection call returns a `DetectionResult` containing complete operation m
 
 The `FastTextDetectionProvider` uses the pre-trained FastText `lid.176.ftz` model for offline classification. It delivers high throughput without network overhead and requires the `local-tld` extra:
 
-```console
+```bash
 pip install "indic-language-utils[local-tld]"
 ```
 
@@ -158,7 +158,7 @@ The FastText adapter combines statistical language identification with Unicode s
 
 The `BhashiniDetectionProvider` calls the Government of India Bhashini text language detection pipeline. It requires network access, an API key, and a detection service ID:
 
-```console
+```bash
 export BHASHINI_ENDPOINT_URL="https://dhruva-api.bhashini.gov.in/services/inference/pipeline"
 export BHASHINI_API_KEY="your-api-key"
 export BHASHINI_DETECTION_SERVICE_ID="your-tld-service-id"

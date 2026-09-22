@@ -12,7 +12,7 @@ This directory provides working examples of text language detection (TLD) using 
 
 For local FastText detection, install the optional `local-tld` dependency group:
 
-```console
+```bash
 uv sync --extra local-tld
 ```
 
@@ -27,19 +27,19 @@ BHASHINI_DETECTION_SERVICE_ID="your-bhashini-tld-pipeline-service-id"
 
 Run the FastText local detection demo (no API keys required):
 
-```console
+```bash
 uv run python examples/langdetect/fasttext_demo.py
 ```
 
 Run the Bhashini cloud detection demo:
 
-```console
+```bash
 uv run --env-file .env python examples/langdetect/bhashini_demo.py
 ```
 
 Run the multi-service resilient routing and caching demo:
 
-```console
+```bash
 uv run python examples/langdetect/multi_service_demo.py
 ```
 

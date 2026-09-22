@@ -71,7 +71,7 @@ All sensitive values must be supplied via environment variables.
 
 Bhashini credentials and service endpoints:
 
-```console
+```bash
 # Required for Bhashini live API calls
 export BHASHINI_API_KEY="your-bhashini-api-key"
 
@@ -85,7 +85,7 @@ export BHASHINI_MAX_CONCURRENCY="8"
 
 To quickly select an active translation provider during development without editing configuration files:
 
-```console
+```bash
 export TRANSLATION_SERVICE_PROVIDER="googletrans"
 ```
 
@@ -93,7 +93,7 @@ export TRANSLATION_SERVICE_PROVIDER="googletrans"
 
 Global cache, retry, telemetry, and routing settings use the `ILU_` prefix:
 
-```console
+```bash
 # Caching settings
 export ILU_CACHE_ENABLED="true"
 export ILU_CACHE_BACKEND="sqlite"
