@@ -24,6 +24,10 @@ dependencies = ["httpx>=0.28,<1"]
 [project.optional-dependencies]
 googletrans = ["googletrans>=4.0.2"]
 local-tld = ["fasttext-langdetect>=1.1.1"]
+server = ["fastapi>=0.115.0", "uvicorn[standard]>=0.34.0"]
+
+[project.scripts]
+indic-server = "indic_language_utils.server.app:run_server"
 
 [project.urls]
 Documentation = "https://github.com/indic-language-utils/indic-language-utils"
@@ -32,6 +36,7 @@ Source = "https://github.com/indic-language-utils/indic-language-utils"
 [dependency-groups]
 dev = [
   "build>=1.2.2",
+  "fastapi>=0.115.0",
   "fasttext-langdetect>=1.1.1",
   "googletrans>=4.0.2",
   "mypy>=1.15",
@@ -39,6 +44,7 @@ dev = [
   "pytest>=8.3",
   "pytest-asyncio>=0.25",
   "ruff>=0.11",
+  "uvicorn[standard]>=0.34.0",
 ]
 docs = [
     "mkdocs>=1.6.1",

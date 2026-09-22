@@ -101,6 +101,20 @@ uv run mkdocs serve
 uv run mkdocs build --strict
 ```
 
+## Interactive Testing Workbench
+
+A local evaluation workbench and REST API server is included for testing translation, language detection, and script identification interactively:
+
+```bash
+# Build the web interface
+cd web && pnpm install && pnpm build && cd ..
+
+# Launch the FastAPI server with static UI mounted at http://127.0.0.1:8000
+uv run indic-server
+```
+
+Explore interactive API documentation at `http://127.0.0.1:8000/docs`.
+
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
