@@ -38,6 +38,7 @@ from .processing import (
     UnicodeNormalizationProcessor,
 )
 from .protocols import TranslationProvider
+from .sarvam_translate import SarvamTranslationProvider
 from .sync import SyncTranslationClient
 
 __all__ = [
@@ -54,6 +55,7 @@ __all__ = [
     "PreparedText",
     "ProtectedContentProcessor",
     "ProviderTranslationResult",
+    "SarvamTranslationProvider",
     "Segment",
     "SyncTranslationClient",
     "TextFormat",

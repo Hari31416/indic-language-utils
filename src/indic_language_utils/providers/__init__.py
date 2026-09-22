@@ -14,6 +14,10 @@ from .bhashini import (
     JsonResponse,
     JsonTransport,
 )
+from .sarvam import (
+    SarvamConfig,
+    SarvamJsonTransport,
+)
 
 __all__ = [
     "AsyncLifecycle",
@@ -26,4 +30,6 @@ __all__ = [
     "Provider",
     "ProviderRegistry",
     "ResourceManager",
+    "SarvamConfig",
+    "SarvamJsonTransport",
 ]

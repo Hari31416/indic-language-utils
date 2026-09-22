@@ -50,6 +50,17 @@ def get_translation_client(
             except ConfigurationError:
                 pass
 
+        has_sarvam = "sarvam" in settings.providers or "SARVAM_API_KEY" in env_map
+        if has_sarvam:
+            try:
+                from ..providers.sarvam import SarvamConfig
+                from .sarvam_translate import SarvamTranslationProvider
+
+                sarvam_config = SarvamConfig.from_settings(settings, env=env)
+                registry.register(SarvamTranslationProvider(sarvam_config))
+            except ConfigurationError:
+                pass
+
         has_googletrans = (
             "googletrans" in settings.providers
             or any("googletrans" in p_list for p_list in settings.routes.values())

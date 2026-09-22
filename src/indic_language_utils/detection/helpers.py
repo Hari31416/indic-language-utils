@@ -52,6 +52,18 @@ def get_detection_client(
             except ConfigurationError:
                 pass
 
+        # Check Sarvam detection adapter
+        has_sarvam = "sarvam" in settings.providers or "SARVAM_API_KEY" in env_map
+        if has_sarvam:
+            try:
+                from ..providers.sarvam import SarvamConfig
+                from .sarvam_detect import SarvamDetectionProvider
+
+                sarvam_config = SarvamConfig.from_settings(settings, env=env)
+                registry.register(SarvamDetectionProvider(sarvam_config))
+            except ConfigurationError:
+                pass
+
         # Default local detection adapter: FastText
         try:
             from .fasttext import HAVE_FASTTEXT, FastTextDetectionConfig, FastTextDetectionProvider

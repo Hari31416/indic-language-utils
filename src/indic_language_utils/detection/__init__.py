@@ -25,6 +25,7 @@ from .models import (
     ProviderDetectionResult,
 )
 from .protocols import DetectionProvider
+from .sarvam_detect import SarvamDetectionProvider
 from .sync import SyncDetectionClient
 
 __all__ = [
@@ -40,6 +41,7 @@ __all__ = [
     "FastTextDetectionProvider",
     "LanguageCandidate",
     "ProviderDetectionResult",
+    "SarvamDetectionProvider",
     "SyncDetectionClient",
     "create_detection_cache",
     "detect",

@@ -29,6 +29,7 @@ from .detection import (
     FastTextDetectionProvider,
     LanguageCandidate,
     ProviderDetectionResult,
+    SarvamDetectionProvider,
     SyncDetectionClient,
     create_detection_cache,
     detect,
@@ -55,6 +56,7 @@ from .providers import (
     CapabilityDeclaration,
     CapabilityId,
     ProviderRegistry,
+    SarvamConfig,
 )
 from .routing import OrderedRouter, RouteCandidate, RouteRequirement
 from .translation import (
@@ -70,6 +72,7 @@ from .translation import (
     LocalizationCatalog,
     PreparedText,
     ProtectedContentProcessor,
+    SarvamTranslationProvider,
     Segment,
     SyncTranslationClient,
     TextFormat,
@@ -140,6 +143,9 @@ __all__ = [
     "RouteCandidate",
     "RouteRequirement",
     "SQLiteCache",
+    "SarvamConfig",
+    "SarvamDetectionProvider",
+    "SarvamTranslationProvider",
     "Secret",
     "Segment",
     "Settings",

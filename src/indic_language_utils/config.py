@@ -63,6 +63,7 @@ class ProviderSettings:
     timeout_seconds: float = 20.0
     max_concurrency: int = 8
     credential: Secret | None = None
+    model: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -296,6 +297,7 @@ def _providers(data: Mapping[str, object]) -> dict[str, ProviderSettings]:
         "tld_service_id",
         "timeout_seconds",
         "max_concurrency",
+        "model",
     }
     for name, raw in data.items():
         values = _mapping(raw, f"providers.{name}")
@@ -312,6 +314,7 @@ def _providers(data: Mapping[str, object]) -> dict[str, ProviderSettings]:
             ),
             timeout_seconds=_number(values.get("timeout_seconds", 20.0)),
             max_concurrency=_integer(values.get("max_concurrency", 8)),
+            model=_optional_string(values.get("model")),
         )
     return result
 
