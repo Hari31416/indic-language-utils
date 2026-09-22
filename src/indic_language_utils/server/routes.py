@@ -161,7 +161,18 @@ async def list_providers() -> ProvidersResponse:
         "BHASHINI_TLD_SERVICE_ID"
     )
 
+    has_sarvam_key = bool(env.get("SARVAM_API_KEY"))
+    sarvam_model = env.get("SARVAM_MODEL", "sarvam-translate:v1")
+
     translation_providers: list[ProviderInfo] = [
+        ProviderInfo(
+            id="sarvam",
+            name="Sarvam AI",
+            available=has_sarvam_key,
+            details=sarvam_model
+            if has_sarvam_key
+            else "Requires SARVAM_API_KEY environment variable",
+        ),
         ProviderInfo(
             id="bhashini",
             name="Bhashini (IndicTrans2)",
@@ -184,6 +195,14 @@ async def list_providers() -> ProvidersResponse:
             name="FastText (lid.176)",
             available=HAVE_FASTTEXT,
             details="Local offline model",
+        ),
+        ProviderInfo(
+            id="sarvam",
+            name="Sarvam Detection",
+            available=has_sarvam_key,
+            details="Language Identification (LID)"
+            if has_sarvam_key
+            else "Requires SARVAM_API_KEY environment variable",
         ),
         ProviderInfo(
             id="bhashini",

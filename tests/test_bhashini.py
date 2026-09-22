@@ -215,7 +215,7 @@ def test_mapping_only_config_rejects_unconfigured_pair() -> None:
 
 
 def _live_bhashini_config() -> BhashiniConfig | None:
-    if not os.environ.get("BHASHINI_API_KEY"):
+    if not os.environ.get("RUN_LIVE_TESTS") or not os.environ.get("BHASHINI_API_KEY"):
         return None
     try:
         return BhashiniConfig.from_settings(Settings.load())

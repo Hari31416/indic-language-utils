@@ -43,6 +43,8 @@ def test_list_providers(client: TestClient) -> None:
     assert "detection" in data
     trans_ids = [p["id"] for p in data["translation"]]
     detect_ids = [p["id"] for p in data["detection"]]
+    assert "sarvam" in trans_ids
+    assert "sarvam" in detect_ids
     assert "googletrans" in trans_ids or "bhashini" in trans_ids
     assert "fasttext" in detect_ids
 
@@ -71,7 +73,28 @@ def test_detect_language(client: TestClient) -> None:
     assert data["script"] is not None
 
 
-def test_translate_text(client: TestClient) -> None:
+def test_translate_text(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    from indic_language_utils.translation.google_translate import GoogleTranslateProvider
+    from indic_language_utils.translation.models import ProviderTranslationResult
+
+    async def mock_translate_batch(
+        self: object,
+        texts: tuple[str, ...],
+        *,
+        source: object,
+        target: object,
+        options: object,
+        request_id: str,
+    ) -> ProviderTranslationResult:
+        return ProviderTranslationResult(
+            tuple(f"translated:{t}" for t in texts),
+            service_id=None,
+            model_id=None,
+            request_id=request_id,
+        )
+
+    monkeypatch.setattr(GoogleTranslateProvider, "translate_batch", mock_translate_batch)
+
     response = client.post(
         "/api/translate",
         json={
@@ -88,6 +111,47 @@ def test_translate_text(client: TestClient) -> None:
     assert data["target"] == "hi-IN"
     assert data["provider"] == "googletrans"
     assert len(data["text"]) > 0
+
+
+def test_translate_text_sarvam(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    from indic_language_utils.translation.models import ProviderTranslationResult
+    from indic_language_utils.translation.sarvam_translate import SarvamTranslationProvider
+
+    async def mock_translate_batch(
+        self: object,
+        texts: tuple[str, ...],
+        *,
+        source: object,
+        target: object,
+        options: object,
+        request_id: str,
+    ) -> ProviderTranslationResult:
+        return ProviderTranslationResult(
+            tuple(f"sarvam_translated:{t}" for t in texts),
+            service_id=None,
+            model_id="sarvam-translate:v1",
+            request_id=request_id,
+        )
+
+    monkeypatch.setattr(SarvamTranslationProvider, "translate_batch", mock_translate_batch)
+    monkeypatch.setenv("SARVAM_API_KEY", "mock-key")
+
+    response = client.post(
+        "/api/translate",
+        json={
+            "text": "Good morning",
+            "source": "en",
+            "target": "hi",
+            "provider": "sarvam",
+            "text_format": "plain",
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["source"] == "en-IN"
+    assert data["target"] == "hi-IN"
+    assert data["provider"] == "sarvam"
+    assert data["text"] == "sarvam_translated:Good morning"
 
 
 def test_translate_invalid_provider(client: TestClient) -> None:
