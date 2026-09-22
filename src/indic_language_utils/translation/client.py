@@ -27,11 +27,9 @@ from .models import (
     TranslationResult,
 )
 from .processing import (
-    POSTPROCESSOR_POLICY_VERSION,
-    PREPROCESSOR_POLICY_VERSION,
+    DEFAULT_TRANSLATION_PROCESSORS,
     Segment,
-    prepare_text,
-    restore_protected,
+    TranslationProcessorPipeline,
 )
 from .protocols import TranslationProvider
 
@@ -55,6 +53,7 @@ class TranslationClient:
         logger: EventLogger | None = None,
         metrics: MetricHook | None = None,
         tracing: TraceHook | None = None,
+        processors: TranslationProcessorPipeline | None = None,
     ) -> None:
         self._router = router
         self._cache = cache or NullCache()
@@ -63,6 +62,7 @@ class TranslationClient:
         self._logger = logger
         self._metrics = metrics or NoOpMetrics()
         self._tracing = tracing or NoOpTracing()
+        self._processors = processors or DEFAULT_TRANSLATION_PROCESSORS
         self._single_flight: SingleFlight[TranslationResult] = SingleFlight()
 
     async def translate(self, request: TranslationRequest) -> TranslationResult:
@@ -154,9 +154,7 @@ class TranslationClient:
         started: float,
         fallback_count: int,
     ) -> TranslationResult:
-        prepared = prepare_text(
-            request.text, request.options.text_format, request.options.max_segment_characters
-        )
+        prepared = self._processors.prepare(request.text, request.options)
         if not prepared.segments:
             result = TranslationResult(
                 request.text,
@@ -176,7 +174,11 @@ class TranslationClient:
             group = prepared.segments[offset : offset + request.options.max_batch_items]
             translated, metadata = await self._translate_group(provider, request, group)
             outputs.extend(translated)
-        text = prepared.reconstruct(tuple(outputs)) if prepared.segments else request.text
+        text = (
+            self._processors.reconstruct(prepared, tuple(outputs), request.options)
+            if prepared.segments
+            else request.text
+        )
         assert metadata is not None
         elapsed = time.monotonic() - started
         result = TranslationResult(
@@ -233,7 +235,7 @@ class TranslationClient:
         if len(result.translations) == len(texts):
             try:
                 for output, segment in zip(result.translations, segments, strict=True):
-                    restore_protected(output, segment.protected)
+                    self._processors.restore_segment(output, segment, request.options)
                 return result.translations, result
             except OutputValidationError:
                 pass
@@ -250,7 +252,7 @@ class TranslationClient:
             )
             if len(individual.translations) != 1:
                 raise OutputValidationError("Provider returned the wrong number of translations")
-            restore_protected(individual.translations[0], segment.protected)
+            self._processors.restore_segment(individual.translations[0], segment, request.options)
             outputs.append(individual.translations[0])
             latest = individual
         return tuple(outputs), latest
@@ -269,8 +271,7 @@ class TranslationClient:
                     "max_segment_characters": request.options.max_segment_characters,
                     "max_batch_items": request.options.max_batch_items,
                 },
-                "preprocessor": PREPROCESSOR_POLICY_VERSION,
-                "postprocessor": POSTPROCESSOR_POLICY_VERSION,
+                "processors": self._processors.cache_identity,
                 "catalog": self._catalog.version,
             },
         )

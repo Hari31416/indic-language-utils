@@ -15,11 +15,13 @@ from indic_language_utils.translation import (
     TextFormat,
     TranslationClient,
     TranslationOptions,
+    TranslationProcessorPipeline,
     TranslationRequest,
     TranslationResult,
 )
+from indic_language_utils.translation.processing import DefaultTranslationStructureProcessor
 
-from .translation_support import FakeTranslationProvider, router_for
+from .translation_support import FakeTranslationProvider, PrefixProcessor, router_for
 
 EN = DEFAULT_LANGUAGE_REGISTRY.normalize("en")
 HI = DEFAULT_LANGUAGE_REGISTRY.normalize("hi")
@@ -147,3 +149,23 @@ async def test_markdown_with_only_structure_is_preserved_without_provider_call()
     assert result.text == "\n```py\nvalue = 1\n```\n"
     assert result.provider.provider == "structure"
     assert not provider.calls
+
+
+@pytest.mark.asyncio
+async def test_processor_identity_participates_in_cache_keys() -> None:
+    provider = FakeTranslationProvider(transform=lambda text: text)
+    cache: MemoryCache[TranslationResult] = MemoryCache()
+    keys = CacheKeyBuilder("processor-test")
+    request = TranslationRequest("hello", EN, HI)
+    default_client = TranslationClient(router_for(provider), cache=cache, cache_keys=keys)
+    await default_client.translate(request)
+
+    custom = TranslationProcessorPipeline(
+        DefaultTranslationStructureProcessor(), (PrefixProcessor(),)
+    )
+    custom_client = TranslationClient(
+        router_for(provider), cache=cache, cache_keys=keys, processors=custom
+    )
+    result = await custom_client.translate(request)
+    assert result.text == "hello"
+    assert len(provider.calls) == 2

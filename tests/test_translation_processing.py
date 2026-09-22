@@ -3,8 +3,16 @@ from __future__ import annotations
 import pytest
 
 from indic_language_utils.errors import OutputValidationError
-from indic_language_utils.translation.models import TextFormat
-from indic_language_utils.translation.processing import prepare_text, restore_protected
+from indic_language_utils.translation.models import TextFormat, TranslationOptions
+from indic_language_utils.translation.processing import (
+    DefaultTranslationStructureProcessor,
+    ProtectedContentProcessor,
+    TranslationProcessorPipeline,
+    prepare_text,
+    restore_protected,
+)
+
+from .translation_support import PrefixProcessor
 
 
 def test_markdown_reconstruction_preserves_structure_and_visible_text() -> None:
@@ -39,3 +47,32 @@ def test_blank_markdown_has_no_translatable_segments() -> None:
     prepared = prepare_text("\n\n", TextFormat.MARKDOWN, 10)
     assert not prepared.segments
     assert prepared.literals == ("\n\n",)
+
+
+def test_custom_processors_are_composable_and_restore_in_reverse_order() -> None:
+    pipeline = TranslationProcessorPipeline(
+        DefaultTranslationStructureProcessor(),
+        (ProtectedContentProcessor(), PrefixProcessor()),
+    )
+    options = TranslationOptions()
+    prepared = pipeline.prepare("Visit https://example.gov", options)
+    assert prepared.segments[0].text == "X:Visit [[ILU-P-000000]]"
+    output = pipeline.reconstruct(prepared, ("X:देखें [[ILU-P-000000]]",), options)
+    assert output == "देखें https://example.gov"
+
+
+def test_processors_can_be_omitted_explicitly() -> None:
+    pipeline = TranslationProcessorPipeline(
+        DefaultTranslationStructureProcessor(),
+        (),
+    )
+    prepared = pipeline.prepare("Visit https://example.gov", TranslationOptions())
+    assert prepared.segments[0].text == "Visit https://example.gov"
+
+
+def test_duplicate_processor_identity_is_rejected() -> None:
+    with pytest.raises(ValueError):
+        TranslationProcessorPipeline(
+            DefaultTranslationStructureProcessor(),
+            (PrefixProcessor(), PrefixProcessor()),
+        )

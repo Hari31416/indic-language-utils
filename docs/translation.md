@@ -47,6 +47,8 @@ async with provider:
 
 `translate_batch()` accepts a tuple of requests and preserves input order. `TranslationOptions` sets the input format, maximum characters per segment, and maximum items per provider batch. These units are explicit. The Bhashini adapter also limits concurrent calls per provider.
 
+Pass a `TranslationProcessorPipeline` to choose preprocessing and post-processing behavior. The default pipeline handles plain text and Markdown structure, then protects URLs, code, and Markdown markers. See the processor guide for composition and custom processor examples.
+
 ## Markdown and failures
 
 Set `text_format=TextFormat.MARKDOWN` to preserve indentation, list markers, headings, links, URLs, inline code, fenced code blocks, and blank lines. The processor replaces protected values with numbered placeholders and rejects missing, duplicated, or reordered placeholders. It never returns source text as a substitute for a failed translation.

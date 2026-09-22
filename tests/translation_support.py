@@ -3,14 +3,37 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
+from indic_language_utils.errors import OutputValidationError
 from indic_language_utils.languages import DEFAULT_LANGUAGE_REGISTRY, LanguageTag
 from indic_language_utils.models import ProviderIdentity
+from indic_language_utils.processors import ProcessorIdentity
 from indic_language_utils.providers import CapabilityDeclaration, CapabilityId, ProviderRegistry
 from indic_language_utils.routing import OrderedRouter
 from indic_language_utils.translation.models import (
     ProviderTranslationResult,
     TranslationOptions,
 )
+from indic_language_utils.translation.processing import Segment
+
+
+@dataclass(frozen=True)
+class PrefixProcessor:
+    identity = ProcessorIdentity("test-prefix", "1")
+
+    def prepare(self, segment: Segment, options: TranslationOptions) -> Segment:
+        return Segment(
+            f"X:{segment.text}",
+            segment.prefix,
+            segment.suffix,
+            segment.protected,
+            segment.state,
+        ).with_state(self.identity.name, "X:")
+
+    def restore(self, text: str, segment: Segment, options: TranslationOptions) -> str:
+        prefix = segment.state_for(self.identity.name)
+        if not isinstance(prefix, str) or not text.startswith(prefix):
+            raise OutputValidationError("Custom prefix was not preserved")
+        return text[len(prefix) :]
 
 
 @dataclass
