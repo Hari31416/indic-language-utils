@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
 import logging
 import os
 from pathlib import Path
@@ -9,6 +11,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from ..config import Settings
 from ..detection import (
     DetectionOptions,
     DetectionRequest,
@@ -17,10 +20,12 @@ from ..detection import (
 )
 from ..detection.client import DetectionClient
 from ..detection.fasttext import HAVE_FASTTEXT
-from ..errors import LanguageUtilsError
+from ..errors import ConfigurationError, LanguageUtilsError
 from ..languages import DEFAULT_LANGUAGE_REGISTRY
 from ..providers import CapabilityId
+from ..providers.bhashini import BhashiniConfig
 from ..routing import OrderedRouter
+from ..stt import STTClient, STTRequest, get_stt_client
 from ..translation import (
     TextFormat,
     TranslationOptions,
@@ -39,6 +44,7 @@ from ..transliteration.client import TransliterationClient
 from ..transliteration.indicxlit import HAVE_INDICXLIT
 
 logger = logging.getLogger(__name__)
+MAX_STT_AUDIO_BYTES = 10 * 1024 * 1024
 
 router = APIRouter(prefix="/api")
 
@@ -82,6 +88,29 @@ class ProvidersResponse(BaseModel):
     translation: list[ProviderInfo]
     detection: list[ProviderInfo]
     transliteration: list[ProviderInfo]
+    speech_to_text: list[ProviderInfo]
+
+
+class STTRequestBody(BaseModel):
+    audio_base64: str = Field(
+        ..., min_length=1, max_length=14_000_000, description="Base64-encoded audio bytes"
+    )
+    language: str = Field(..., min_length=1, description="Source language code")
+    audio_format: str = Field(default="wav", description="Audio container format")
+    sampling_rate: int = Field(default=16000, gt=0, description="Audio sample rate in Hz")
+    provider: str | None = Field(default=None, description="Provider ID or null for auto routing")
+
+
+class STTResponseBody(BaseModel):
+    text: str
+    language: str
+    provider: str
+    model_id: str | None = None
+    request_id: str
+    provider_request_id: str | None = None
+    fallback_count: int
+    cached: bool
+    cache_backend: str
 
 
 class TranslateRequestBody(BaseModel):
@@ -247,10 +276,31 @@ async def list_providers() -> ProvidersResponse:
         ),
     ]
 
+    stt_model_summary: str | None = None
+    if has_bhashini_key:
+        try:
+            stt_config = BhashiniConfig.from_settings(Settings.load(env=env), env=env)
+            if stt_config.stt_model_id or stt_config.stt_model_ids:
+                model_count = len(stt_config.stt_model_ids)
+                stt_model_summary = f"{model_count} language model(s)" + (
+                    f", default: {stt_config.stt_model_id}" if stt_config.stt_model_id else ""
+                )
+        except ConfigurationError:
+            pass
+    stt_providers = [
+        ProviderInfo(
+            id="bhashini",
+            name="Bhashini ASR",
+            available=stt_model_summary is not None,
+            details=stt_model_summary or "Requires BHASHINI_API_KEY, endpoint, and an STT model ID",
+        )
+    ]
+
     return ProvidersResponse(
         translation=translation_providers,
         detection=detection_providers,
         transliteration=transliteration_providers,
+        speech_to_text=stt_providers,
     )
 
 
@@ -488,4 +538,67 @@ async def transliterate_text(body: TransliterateRequestBody) -> TransliterateRes
         cached=result.cache.hit,
         cache_backend=result.cache.backend,
         warnings=[w.message for w in result.warnings],
+    )
+
+
+@router.post("/stt", response_model=STTResponseBody)
+async def transcribe_audio(body: STTRequestBody) -> STTResponseBody:
+    try:
+        audio = base64.b64decode(body.audio_base64, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise HTTPException(
+            status_code=400, detail="audio_base64 must contain valid base64"
+        ) from exc
+    if not audio:
+        raise HTTPException(status_code=400, detail="Audio cannot be empty")
+    if len(audio) > MAX_STT_AUDIO_BYTES:
+        raise HTTPException(status_code=413, detail="Audio exceeds the 10 MiB limit")
+
+    try:
+        request = STTRequest(audio, body.language, body.audio_format, body.sampling_rate)
+    except (LanguageUtilsError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    try:
+        base_client = get_stt_client(env=_get_env_overrides())
+    except ConfigurationError as exc:
+        logger.warning("STT setup error: %s", exc)
+        raise HTTPException(status_code=503, detail="STT provider is not configured") from exc
+
+    client = base_client
+    if body.provider and body.provider != "auto":
+        available_names = {
+            provider.identity.provider for provider in base_client.router.registry.all()
+        }
+        if body.provider not in available_names:
+            raise HTTPException(
+                status_code=400, detail=f"Provider '{body.provider}' is unavailable"
+            )
+        client = STTClient(
+            OrderedRouter(
+                base_client.router.registry,
+                {CapabilityId.SPEECH_TO_TEXT: (body.provider,)},
+            )
+        )
+
+    try:
+        async with client:
+            result = await client.transcribe(request)
+    except LanguageUtilsError as exc:
+        logger.warning("STT error: %s", exc)
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.error("Unexpected STT error: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail="STT failed") from exc
+
+    return STTResponseBody(
+        text=result.text,
+        language=str(result.language),
+        provider=result.provider,
+        model_id=result.model_id,
+        request_id=result.request_id,
+        provider_request_id=result.provider_request_id,
+        fallback_count=result.fallback_count,
+        cached=False,
+        cache_backend="none",
     )

@@ -284,3 +284,64 @@ def test_static_ui_served(client: TestClient) -> None:
     assert response.status_code == 200
     assert "text/html" in response.headers.get("content-type", "")
     assert "Indic Language Utils" in response.text
+
+
+def test_stt_endpoint(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    import base64
+
+    from indic_language_utils.server import routes
+    from indic_language_utils.stt.bhashini import BhashiniSTTProvider
+    from indic_language_utils.stt.models import ProviderSTTResult
+
+    monkeypatch.setattr(
+        routes,
+        "_get_env_overrides",
+        lambda: {
+            "BHASHINI_API_KEY": "test-key",
+            "BHASHINI_ENDPOINT_URL": "https://example.test/inference",
+            "BHASHINI_STT_MODEL_ID": "default-asr",
+        },
+    )
+
+    async def mock_transcribe_batch(
+        self: BhashiniSTTProvider,
+        audio: tuple[bytes, ...],
+        *,
+        language: object,
+        audio_format: str,
+        sampling_rate: int,
+        request_id: str,
+    ) -> tuple[ProviderSTTResult, ...]:
+        assert audio == (b"test-audio",)
+        assert audio_format == "wav"
+        assert sampling_rate == 16000
+        return (ProviderSTTResult("नमस्ते", "default-asr", "provider-123"),)
+
+    monkeypatch.setattr(BhashiniSTTProvider, "transcribe_batch", mock_transcribe_batch)
+    providers = client.get("/api/providers").json()["speech_to_text"]
+    assert providers[0]["available"] is True
+
+    response = client.post(
+        "/api/stt",
+        json={
+            "audio_base64": base64.b64encode(b"test-audio").decode(),
+            "language": "hi",
+            "audio_format": "wav",
+            "sampling_rate": 16000,
+            "provider": "bhashini",
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["text"] == "नमस्ते"
+    assert response.json()["model_id"] == "default-asr"
+    assert response.json()["language"] == "hi-IN"
+    assert response.json()["cached"] is False
+    assert response.json()["cache_backend"] == "none"
+
+
+def test_stt_rejects_bad_audio(client: TestClient) -> None:
+    response = client.post(
+        "/api/stt",
+        json={"audio_base64": "not base64", "language": "hi"},
+    )
+    assert response.status_code == 400
