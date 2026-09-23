@@ -21,7 +21,7 @@ from ..providers import CapabilityDeclaration, CapabilityId
 from .models import ProviderTransliterationResult, TransliterationOptions
 
 try:
-    import ai4bharat.transliteration  # type: ignore[import-not-found]
+    import ai4bharat.transliteration
 
     HAVE_INDICXLIT = True
 except ImportError:  # pragma: no cover

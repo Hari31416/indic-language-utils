@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 try:
-    from aksharamukha import transliterate as aksharamukha_engine  # type: ignore[import-untyped]
+    from aksharamukha import transliterate as aksharamukha_engine
 
     HAVE_AKSHARAMUKHA = True
 except ImportError:
