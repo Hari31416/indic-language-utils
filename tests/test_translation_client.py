@@ -69,6 +69,19 @@ async def test_dropped_placeholder_is_preserved_by_translating_around_it() -> No
 
 
 @pytest.mark.asyncio
+async def test_literal_bracketed_numbers_do_not_collide_with_protected_content() -> None:
+    provider = FakeTranslationProvider(transform=lambda text: text)
+    client = TranslationClient(router_for(provider))
+    for source in (
+        "Reference [123456] is valid.",
+        "Reference [000000] uses https://example.gov.",
+        "Literal [[ILU-P-000000]] uses https://example.gov.",
+    ):
+        result = await client.translate(TranslationRequest(source, EN, HI))
+        assert result.text == source
+
+
+@pytest.mark.asyncio
 async def test_provider_fallback_is_reported() -> None:
     failing = FakeTranslationProvider(
         "first", fail_with=TransientProviderError("temporary", provider="first")

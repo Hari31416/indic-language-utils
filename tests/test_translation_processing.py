@@ -32,6 +32,8 @@ def test_markdown_reconstruction_preserves_structure_and_visible_text() -> None:
 def test_missing_or_reordered_placeholders_validation() -> None:
     with pytest.raises(OutputValidationError):
         restore_protected("missing", ("https://example.gov",))
+    with pytest.raises(OutputValidationError):
+        restore_protected("[[ILU-P-000000]][[ILU-P-000001]]", ("one",))
     # Strict order rejection when allow_reordered=False
     with pytest.raises(OutputValidationError):
         restore_protected("[[ILU-P-000001]][[ILU-P-000000]]", ("one", "two"), allow_reordered=False)
@@ -63,6 +65,22 @@ def test_blank_markdown_has_no_translatable_segments() -> None:
     prepared = prepare_text("\n\n", TextFormat.MARKDOWN, 10)
     assert not prepared.segments
     assert prepared.literals == ("\n\n",)
+
+
+def test_markdown_fences_preserve_tilde_and_longer_backtick_blocks() -> None:
+    source = "~~~py\nsecret = 1\n~~~\n````py\n```\nsecret = 2\n````\nAfter\n"
+    prepared = prepare_text(source, TextFormat.MARKDOWN, 1_000)
+    assert [segment.text for segment in prepared.segments] == ["After"]
+    assert prepared.reconstruct(tuple(segment.text for segment in prepared.segments)) == source
+
+
+def test_markdown_preserves_crlf_outside_provider_text() -> None:
+    source = "# Heading\r\nNext\r\n"
+    prepared = prepare_text(source, TextFormat.MARKDOWN, 1_000)
+    assert [segment.text for segment in prepared.segments] == ["Heading", "Next"]
+    assert (
+        prepared.reconstruct(tuple(segment.text.strip() for segment in prepared.segments)) == source
+    )
 
 
 def test_custom_processors_are_composable_and_restore_in_reverse_order() -> None:

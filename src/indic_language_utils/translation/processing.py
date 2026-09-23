@@ -19,6 +19,8 @@ _LIST_PREFIX = re.compile(r"^(?P<prefix>[ \t]*(?:[-+*]|\d+[.)]|>)[ \t]+)(?P<body
 _MARKDOWN_PREFIX = re.compile(r"^(?P<prefix>[ \t]*(?:#{1,6}[ \t]+)?)(?P<body>.*)$")
 _SENTENCE_BOUNDARY = re.compile(r"(?<=[.!?।॥])\s+")
 _PLACEHOLDER = re.compile(r"\[{1,2}\s*(?:ILU-P-|[^\d\[\]]*?)\s*(\d{6})\s*\]{1,2}")
+_PROTECTED_INDICES = "translation-protected-indices"
+_LITERAL_INDICES = "translation-literal-placeholder-indices"
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,7 +59,12 @@ class PreparedText:
         if len(translated) != len(self.segments):
             raise OutputValidationError("Provider returned the wrong number of translated segments")
         restored = tuple(
-            restore_protected(output, segment.protected)
+            restore_protected(
+                output,
+                segment.protected,
+                indices=_protected_indices(segment),
+                literal_indices=_literal_indices(segment),
+            )
             for segment, output in zip(self.segments, translated, strict=True)
         )
         return self.assemble(restored)
@@ -106,18 +113,37 @@ class DefaultTranslationStructureProcessor:
     def _markdown(self, text: str, max_characters: int) -> PreparedText:
         segments: list[Segment] = []
         literals: list[str] = [""]
-        in_fence = False
+        fence_char = ""
+        fence_length = 0
         for line in text.splitlines(keepends=True):
-            stripped = line.lstrip()
-            if stripped.startswith("```"):
-                in_fence = not in_fence
+            stripped = line.lstrip(" \t").rstrip("\r\n")
+            fence = re.match(r"(`{3,}|~{3,})", stripped)
+            if not fence_char and fence:
+                fence_char = fence.group(0)[0]
+                fence_length = len(fence.group(0))
                 literals[-1] += line
                 continue
-            if in_fence or not line.strip():
+            if fence_char:
+                if (
+                    fence
+                    and fence.group(0)[0] == fence_char
+                    and len(fence.group(0)) >= fence_length
+                    and not stripped[fence.end() :].strip()
+                ):
+                    fence_char = ""
+                    fence_length = 0
                 literals[-1] += line
                 continue
-            newline = "\n" if line.endswith("\n") else ""
-            content = line[:-1] if newline else line
+            if not line.strip():
+                literals[-1] += line
+                continue
+            if line.endswith("\r\n"):
+                newline = "\r\n"
+            elif line.endswith(("\n", "\r")):
+                newline = line[-1]
+            else:
+                newline = ""
+            content = line[: -len(newline)] if newline else line
             match = _LIST_PREFIX.match(content)
             if match is None:
                 match = _MARKDOWN_PREFIX.match(content)
@@ -147,6 +173,8 @@ class ProtectedContentProcessor:
         return restore_protected(
             text,
             segment.protected,
+            indices=_protected_indices(segment),
+            literal_indices=_literal_indices(segment),
             allow_reordered=options.allow_reordered_placeholders,
             best_effort=options.best_effort,
         )
@@ -254,46 +282,97 @@ def _split_large(text: str, limit: int, *, preserve_protected: bool = False) -> 
 
 def _protect(segment: Segment) -> Segment:
     protected: list[str] = []
+    occupied = {int(match.group(1)) for match in _PLACEHOLDER.finditer(segment.text)}
+    indices: list[int] = []
+    next_index = 0
 
     def replace(match: re.Match[str]) -> str:
+        nonlocal next_index
+        while next_index in occupied:
+            next_index += 1
+        if next_index > 999_999:
+            raise OutputValidationError("Too many protected placeholders")
         protected.append(match.group(0))
-        return f"[[ILU-P-{len(protected) - 1:06d}]]"
+        indices.append(next_index)
+        marker = f"[[ILU-P-{next_index:06d}]]"
+        next_index += 1
+        return marker
 
     return Segment(
         _PROTECTED.sub(replace, segment.text),
         segment.prefix,
         segment.suffix,
         tuple(protected),
-        segment.state,
+        (
+            *segment.state,
+            (_PROTECTED_INDICES, tuple(indices)),
+            (_LITERAL_INDICES, frozenset(occupied)),
+        ),
     )
+
+
+def _protected_indices(segment: Segment) -> tuple[int, ...]:
+    try:
+        indices = segment.state_for(_PROTECTED_INDICES)
+    except KeyError:
+        return tuple(range(len(segment.protected)))
+    assert isinstance(indices, tuple)
+    return indices
+
+
+def _literal_indices(segment: Segment) -> frozenset[int]:
+    try:
+        indices = segment.state_for(_LITERAL_INDICES)
+    except KeyError:
+        return frozenset()
+    assert isinstance(indices, frozenset)
+    return indices
 
 
 def restore_protected(
     text: str,
     protected: tuple[str, ...],
     *,
+    indices: tuple[int, ...] | None = None,
+    literal_indices: frozenset[int] = frozenset(),
     allow_reordered: bool = True,
     best_effort: bool = False,
 ) -> str:
-    matches = list(_PLACEHOLDER.finditer(text))
+    if not protected:
+        if not best_effort and any(
+            int(match.group(1)) not in literal_indices for match in _PLACEHOLDER.finditer(text)
+        ):
+            raise OutputValidationError(
+                "Protected placeholders are missing, duplicated, or invalid"
+            )
+        return text
+    expected_order = indices if indices is not None else tuple(range(len(protected)))
+    if len(expected_order) != len(protected):
+        raise ValueError("Protected indices and values must have the same length")
+    replacements = dict(zip(expected_order, protected, strict=True))
+    all_matches = list(_PLACEHOLDER.finditer(text))
+    matches = [match for match in all_matches if int(match.group(1)) in replacements]
     found_indices = [int(m.group(1)) for m in matches]
-    expected_indices = set(range(len(protected)))
+    expected_indices = set(expected_order)
 
     missing_indices = expected_indices - set(found_indices)
-    extra_indices = set(found_indices) - expected_indices
+    extra_indices = (
+        {int(match.group(1)) for match in all_matches} - expected_indices - literal_indices
+    )
     has_duplicates = len(found_indices) != len(set(found_indices))
-    order_invalid = not allow_reordered and tuple(found_indices) != tuple(range(len(protected)))
+    order_invalid = not allow_reordered and tuple(found_indices) != expected_order
 
     if (missing_indices or extra_indices or has_duplicates or order_invalid) and not best_effort:
         raise OutputValidationError("Protected placeholders are missing, duplicated, or invalid")
 
     for match in reversed(matches):
         idx = int(match.group(1))
-        replacement = protected[idx] if idx < len(protected) else match.group(0)
+        replacement = replacements[idx]
         text = text[: match.start()] + replacement + text[match.end() :]
 
     if best_effort and missing_indices:
-        for idx in sorted(missing_indices):
-            text += f" {protected[idx]}"
+        for idx in expected_order:
+            if idx in missing_indices:
+                text += f" {replacements[idx]}"
 
     return text
