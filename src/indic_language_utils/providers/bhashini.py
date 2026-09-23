@@ -85,6 +85,8 @@ class BhashiniConfig:
     max_concurrency: int = 8
     retry_policy: RetryPolicy = field(default_factory=RetryPolicy)
     detection_service_id: str | None = None
+    transliteration_service_id: str | None = None
+    transliteration_service_ids: Mapping[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not self.endpoint.startswith(("https://", "http://")):
@@ -98,7 +100,26 @@ class BhashiniConfig:
                 raise ConfigurationError("Bhashini translation service selector is duplicated")
             normalized[normalized_selector] = service_id
         object.__setattr__(self, "translation_service_ids", MappingProxyType(normalized))
-        if not self.translation_service_id and not normalized and not self.detection_service_id:
+
+        translit_normalized: dict[str, str] = {}
+        for selector, service_id in self.transliteration_service_ids.items():
+            if not service_id:
+                raise ConfigurationError("Bhashini transliteration service IDs cannot be empty")
+            normalized_selector = _normalize_service_selector(selector)
+            if normalized_selector in translit_normalized:
+                raise ConfigurationError("Bhashini transliteration service selector is duplicated")
+            translit_normalized[normalized_selector] = service_id
+        object.__setattr__(
+            self, "transliteration_service_ids", MappingProxyType(translit_normalized)
+        )
+
+        if (
+            not self.translation_service_id
+            and not normalized
+            and not self.detection_service_id
+            and not self.transliteration_service_id
+            and not translit_normalized
+        ):
             raise ConfigurationError(
                 "A default or language-specific Bhashini service ID is required"
             )
@@ -115,7 +136,12 @@ class BhashiniConfig:
             detection_service_id = values.get("BHASHINI_DETECTION_SERVICE_ID") or values.get(
                 "BHASHINI_TLD_SERVICE_ID"
             )
-            if translation_service_id is None and detection_service_id is None:
+            transliteration_service_id = values.get("BHASHINI_TRANSLITERATION_SERVICE_ID")
+            if (
+                translation_service_id is None
+                and detection_service_id is None
+                and transliteration_service_id is None
+            ):
                 raise KeyError("BHASHINI_TRANSLATION_SERVICE_ID")
             timeout = float(values.get("BHASHINI_TIMEOUT_SECONDS", "20"))
             concurrency = int(values.get("BHASHINI_MAX_CONCURRENCY", "8"))
@@ -128,6 +154,7 @@ class BhashiniConfig:
             timeout_seconds=timeout,
             max_concurrency=concurrency,
             detection_service_id=detection_service_id,
+            transliteration_service_id=transliteration_service_id,
         )
 
     @classmethod
@@ -153,6 +180,9 @@ class BhashiniConfig:
                 or values.get("BHASHINI_TLD_SERVICE_ID")
                 or (provider.detection_service_id if provider else None)
             )
+            transliteration_service_id = values.get("BHASHINI_TRANSLITERATION_SERVICE_ID") or (
+                provider.transliteration_service_id if provider else None
+            )
             api_key = Secret(values["BHASHINI_API_KEY"])
             timeout = float(
                 values.get(
@@ -167,10 +197,13 @@ class BhashiniConfig:
                 )
             )
             translation_service_ids = provider.translation_service_ids if provider else {}
+            transliteration_service_ids = provider.transliteration_service_ids if provider else {}
             if endpoint is None or (
                 translation_service_id is None
                 and not translation_service_ids
                 and detection_service_id is None
+                and transliteration_service_id is None
+                and not transliteration_service_ids
             ):
                 raise KeyError
         except (KeyError, ValueError) as exc:
@@ -189,6 +222,8 @@ class BhashiniConfig:
             concurrency,
             retry_policy,
             detection_service_id=detection_service_id,
+            transliteration_service_id=transliteration_service_id,
+            transliteration_service_ids=transliteration_service_ids,
         )
 
 

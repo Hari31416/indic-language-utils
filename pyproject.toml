@@ -24,6 +24,7 @@ dependencies = ["httpx>=0.28,<1"]
 [project.optional-dependencies]
 googletrans = ["googletrans>=4.0.2"]
 local-tld = ["fasttext-langdetect>=1.1.1"]
+local-transliteration = ["ai4bharat-transliteration>=0.1.0"]
 server = ["fastapi>=0.115.0", "uvicorn[standard]>=0.34.0"]
 
 [project.scripts]

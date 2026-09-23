@@ -60,6 +60,8 @@ class ProviderSettings:
     translation_service_id: str | None = None
     translation_service_ids: Mapping[str, str] = field(default_factory=dict)
     detection_service_id: str | None = None
+    transliteration_service_id: str | None = None
+    transliteration_service_ids: Mapping[str, str] = field(default_factory=dict)
     timeout_seconds: float = 20.0
     max_concurrency: int = 8
     credential: Secret | None = None
@@ -295,6 +297,8 @@ def _providers(data: Mapping[str, object]) -> dict[str, ProviderSettings]:
         "translation_service_ids",
         "detection_service_id",
         "tld_service_id",
+        "transliteration_service_id",
+        "transliteration_service_ids",
         "timeout_seconds",
         "max_concurrency",
         "model",
@@ -311,6 +315,11 @@ def _providers(data: Mapping[str, object]) -> dict[str, ProviderSettings]:
             ),
             detection_service_id=_optional_string(
                 values.get("detection_service_id") or values.get("tld_service_id")
+            ),
+            transliteration_service_id=_optional_string(values.get("transliteration_service_id")),
+            transliteration_service_ids=_string_mapping(
+                values.get("transliteration_service_ids", {}),
+                f"providers.{name}.transliteration_service_ids",
             ),
             timeout_seconds=_number(values.get("timeout_seconds", 20.0)),
             max_concurrency=_integer(values.get("max_concurrency", 8)),
