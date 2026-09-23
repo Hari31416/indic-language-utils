@@ -27,5 +27,6 @@ Explore the comprehensive documentation guides:
 - [User Guide](user-guide.md): Architecture overview, core capabilities, provider matrix, and usage levels.
 - [Translation](translation.md): Synchronous and asynchronous translation, batching, Markdown preservation, and catalogs.
 - [Detection](detection.md): Local FastText and cloud Bhashini language detection, script analysis, and candidate scoring.
+- [Transliteration](transliteration.md): Script transliteration between Roman and native Indic scripts via Bhashini and AI4Bharat IndicXlit.
 - [Configuration](configuration.md): Project TOML configuration, precedence hierarchy, and environment variables.
 - [Processors](processors.md): Structure processors, segment processors, and custom pipeline authoring.

@@ -9,6 +9,7 @@ Provider-neutral foundations for Indian language operations in Python.
 - Provider Neutrality: Code against high-level capability interfaces. Swap, configure, or chain providers without changing text processing or domain code.
 - Text Translation: Translate plain text or complex Markdown documents across 22 scheduled Indian languages and English.
 - Text Language Detection: Identify languages using offline FastText classification (`lid.176.ftz`) or cloud inference pipelines via Bhashini.
+- Transliteration: Convert between Roman script and native Indic scripts via Bhashini or AI4Bharat IndicXlit.
 - Script Identification: Fast, zero-dependency Unicode script identification across 12+ Indic scripts and Latin.
 - Document and Code Protection: Structural pre-processors and post-processors protect headings, bullet markers, inline code spans, URLs, and code blocks from neural translation corruption.
 - Resilient Execution: Automatic multi-provider fallback routing, bounded concurrency limits per provider, and exponential backoff retries with jitter.
@@ -25,12 +26,13 @@ Bhashini configuration, and the first detection and translation calls.
 
 ## Supported Providers
 
-| Provider             | Capability              | Mode               | Prerequisites                 |
-| :------------------- | :---------------------- | :----------------- | :---------------------------- |
-| **Bhashini**         | Translation, Detection  | Cloud API          | API key, Endpoint, Service ID |
-| **Sarvam AI**        | Translation, Detection  | Cloud API          | API key (`SARVAM_API_KEY`)    |
-| **FastText**         | Text Language Detection | Offline / Local    | `[local-tld]` extra           |
-| **Google Translate** | Translation             | Cloud (unofficial) | `[googletrans]` extra         |
+| Provider             | Capability                              | Mode               | Prerequisites                 |
+| :------------------- | :-------------------------------------- | :----------------- | :---------------------------- |
+| **Bhashini**         | Translation, Detection, Transliteration | Cloud API          | API key, Endpoint, Service ID |
+| **Sarvam AI**        | Translation, Detection                  | Cloud API          | API key (`SARVAM_API_KEY`)    |
+| **AI4Bharat IndicXlit** | Transliteration                      | Offline / Local    | `[local-transliteration]` extra |
+| **FastText**         | Text Language Detection                 | Offline / Local    | `[local-tld]` extra           |
+| **Google Translate** | Translation                             | Cloud (unofficial) | `[googletrans]` extra         |
 
 ## Configuration
 
@@ -55,6 +57,7 @@ max_delay_seconds = 5.0
 endpoint = "https://dhruva-api.bhashini.gov.in/services/inference/pipeline"
 translation_service_id = "default-translation-model-id"
 detection_service_id = "default-tld-model-id"
+transliteration_service_id = "default-transliteration-model-id"
 max_concurrency = 8
 
 [providers.sarvam]
@@ -65,6 +68,7 @@ max_concurrency = 8
 [routes]
 translation = ["sarvam", "bhashini", "googletrans"]
 text_language_detection = ["sarvam", "bhashini", "fasttext"]
+transliteration = ["bhashini", "indicxlit"]
 ```
 
 Supply credentials securely through environment variables:

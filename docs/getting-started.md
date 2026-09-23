@@ -23,18 +23,18 @@ Use `uv` if your project already manages dependencies with it:
 uv add indic-language-utils
 ```
 
-The core package does not install a local language model or select a translation provider. Add the
+The core package does not install local models or select cloud providers. Add the
 extras required by your application:
 
 ```bash
 # Offline FastText language detection
 pip install "indic-language-utils[local-tld]"
 
+# Offline AI4Bharat IndicXlit transliteration
+pip install "indic-language-utils[local-transliteration]"
+
 # Unofficial Google Translate adapter
 pip install "indic-language-utils[googletrans]"
-
-# Both optional adapters
-pip install "indic-language-utils[local-tld,googletrans]"
 ```
 
 ## Run without Bhashini credentials

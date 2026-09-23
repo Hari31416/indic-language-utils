@@ -33,6 +33,7 @@ nav:
   - User Guide: user-guide.md
   - Translation: translation.md
   - Detection: detection.md
+  - Transliteration: transliteration.md
   - Configuration: configuration.md
   - Processors: processors.md
 

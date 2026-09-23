@@ -16,6 +16,7 @@ The system decouples application code from concrete provider APIs through four c
 The library currently supports the following capabilities:
 
 - Text Translation: Translates plain text or structured Markdown across 22 scheduled Indian languages and English, with support for batching, best-effort recovery, and localization catalogs.
+- Text Transliteration: Converts phonetic or Romanized text to native Indic scripts and native scripts to Romanized forms across 22+ languages using Bhashini and IndicXlit.
 - Text Language Detection: Identifies languages across short and long texts using local FastText models or cloud inference pipelines.
 - Script Identification: Analyzes Unicode code points to detect 12+ Indic scripts and Latin without external dependencies.
 - Multi-Provider Routing: Routes requests sequentially across an ordered list of providers, falling back when primary services fail.
@@ -33,11 +34,12 @@ credential-free development setup, Bhashini environment variables, and working e
 
 The system provides built-in adapters for multiple local and cloud providers:
 
-- Bhashini: Official Government of India ecosystem providing neural translation (IndicTrans2) and text language detection via pipeline inference endpoints. Requires an API key and service identifiers.
+- Bhashini: Official Government of India ecosystem providing neural translation (IndicTrans2), text language detection, and transliteration via pipeline inference endpoints. Requires an API key and service identifiers.
+- IndicXlit: Offline, high-accuracy transliteration engine powered by AI4Bharat's IndicXlit model family for Roman-to-Indic and Indic-to-Roman script conversions.
 - FastText: Offline, high-speed language detection using Facebook's compressed language identification model (`lid.176.ftz`). Requires no network access or credentials.
 - Google Translate: Unofficial translation adapter powered by `googletrans`, useful for local development and testing without credentials.
 
-Custom adapters can be registered by implementing the translation or detection provider protocols
+Custom adapters can be registered by implementing the translation, transliteration, or detection provider protocols
 and adding their capability declarations to a `ProviderRegistry`.
 
 ## Language Tags and Registry
@@ -71,27 +73,34 @@ The library provides three levels of abstraction to accommodate different applic
 Top-level functions offer zero-setup invocation with automatic client lifecycle and settings discovery:
 
 ```python
-from indic_language_utils import detect_sync, translate_sync
+from indic_language_utils import detect_sync, transliterate_sync, translate_sync
 
 # Detect language
 detection = detect_sync("नमस्ते भारत!")
 print(f"Language: {detection.language}, Script: {detection.script}")
+
+# Transliterate text (Roman to Devanagari)
+transliteration = transliterate_sync("namaste", "en", "hi")
+print(f"Transliteration: {transliteration.text}")
 
 # Translate text
 translation = translate_sync("Welcome to India!", "en", "hi")
 print(f"Translation: {translation.text}")
 ```
 
-Asynchronous equivalents (`detect`, `translate`, `detect_batch`, `translate_batch`) are available for async runtimes:
+Asynchronous equivalents (`detect`, `transliterate`, `translate`, `detect_batch`, `transliterate_batch`, `translate_batch`) are available for async runtimes:
 
 ```python
 import asyncio
-from indic_language_utils import detect, translate
+from indic_language_utils import detect, transliterate, translate
 
 
 async def run() -> None:
     detected = await detect("வணக்கம், நீங்கள் நலமா?")
     print(detected.language)
+
+    transliterated = await transliterate("vanakkam", "en", "ta")
+    print(transliterated.text)
 
     translated = await translate("How are you?", "en", "ta")
     print(translated.text)
@@ -106,13 +115,18 @@ For services handling multiple requests, create a managed client that reuses HTT
 
 ```python
 import asyncio
-from indic_language_utils import get_translation_client
+from indic_language_utils import get_translation_client, get_transliteration_client
 
 
 async def service() -> None:
-    async with get_translation_client() as client:
-        result1 = await client.translate("Please enter your name.", "en", "hi")
-        result2 = await client.translate("Please enter your email.", "en", "hi")
+    async with (
+        get_translation_client() as trans_client,
+        get_transliteration_client() as xlit_client,
+    ):
+        xlit = await xlit_client.transliterate("bharat", "en", "hi")
+        result1 = await trans_client.translate("Please enter your name.", "en", "hi")
+        result2 = await trans_client.translate("Please enter your email.", "en", "hi")
+        print(xlit.text)
         print(result1.text)
         print(result2.text)
 
@@ -120,7 +134,7 @@ async def service() -> None:
 asyncio.run(service())
 ```
 
-For synchronous environments without an active event loop, use `get_sync_translation_client()` or `get_sync_detection_client()`:
+For synchronous environments without an active event loop, use `get_sync_translation_client()`, `get_sync_transliteration_client()`, or `get_sync_detection_client()`:
 
 ```python
 from indic_language_utils import get_sync_translation_client
@@ -167,6 +181,7 @@ Routers evaluate provider candidates in configured order. When a primary provide
 ```toml
 [routes]
 translation = ["bhashini", "googletrans"]
+transliteration = ["bhashini", "indicxlit"]
 text_language_detection = ["bhashini", "fasttext"]
 ```
 
@@ -227,6 +242,7 @@ See [configuration.md](configuration.md) for detailed configuration syntax, prec
 
 Explore the detailed capability guides for practical recipes and API references:
 
+- [transliteration.md](transliteration.md): Comprehensive guide to text transliteration, Roman-Indic conversion, suggestions, and offline IndicXlit usage.
 - [translation.md](translation.md): Comprehensive guide to text translation, Markdown preservation, batching, and localization catalogs.
 - [detection.md](detection.md): Comprehensive guide to text language detection, script identification, and candidate ranking.
 - [configuration.md](configuration.md): Complete configuration file format, precedence rules, and environment variables.
