@@ -24,6 +24,7 @@ from ..errors import ConfigurationError, LanguageUtilsError
 from ..languages import DEFAULT_LANGUAGE_REGISTRY
 from ..providers import CapabilityId
 from ..providers.bhashini import BhashiniConfig
+from ..providers.sarvam import SarvamConfig
 from ..routing import OrderedRouter
 from ..stt import STTClient, STTRequest, get_stt_client
 from ..translation import (
@@ -302,6 +303,8 @@ async def list_providers() -> ProvidersResponse:
 
     stt_model_summary: str | None = None
     tts_model_summary: str | None = None
+    sarvam_stt_summary: str | None = None
+    sarvam_tts_summary: str | None = None
     if has_bhashini_key:
         try:
             stt_config = BhashiniConfig.from_settings(Settings.load(env=env), env=env)
@@ -317,13 +320,34 @@ async def list_providers() -> ProvidersResponse:
                 )
         except ConfigurationError:
             pass
+    if has_sarvam_key:
+        try:
+            sarvam_config = SarvamConfig.from_settings(Settings.load(env=env), env=env)
+            sarvam_stt_summary = sarvam_config.stt_model_id or (
+                f"{len(sarvam_config.stt_model_ids)} language model(s)"
+                if sarvam_config.stt_model_ids
+                else None
+            )
+            sarvam_tts_summary = sarvam_config.tts_model_id or (
+                f"{len(sarvam_config.tts_model_ids)} language model(s)"
+                if sarvam_config.tts_model_ids
+                else None
+            )
+        except ConfigurationError:
+            pass
     stt_providers = [
         ProviderInfo(
             id="bhashini",
             name="Bhashini ASR",
             available=stt_model_summary is not None,
             details=stt_model_summary or "Requires BHASHINI_API_KEY, endpoint, and an STT model ID",
-        )
+        ),
+        ProviderInfo(
+            id="sarvam",
+            name="Sarvam STT",
+            available=sarvam_stt_summary is not None,
+            details=sarvam_stt_summary or "Requires SARVAM_API_KEY and an STT model ID",
+        ),
     ]
     tts_providers = [
         ProviderInfo(
@@ -331,7 +355,13 @@ async def list_providers() -> ProvidersResponse:
             name="Bhashini TTS",
             available=tts_model_summary is not None,
             details=tts_model_summary or "Requires BHASHINI_API_KEY, endpoint, and a TTS model ID",
-        )
+        ),
+        ProviderInfo(
+            id="sarvam",
+            name="Sarvam TTS",
+            available=sarvam_tts_summary is not None,
+            details=sarvam_tts_summary or "Requires SARVAM_API_KEY and a TTS model ID",
+        ),
     ]
 
     return ProvidersResponse(

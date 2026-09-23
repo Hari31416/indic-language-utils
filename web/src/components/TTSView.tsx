@@ -19,13 +19,17 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
   const [text, setText] = useState('नमस्ते, आपका स्वागत है।')
   const [language, setLanguage] = useState('hi')
   const [provider, setProvider] = useState('auto')
-  const [parameters, setParameters] = useState('{"gender":"female","samplingRate":16000}')
+  const [parameters, setParameters] = useState('{}')
   const [result, setResult] = useState<TTSResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const handleSynthesize = async () => {
     if (!text.trim()) return
+    if ((provider === 'sarvam' || (provider === 'auto' && providers.find((item) => item.available)?.id === 'sarvam')) && !language) {
+      setError('Sarvam TTS requires a language.')
+      return
+    }
     setLoading(true)
     setError(null)
     setResult(null)
@@ -58,7 +62,7 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
       <div className="lg:col-span-3 bg-slate-900/60 border border-slate-800 rounded-xl p-5 sm:p-6 space-y-5">
         <div>
           <h2 className="text-lg font-semibold text-slate-100">Text to speech</h2>
-          <p className="text-sm text-slate-400 mt-1">Create speech with a Bhashini voice model.</p>
+          <p className="text-sm text-slate-400 mt-1">Create speech with a configured voice model.</p>
         </div>
 
         <label className="block text-xs font-medium text-slate-400">
@@ -80,7 +84,11 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
           </label>
           <label className="text-xs font-medium text-slate-400">
             Provider
-            <select value={provider} onChange={(event) => setProvider(event.target.value)}
+            <select value={provider} onChange={(event) => {
+              const selected = event.target.value
+              setProvider(selected)
+              setParameters(selected === 'sarvam' ? '{"speaker":"shubh","pace":1}' : selected === 'bhashini' ? '{"gender":"female","samplingRate":16000}' : '{}')
+            }}
               className="block w-full mt-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100">
               <option value="auto">Auto</option>
               {providers.map((item) => (
@@ -99,7 +107,7 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
             className="block w-full mt-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-3 font-mono text-xs leading-5 text-slate-100 focus:outline-none focus:border-indigo-500 resize-y" />
         </label>
         <p className="text-xs text-slate-500">
-          Passed to the selected model. Common keys include gender and samplingRate; voice and tone keys depend on the model.
+          Passed to the selected model. Bhashini accepts model-specific keys; Sarvam accepts speaker, pace, and other Bulbul options.
         </p>
         <button type="button" disabled={!text.trim() || loading} onClick={() => void handleSynthesize()}
           className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium text-white transition">
@@ -118,7 +126,7 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
             ) : (
               <p className="text-sm text-slate-400">This audio format may not play in the browser. Download the file instead.</p>
             )}
-            <a href={audioUrl} download={`bhashini-speech.${format || 'bin'}`}
+            <a href={audioUrl} download={`${result.provider}-speech.${format || 'bin'}`}
               className="inline-flex items-center gap-2 text-sm text-indigo-300 hover:text-indigo-200">
               <Download className="w-4 h-4" /> Download audio
             </a>
