@@ -5,6 +5,17 @@ All notable changes to the `indic-language-utils` project will be documented in 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-09-23
+
+### Added
+- Speech to text clients with Bhashini and Sarvam providers, language-specific model IDs, and optional input language when the model supports detection.
+- Text to speech clients with Bhashini and Sarvam providers, language-specific model IDs, and model-specific voice options.
+- FastAPI speech endpoints and web workbench tabs for audio transcription and speech generation.
+- Runnable speech examples, including bundled English, Hindi, and Tamil audio clips for STT.
+
+### Changed
+- The web workbench now shows whether a speech result came from a cache. Speech requests currently go directly to the selected provider.
+
 ## [0.2.2] - 2026-09-23
 
 ### Fixed
