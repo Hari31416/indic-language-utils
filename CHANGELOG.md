@@ -5,6 +5,14 @@ All notable changes to the `indic-language-utils` project will be documented in 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - 2026-09-23
+
+### Fixed
+- Preserve inline code and URLs in long Markdown input when splitting text for translation, and recover protected content when a provider drops a placeholder.
+- Keep source text that resembles a protected placeholder, recognize tilde and longer backtick code fences, and preserve CRLF line endings in Markdown translation.
+- Apply transliteration segment and batch limits, preferring word boundaries when splitting long input.
+- Require a configured Bhashini transliteration service ID for the live example instead of using a rejected default.
+
 ## [0.2.1] - 2026-09-23
 
 ### Fixed
