@@ -20,6 +20,7 @@ export interface ProviderInfo {
 export interface ProvidersResponse {
   translation: ProviderInfo[]
   detection: ProviderInfo[]
+  transliteration: ProviderInfo[]
 }
 
 export interface TranslateRequest {
@@ -70,4 +71,25 @@ export interface DetectResponse {
 
 export interface ScriptDetectResponse {
   script?: string | null
+}
+
+export interface TransliterateRequest {
+  text: string
+  source: string
+  target: string
+  provider?: string | null
+}
+
+export interface TransliterateResponse {
+  text: string
+  source: string
+  target: string
+  provider: string
+  service_id?: string | null
+  model_id?: string | null
+  unofficial: boolean
+  elapsed_seconds: number
+  cached: boolean
+  cache_backend?: string | null
+  warnings: string[]
 }

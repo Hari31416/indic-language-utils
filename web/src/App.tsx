@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import {
   BookOpen,
   FileSearch,
+  Keyboard,
   Languages,
   Layers,
   Loader2,
@@ -12,9 +13,10 @@ import { fetchLanguages, fetchProviders } from './api'
 import { DetectView } from './components/DetectView'
 import { ProvidersView } from './components/ProvidersView'
 import { TranslateView } from './components/TranslateView'
+import { TransliterateView } from './components/TransliterateView'
 import type { LanguageItem, ProvidersResponse } from './types'
 
-type ActiveTab = 'translate' | 'detect' | 'providers'
+type ActiveTab = 'translate' | 'transliterate' | 'detect' | 'providers'
 
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('translate')
@@ -111,6 +113,18 @@ export const App: React.FC = () => {
             </button>
             <button
               type="button"
+              onClick={() => setActiveTab('transliterate')}
+              className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition ${
+                activeTab === 'transliterate'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Keyboard className="w-4 h-4" />
+              Transliteration
+            </button>
+            <button
+              type="button"
               onClick={() => setActiveTab('detect')}
               className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition ${
                 activeTab === 'detect'
@@ -179,6 +193,12 @@ export const App: React.FC = () => {
               <TranslateView
                 languages={languages}
                 providers={providersData?.translation ?? []}
+              />
+            )}
+            {activeTab === 'transliterate' && (
+              <TransliterateView
+                languages={languages}
+                providers={providersData?.transliteration ?? []}
               />
             )}
             {activeTab === 'detect' && (

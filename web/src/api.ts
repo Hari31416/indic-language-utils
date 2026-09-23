@@ -6,6 +6,8 @@ import type {
   ScriptDetectResponse,
   TranslateRequest,
   TranslateResponse,
+  TransliterateRequest,
+  TransliterateResponse,
 } from './types'
 
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -59,5 +61,14 @@ export async function detectScript(text: string): Promise<ScriptDetectResponse> 
   return requestJson<ScriptDetectResponse>('/api/detect-script', {
     method: 'POST',
     body: JSON.stringify({ text }),
+  })
+}
+
+export async function transliterateText(
+  req: TransliterateRequest
+): Promise<TransliterateResponse> {
+  return requestJson<TransliterateResponse>('/api/transliterate', {
+    method: 'POST',
+    body: JSON.stringify(req),
   })
 }

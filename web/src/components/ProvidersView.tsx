@@ -2,6 +2,7 @@ import React from 'react'
 import {
   CheckCircle2,
   Cpu,
+  Languages,
   Layers,
   XCircle,
 } from 'lucide-react'
@@ -19,7 +20,7 @@ export const ProvidersView: React.FC<ProvidersViewProps> = ({
   return (
     <div className="space-y-6">
       {/* Engine Status Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Translation Providers */}
         <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 backdrop-blur-sm">
           <div className="flex items-center gap-2 pb-3 mb-4 border-b border-slate-800">
@@ -31,6 +32,51 @@ export const ProvidersView: React.FC<ProvidersViewProps> = ({
 
           <div className="space-y-3">
             {providersData?.translation.map((prov) => (
+              <div
+                key={prov.id}
+                className="bg-slate-950/80 border border-slate-800 rounded-lg p-3.5 flex items-start justify-between gap-3"
+              >
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-slate-100 text-sm">
+                      {prov.name}
+                    </span>
+                    <span className="text-xs font-mono text-slate-500">
+                      [{prov.id}]
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1 font-mono">
+                    {prov.details}
+                  </p>
+                </div>
+
+                <div>
+                  {prov.available ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-950/70 text-emerald-300 border border-emerald-800/60">
+                      <CheckCircle2 className="w-3 h-3" /> Ready
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-950/70 text-amber-300 border border-amber-800/60">
+                      <XCircle className="w-3 h-3" /> Unconfigured
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Transliteration Providers */}
+        <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 backdrop-blur-sm">
+          <div className="flex items-center gap-2 pb-3 mb-4 border-b border-slate-800">
+            <Languages className="w-5 h-5 text-teal-400" />
+            <h3 className="text-sm font-semibold text-slate-100">
+              Transliteration Engines
+            </h3>
+          </div>
+
+          <div className="space-y-3">
+            {providersData?.transliteration.map((prov) => (
               <div
                 key={prov.id}
                 className="bg-slate-950/80 border border-slate-800 rounded-lg p-3.5 flex items-start justify-between gap-3"
@@ -116,7 +162,7 @@ export const ProvidersView: React.FC<ProvidersViewProps> = ({
         <div className="flex justify-between items-center pb-3 mb-4 border-b border-slate-800">
           <div>
             <h3 className="text-sm font-semibold text-slate-100">
-              Registered Indian Languages & Scripts
+              Registered Indian Languages &amp; Scripts
             </h3>
             <p className="text-xs text-slate-400 mt-0.5">
               Standard Eighth Schedule languages plus English normalized to BCP-47
