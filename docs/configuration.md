@@ -122,10 +122,23 @@ export SARVAM_TIMEOUT_SECONDS="20"
 export SARVAM_MAX_CONCURRENCY="8"
 ```
 
-To quickly select an active translation provider during development without editing configuration files:
+# Google Free STT overrides
+export GOOGLE_FREE_STT_TIMEOUT_SECONDS="20"
+export GOOGLE_FREE_STT_MAX_CONCURRENCY="4"
+export GOOGLE_FREE_STT_DEFAULT_LANGUAGE="en-IN"
+
+# Faster-Whisper STT overrides
+export FASTER_WHISPER_MODEL="base"
+export FASTER_WHISPER_DEVICE="auto"
+export FASTER_WHISPER_COMPUTE_TYPE="default"
+export FASTER_WHISPER_TIMEOUT_SECONDS="60"
+export FASTER_WHISPER_MAX_CONCURRENCY="2"
+
+To quickly select an active provider during development without editing configuration files:
 
 ```bash
 export TRANSLATION_SERVICE_PROVIDER="sarvam"
+export STT_SERVICE_PROVIDER="google_free"  # or "faster_whisper"
 ```
 
 ### Shared System Settings

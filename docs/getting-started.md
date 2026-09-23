@@ -35,6 +35,12 @@ pip install "indic-language-utils[neural-transliteration]"
 
 # Unofficial Google Translate adapter
 pip install "indic-language-utils[googletrans]"
+
+# Unofficial Google Free speech-to-text
+pip install "indic-language-utils[stt-google-free]"
+
+# Offline local Faster-Whisper speech-to-text
+pip install "indic-language-utils[stt-whisper]"
 ```
 
 ## Run without Bhashini credentials

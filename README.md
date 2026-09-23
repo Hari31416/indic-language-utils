@@ -10,7 +10,7 @@ Provider-neutral foundations for Indian language operations in Python.
 - Text Translation: Translate plain text or complex Markdown documents across 22 scheduled Indian languages and English.
 - Text Language Detection: Identify languages using offline FastText classification (`lid.176.ftz`) or cloud inference pipelines via Bhashini.
 - Transliteration: Convert between Roman script and native Indic scripts via Bhashini or AI4Bharat IndicXlit.
-- Speech to text: Transcribe audio with Bhashini and configure ASR models by language.
+- Speech to text: Transcribe audio with Bhashini, Sarvam, local Faster-Whisper, or keyless Google Speech.
 - Text to speech: Generate audio with Bhashini and pass model-specific voice settings.
 - Script Identification: Fast, zero-dependency Unicode script identification across 12+ Indic scripts and Latin.
 - Document and Code Protection: Structural pre-processors and post-processors protect headings, bullet markers, inline code spans, URLs, and code blocks from neural translation corruption.
@@ -35,6 +35,8 @@ Bhashini configuration, and the first detection and translation calls.
 | **Sarvam AI**        | Translation, Detection, STT, TTS        | Cloud API          | API key (`SARVAM_API_KEY`)    |
 | **AI4Bharat IndicXlit** | Transliteration                      | Offline / Local    | `[neural-transliteration]` extra |
 | **FastText**         | Text Language Detection                 | Offline / Local    | `[local-tld]` extra           |
+| **Faster-Whisper**   | Speech to text                          | Offline / Local    | `[stt-whisper]` extra         |
+| **Google Free STT**  | Speech to text                          | Cloud (unofficial) | `[stt-google-free]` extra     |
 | **Google Translate** | Translation                             | Cloud (unofficial) | `[googletrans]` extra         |
 
 ## Configuration
@@ -74,7 +76,7 @@ max_concurrency = 8
 translation = ["sarvam", "bhashini", "googletrans"]
 text_language_detection = ["sarvam", "bhashini", "fasttext"]
 transliteration = ["bhashini", "indicxlit"]
-speech_to_text = ["bhashini", "sarvam"]
+speech_to_text = ["bhashini", "sarvam", "google_free", "faster_whisper"]
 text_to_speech = ["bhashini", "sarvam"]
 ```
 
