@@ -38,6 +38,7 @@ Bhashini configuration, and the first detection and translation calls.
 | **Faster-Whisper**   | Speech to text                          | Offline / Local    | `[stt-whisper]` extra         |
 | **Google Free STT**  | Speech to text                          | Cloud (unofficial) | `[stt-google-free]` extra     |
 | **Google Translate** | Translation                             | Cloud (unofficial) | `[googletrans]` extra         |
+| **Microsoft Edge TTS** | Text to speech                        | Cloud (unofficial) | `[tts-edge]` extra            |
 
 ## Configuration
 
@@ -77,7 +78,7 @@ translation = ["sarvam", "bhashini", "googletrans"]
 text_language_detection = ["sarvam", "bhashini", "fasttext"]
 transliteration = ["bhashini", "indicxlit"]
 speech_to_text = ["bhashini", "sarvam", "google_free", "faster_whisper"]
-text_to_speech = ["bhashini", "sarvam"]
+text_to_speech = ["bhashini", "sarvam", "edge_tts"]
 ```
 
 Supply credentials securely through environment variables:

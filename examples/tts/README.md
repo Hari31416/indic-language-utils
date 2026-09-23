@@ -24,3 +24,11 @@ uv run --env-file .env python examples/tts/sarvam_tts_demo.py --speaker shubh --
 ```
 
 The example explicitly routes to Sarvam and writes `sarvam-speech.wav`. Sarvam Bulbul requires `--language`; its options use `speaker` and `pace` rather than Bhashini's `gender` and `samplingRate`.
+
+To generate audio with Microsoft Edge TTS (free, keyless), run:
+
+```bash
+uv run python examples/tts/edge_tts_demo.py --language hi --parameters '{"gender":"female"}'
+```
+
+Edge TTS produces MP3 audio without requiring any API keys. You can specify gender (`female`, `male`), exact voice (`voice`), speaking rate (`rate`), volume (`volume`), or pitch (`pitch`).
