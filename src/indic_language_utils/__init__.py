@@ -94,6 +94,9 @@ from .translation import (
     translate_sync,
 )
 from .transliteration import (
+    HAVE_AKSHARAMUKHA,
+    AksharamukhaConfig,
+    AksharamukhaTransliterationProvider,
     BhashiniTransliterationProvider,
     IndicXlitConfig,
     IndicXlitTransliterationProvider,
@@ -118,6 +121,9 @@ from .transliteration import (
 __all__ = [
     "DEFAULT_LANGUAGE_REGISTRY",
     "DEFAULT_TRANSLATION_PROCESSORS",
+    "HAVE_AKSHARAMUKHA",
+    "AksharamukhaConfig",
+    "AksharamukhaTransliterationProvider",
     "BhashiniConfig",
     "BhashiniDetectionProvider",
     "BhashiniTranslationProvider",

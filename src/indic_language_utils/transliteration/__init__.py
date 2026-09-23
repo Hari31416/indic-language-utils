@@ -1,5 +1,8 @@
-"""Transliteration capability models, clients, and providers."""
-
+from .aksharamukha import (
+    HAVE_AKSHARAMUKHA,
+    AksharamukhaConfig,
+    AksharamukhaTransliterationProvider,
+)
 from .bhashini_transliterate import BhashiniTransliterationProvider
 from .cache import TransliterationResultCodec, create_transliteration_cache
 from .client import TransliterationClient
@@ -23,6 +26,9 @@ from .protocols import TransliterationProvider
 from .sync import SyncTransliterationClient
 
 __all__ = [
+    "HAVE_AKSHARAMUKHA",
+    "AksharamukhaConfig",
+    "AksharamukhaTransliterationProvider",
     "BhashiniTransliterationProvider",
     "IndicXlitConfig",
     "IndicXlitTransliterationProvider",

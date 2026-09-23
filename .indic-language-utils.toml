@@ -29,3 +29,4 @@ max_concurrency = 4
 
 [routes]
 translation = ["bhashini", "googletrans"]
+transliteration = ["aksharamukha", "bhashini", "indicxlit"]

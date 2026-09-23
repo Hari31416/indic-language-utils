@@ -55,6 +55,19 @@ def get_transliteration_client(
             except ConfigurationError:
                 pass
 
+        # Check Aksharamukha local adapter
+        try:
+            from .aksharamukha import (
+                HAVE_AKSHARAMUKHA,
+                AksharamukhaConfig,
+                AksharamukhaTransliterationProvider,
+            )
+
+            if HAVE_AKSHARAMUKHA:
+                registry.register(AksharamukhaTransliterationProvider(AksharamukhaConfig()))
+        except (ConfigurationError, MissingOptionalDependencyError):
+            pass
+
         # Check IndicXlit local adapter
         try:
             from .indicxlit import (
@@ -89,14 +102,16 @@ def get_transliteration_client(
                 pass
 
         if CapabilityId.TRANSLITERATION not in routes or not routes[CapabilityId.TRANSLITERATION]:
-            translit_providers = tuple(
-                p.identity.provider
-                for p in registry.all()
-                if registry.declaration(p.identity.provider, CapabilityId.TRANSLITERATION)
-                is not None
-            )
-            if translit_providers:
-                routes[CapabilityId.TRANSLITERATION] = translit_providers
+            priority = ("bhashini", "aksharamukha", "indicxlit")
+            ordered = [name for name in priority if name in registered_names]
+            for name in registered_names:
+                if (
+                    name not in ordered
+                    and registry.declaration(name, CapabilityId.TRANSLITERATION) is not None
+                ):
+                    ordered.append(name)
+            if ordered:
+                routes[CapabilityId.TRANSLITERATION] = tuple(ordered)
 
     router = OrderedRouter(registry, routes)
     cache = create_transliteration_cache(settings.cache)
