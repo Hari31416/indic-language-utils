@@ -11,7 +11,7 @@ from ..models import OperationContext
 @dataclass(frozen=True, slots=True)
 class STTRequest:
     audio: bytes
-    language: LanguageTag
+    language: LanguageTag | None
     audio_format: str = "wav"
     sampling_rate: int = 16000
     context: OperationContext = field(default_factory=OperationContext)
@@ -19,7 +19,7 @@ class STTRequest:
     def __init__(
         self,
         audio: bytes,
-        language: LanguageTag | str,
+        language: LanguageTag | str | None = None,
         audio_format: str = "wav",
         sampling_rate: int = 16000,
         context: OperationContext | None = None,
@@ -31,7 +31,9 @@ class STTRequest:
         if sampling_rate <= 0:
             raise ValueError("Sampling rate must be positive")
         object.__setattr__(self, "audio", audio)
-        object.__setattr__(self, "language", DEFAULT_LANGUAGE_REGISTRY.normalize(language))
+        object.__setattr__(
+            self, "language", DEFAULT_LANGUAGE_REGISTRY.normalize(language) if language else None
+        )
         object.__setattr__(self, "audio_format", audio_format)
         object.__setattr__(self, "sampling_rate", sampling_rate)
         object.__setattr__(self, "context", context or OperationContext())
@@ -47,7 +49,7 @@ class ProviderSTTResult:
 @dataclass(frozen=True, slots=True)
 class STTResult:
     text: str
-    language: LanguageTag
+    language: LanguageTag | None
     provider: str
     model_id: str | None
     request_id: str

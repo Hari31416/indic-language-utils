@@ -126,6 +126,16 @@ from .transliteration import (
     transliterate_batch_sync,
     transliterate_sync,
 )
+from .tts import (
+    BhashiniTTSProvider,
+    ProviderTTSResult,
+    TTSClient,
+    TTSOptions,
+    TTSProvider,
+    TTSRequest,
+    TTSResult,
+    get_tts_client,
+)
 
 __all__ = [
     "DEFAULT_LANGUAGE_REGISTRY",
@@ -136,6 +146,7 @@ __all__ = [
     "BhashiniConfig",
     "BhashiniDetectionProvider",
     "BhashiniSTTProvider",
+    "BhashiniTTSProvider",
     "BhashiniTranslationProvider",
     "BhashiniTransliterationProvider",
     "CacheKeyBuilder",
@@ -180,6 +191,7 @@ __all__ = [
     "ProviderRegistry",
     "ProviderSTTResult",
     "ProviderSettings",
+    "ProviderTTSResult",
     "ProviderTransliterationResult",
     "RetrySettings",
     "RouteCandidate",
@@ -199,6 +211,11 @@ __all__ = [
     "SyncDetectionClient",
     "SyncTranslationClient",
     "SyncTransliterationClient",
+    "TTSClient",
+    "TTSOptions",
+    "TTSProvider",
+    "TTSRequest",
+    "TTSResult",
     "TelemetrySettings",
     "TextFormat",
     "TranslationClient",
@@ -235,6 +252,7 @@ __all__ = [
     "get_sync_transliteration_client",
     "get_translation_client",
     "get_transliteration_client",
+    "get_tts_client",
     "translate",
     "translate_batch",
     "translate_batch_sync",

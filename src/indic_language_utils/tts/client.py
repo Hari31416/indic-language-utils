@@ -1,4 +1,4 @@
-"""Provider-neutral asynchronous speech transcription client."""
+"""Provider-neutral asynchronous text to speech client."""
 
 from __future__ import annotations
 
@@ -11,11 +11,11 @@ from ..errors import (
     RateLimitError,
     TransientProviderError,
 )
-from ..languages import DEFAULT_LANGUAGE_REGISTRY, LanguageTag
+from ..languages import LanguageTag
 from ..providers import AsyncLifecycle, CapabilityId, ResourceManager
 from ..routing import OrderedRouter, RouteRequirement
-from .models import STTRequest, STTResult
-from .protocols import STTProvider
+from .models import TTSOptions, TTSRequest, TTSResult
+from .protocols import TTSProvider
 
 _FALLBACK_ERRORS = (
     RateLimitError,
@@ -26,7 +26,7 @@ _FALLBACK_ERRORS = (
 )
 
 
-class STTClient:
+class TTSClient:
     def __init__(self, router: OrderedRouter) -> None:
         self._router = router
         self._resources: ResourceManager | None = None
@@ -50,64 +50,58 @@ class STTClient:
             await self._resources.close()
             self._resources = None
 
-    async def __aenter__(self) -> STTClient:
+    async def __aenter__(self) -> TTSClient:
         await self.start()
         return self
 
     async def __aexit__(self, *_: object) -> None:
         await self.close()
 
-    async def transcribe(
+    async def synthesize(
         self,
-        audio: bytes | STTRequest,
+        text: str | TTSRequest,
         *,
         language: LanguageTag | str | None = None,
-        audio_format: str = "wav",
-        sampling_rate: int = 16000,
-    ) -> STTResult:
-        if isinstance(audio, STTRequest):
-            request = audio
-        else:
-            request = STTRequest(audio, language, audio_format, sampling_rate)
-        return (await self.transcribe_batch((request,)))[0]
+        options: TTSOptions | None = None,
+    ) -> TTSResult:
+        request = text if isinstance(text, TTSRequest) else TTSRequest(text, language, options)
+        return (await self.synthesize_batch((request,)))[0]
 
-    async def transcribe_batch(self, requests: Sequence[STTRequest]) -> tuple[STTResult, ...]:
+    async def synthesize_batch(self, requests: Sequence[TTSRequest]) -> tuple[TTSResult, ...]:
         if not requests:
             return ()
-        # Bhashini can batch only audio with identical task configuration.
-        results: list[STTResult] = []
+        results: list[TTSResult] = []
         for request in requests:
-            language = (
-                DEFAULT_LANGUAGE_REGISTRY.normalize(request.language)
-                if request.language is not None
-                else None
-            )
             candidates = self._router.candidates(
-                RouteRequirement(CapabilityId.SPEECH_TO_TEXT, source=language)
+                RouteRequirement(CapabilityId.TEXT_TO_SPEECH, source=request.language)
             )
             for fallback_count, candidate in enumerate(candidates):
                 provider = candidate.provider
-                if not isinstance(provider, STTProvider):
+                if not isinstance(provider, TTSProvider):
                     continue
                 try:
-                    response = await provider.transcribe_batch(
-                        (request.audio,),
-                        language=language,
-                        audio_format=request.audio_format,
-                        sampling_rate=request.sampling_rate,
+                    response = await provider.synthesize_batch(
+                        (request.text,),
+                        language=request.language,
+                        options=request.options,
                         request_id=request.context.request_id,
                     )
-                    if len(response) != 1 or not isinstance(response[0].text, str):
+                    if (
+                        len(response) != 1
+                        or not isinstance(response[0].audio, bytes)
+                        or not response[0].audio
+                    ):
                         raise OutputValidationError(
-                            "STT provider returned invalid output",
+                            "TTS provider returned invalid audio",
                             provider=provider.identity.provider,
-                            capability=CapabilityId.SPEECH_TO_TEXT.value,
+                            capability=CapabilityId.TEXT_TO_SPEECH.value,
                         )
                     item = response[0]
                     results.append(
-                        STTResult(
-                            item.text,
-                            language,
+                        TTSResult(
+                            item.audio,
+                            item.audio_format,
+                            request.language,
                             provider.identity.provider,
                             item.model_id,
                             request.context.request_id,
@@ -121,7 +115,7 @@ class STTClient:
                         raise
             else:
                 raise OutputValidationError(
-                    "No STT provider implements transcription",
-                    capability=CapabilityId.SPEECH_TO_TEXT.value,
+                    "No TTS provider implements synthesis",
+                    capability=CapabilityId.TEXT_TO_SPEECH.value,
                 )
         return tuple(results)

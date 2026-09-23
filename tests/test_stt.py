@@ -125,3 +125,14 @@ def test_stt_model_mapping_from_settings() -> None:
     assert BhashiniSTTProvider(cfg).model_id_for(STTRequest(b"x", "ta").language) == "model-ta"
     with pytest.raises(UnsupportedLanguageError):
         BhashiniSTTProvider(cfg).model_id_for(STTRequest(b"x", "en").language)
+
+
+@pytest.mark.asyncio
+async def test_stt_without_language_uses_default_model() -> None:
+    transport = FakeTransport([response("hello")])
+    provider = BhashiniSTTProvider(config(), transport=transport)
+    result = await get_stt_client(providers=[provider]).transcribe(b"audio")
+    assert result.language is None
+    assert result.model_id == "default"
+    task = transport.payloads[0]["pipelineTasks"][0]  # type: ignore[index]
+    assert "language" not in task["config"]

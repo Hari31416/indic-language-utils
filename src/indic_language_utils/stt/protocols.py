@@ -15,7 +15,7 @@ class STTProvider(Provider, Protocol):
         self,
         audio: tuple[bytes, ...],
         *,
-        language: LanguageTag,
+        language: LanguageTag | None,
         audio_format: str,
         sampling_rate: int,
         request_id: str,
