@@ -49,7 +49,7 @@ from ..transliteration import (
 from ..transliteration.aksharamukha import HAVE_AKSHARAMUKHA
 from ..transliteration.client import TransliterationClient
 from ..transliteration.indicxlit import HAVE_INDICXLIT
-from ..tts import TTSClient, TTSOptions, TTSRequest, get_tts_client
+from ..tts import HAVE_EDGE_TTS, TTSClient, TTSOptions, TTSRequest, get_tts_client
 
 logger = logging.getLogger(__name__)
 MAX_STT_AUDIO_BYTES = 10 * 1024 * 1024
@@ -372,6 +372,14 @@ async def list_providers() -> ProvidersResponse:
         ),
     ]
     tts_providers = [
+        ProviderInfo(
+            id="edge_tts",
+            name="Microsoft Edge TTS",
+            available=HAVE_EDGE_TTS,
+            details="Free online TTS via Microsoft Edge neural voices"
+            if HAVE_EDGE_TTS
+            else "Requires 'edge-tts' package",
+        ),
         ProviderInfo(
             id="bhashini",
             name="Bhashini TTS",
@@ -710,17 +718,23 @@ async def synthesize_speech(body: TTSRequestBody) -> TTSResponseBody:
 
     client = base_client
     if body.provider and body.provider != "auto":
+        target_provider = (
+            "edge_tts"
+            if body.provider == "edge"
+            and any(p.identity.provider == "edge_tts" for p in base_client.router.registry.all())
+            else body.provider
+        )
         available_names = {
             provider.identity.provider for provider in base_client.router.registry.all()
         }
-        if body.provider not in available_names:
+        if target_provider not in available_names:
             raise HTTPException(
                 status_code=400, detail=f"Provider '{body.provider}' is unavailable"
             )
         client = TTSClient(
             OrderedRouter(
                 base_client.router.registry,
-                {CapabilityId.TEXT_TO_SPEECH: (body.provider,)},
+                {CapabilityId.TEXT_TO_SPEECH: (target_provider,)},
             )
         )
 

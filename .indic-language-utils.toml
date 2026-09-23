@@ -52,8 +52,13 @@ tts_model_id = "bulbul:v3"
 timeout_seconds = 20.0
 max_concurrency = 8
 
+[providers.edge_tts]
+tts_model_id = "hi-IN-SwaraNeural"
+timeout_seconds = 30.0
+max_concurrency = 4
+
 [routes]
 translation = ["bhashini", "googletrans"]
 transliteration = ["aksharamukha", "bhashini", "indicxlit"]
 speech_to_text = ["bhashini", "sarvam"]
-text_to_speech = ["bhashini", "sarvam"]
+text_to_speech = ["bhashini", "sarvam", "edge_tts"]

@@ -37,11 +37,30 @@ def get_tts_client(
             sarvam = SarvamConfig.from_settings(settings, env=values)
             if sarvam.tts_model_id or sarvam.tts_model_ids:
                 registry.register(SarvamTTSProvider(sarvam))
-    default_route = tuple(provider.identity.provider for provider in registry.all())
-    route = tuple(
-        name
-        for name in settings.routes.get(CapabilityId.TEXT_TO_SPEECH.value, default_route)
-        if name in default_route
-    )
+
+        try:
+            from .edge_tts import HAVE_EDGE_TTS, EdgeTTSConfig, EdgeTTSProvider
+
+            if HAVE_EDGE_TTS:
+                edge_config = EdgeTTSConfig.from_settings(settings, env=values)
+                registry.register(EdgeTTSProvider(edge_config))
+        except Exception:
+            pass
+
+    if providers is not None:
+        route = tuple(provider.identity.provider for provider in registry.all())
+    else:
+        default_route = tuple(provider.identity.provider for provider in registry.all())
+        registered_names = {p.identity.provider for p in registry.all()}
+        configured_route = settings.routes.get(CapabilityId.TEXT_TO_SPEECH.value, default_route)
+        resolved_route: list[str] = []
+        for name in configured_route:
+            resolved_name = (
+                "edge_tts" if name == "edge" and "edge_tts" in registered_names else name
+            )
+            if resolved_name in registered_names and resolved_name not in resolved_route:
+                resolved_route.append(resolved_name)
+        route = tuple(resolved_route) or default_route
+
     router = OrderedRouter(registry, {CapabilityId.TEXT_TO_SPEECH: route})
     return TTSClient(router)
