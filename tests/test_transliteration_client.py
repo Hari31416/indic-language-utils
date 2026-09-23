@@ -27,6 +27,7 @@ class MockTransliterationProvider:
         default_factory=lambda: (CapabilityDeclaration(CapabilityId.TRANSLITERATION),)
     )
     calls: list[tuple[str, str, str]] = field(default_factory=list)
+    batches: list[tuple[str, ...]] = field(default_factory=list)
     fail: bool = False
     delay: float = 0.0
 
@@ -34,6 +35,7 @@ class MockTransliterationProvider:
         self.identity = ProviderIdentity(name, name.title())
         self.capabilities = (CapabilityDeclaration(CapabilityId.TRANSLITERATION),)
         self.calls = []
+        self.batches = []
         self.fail = fail
         self.delay = delay
 
@@ -46,6 +48,7 @@ class MockTransliterationProvider:
         options: TransliterationOptions,
         request_id: str,
     ) -> ProviderTransliterationResult:
+        self.batches.append(texts)
         if self.delay > 0:
             await asyncio.sleep(self.delay)
         for t in texts:
@@ -91,6 +94,42 @@ async def test_transliteration_client_batch() -> None:
     assert len(results) == 2
     assert results[0].text == "namaste-xlit"
     assert results[1].text == "duniya-xlit"
+
+
+@pytest.mark.asyncio
+async def test_transliteration_honors_segment_and_batch_limits() -> None:
+    provider = MockTransliterationProvider("mock-1")
+    registry = ProviderRegistry()
+    registry.register(provider)
+    client = TransliterationClient(
+        OrderedRouter(registry, {CapabilityId.TRANSLITERATION: ("mock-1",)})
+    )
+    request = TransliterationRequest(
+        "abcdefghij",
+        "en",
+        "hi",
+        options=TransliterationOptions(max_segment_characters=3, max_batch_items=2),
+    )
+    result = await client.transliterate(request)
+    assert provider.batches == [("abc", "def"), ("ghi", "j")]
+    assert result.text == "abc-xlitdef-xlitghi-xlitj-xlit"
+
+
+@pytest.mark.asyncio
+async def test_transliteration_prefers_word_boundaries_when_splitting() -> None:
+    provider = MockTransliterationProvider("mock-1")
+    registry = ProviderRegistry()
+    registry.register(provider)
+    client = TransliterationClient(
+        OrderedRouter(registry, {CapabilityId.TRANSLITERATION: ("mock-1",)})
+    )
+    await client.transliterate(
+        "short words here",
+        source="en",
+        target="hi",
+        options=TransliterationOptions(max_segment_characters=8),
+    )
+    assert provider.batches == [("short ", "words ", "here")]
 
 
 @pytest.mark.asyncio

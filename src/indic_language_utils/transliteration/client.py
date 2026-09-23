@@ -245,21 +245,39 @@ class TransliterationClient:
         started: float,
         fallback_count: int,
     ) -> TransliterationResult:
-        results = await provider.transliterate_batch(
-            (request.text,),
-            source=request.source,
-            target=request.target,
-            options=request.options,
-            request_id=request.context.request_id,
-        )
-        if len(results.transliterations) != 1:
-            raise MalformedProviderResponseError(
-                "Provider returned an unexpected number of transliteration results",
-                provider=provider.identity.provider,
-                capability=CapabilityId.TRANSLITERATION.value,
+        limit = request.options.max_segment_characters
+        segments: list[str] = []
+        remaining = request.text
+        while len(remaining) > limit:
+            cut = next(
+                (index for index in range(limit, 0, -1) if remaining[index - 1].isspace()),
+                limit,
+            )
+            segments.append(remaining[:cut])
+            remaining = remaining[cut:]
+        if remaining:
+            segments.append(remaining)
+        transliterations: list[str] = []
+        results = None
+        for offset in range(0, len(segments), request.options.max_batch_items):
+            group = tuple(segments[offset : offset + request.options.max_batch_items])
+            results = await provider.transliterate_batch(
+                group,
+                source=request.source,
+                target=request.target,
+                options=request.options,
                 request_id=request.context.request_id,
             )
-        transliterated_text = results.transliterations[0]
+            if len(results.transliterations) != len(group):
+                raise MalformedProviderResponseError(
+                    "Provider returned an unexpected number of transliteration results",
+                    provider=provider.identity.provider,
+                    capability=CapabilityId.TRANSLITERATION.value,
+                    request_id=request.context.request_id,
+                )
+            transliterations.extend(results.transliterations)
+        assert results is not None
+        transliterated_text = "".join(transliterations)
         elapsed = time.monotonic() - started
 
         result = TransliterationResult(
@@ -309,6 +327,8 @@ class TransliterationClient:
                 "target": str(request.target),
                 "provider": provider,
                 "options": {
+                    "max_segment_characters": request.options.max_segment_characters,
+                    "max_batch_items": request.options.max_batch_items,
                     "best_effort": request.options.best_effort,
                 },
             },
