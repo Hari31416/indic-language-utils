@@ -4,6 +4,8 @@ import type {
   LanguagesResponse,
   ProvidersResponse,
   ScriptDetectResponse,
+  STTRequest,
+  STTResponse,
   TranslateRequest,
   TranslateResponse,
   TransliterateRequest,
@@ -68,6 +70,13 @@ export async function transliterateText(
   req: TransliterateRequest
 ): Promise<TransliterateResponse> {
   return requestJson<TransliterateResponse>('/api/transliterate', {
+    method: 'POST',
+    body: JSON.stringify(req),
+  })
+}
+
+export async function transcribeAudio(req: STTRequest): Promise<STTResponse> {
+  return requestJson<STTResponse>('/api/stt', {
     method: 'POST',
     body: JSON.stringify(req),
   })

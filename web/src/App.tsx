@@ -6,17 +6,19 @@ import {
   Languages,
   Layers,
   Loader2,
+  Mic,
   RefreshCw,
   Terminal,
 } from 'lucide-react'
 import { fetchLanguages, fetchProviders } from './api'
 import { DetectView } from './components/DetectView'
 import { ProvidersView } from './components/ProvidersView'
+import { STTView } from './components/STTView'
 import { TranslateView } from './components/TranslateView'
 import { TransliterateView } from './components/TransliterateView'
 import type { LanguageItem, ProvidersResponse } from './types'
 
-type ActiveTab = 'translate' | 'transliterate' | 'detect' | 'providers'
+type ActiveTab = 'translate' | 'transliterate' | 'detect' | 'stt' | 'providers'
 
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('translate')
@@ -137,6 +139,18 @@ export const App: React.FC = () => {
             </button>
             <button
               type="button"
+              onClick={() => setActiveTab('stt')}
+              className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition ${
+                activeTab === 'stt'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Mic className="w-4 h-4" />
+              Speech to text
+            </button>
+            <button
+              type="button"
               onClick={() => setActiveTab('providers')}
               className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition ${
                 activeTab === 'providers'
@@ -203,6 +217,12 @@ export const App: React.FC = () => {
             )}
             {activeTab === 'detect' && (
               <DetectView providers={providersData?.detection ?? []} />
+            )}
+            {activeTab === 'stt' && (
+              <STTView
+                languages={languages}
+                providers={providersData?.speech_to_text ?? []}
+              />
             )}
             {activeTab === 'providers' && (
               <ProvidersView

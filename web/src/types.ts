@@ -21,6 +21,27 @@ export interface ProvidersResponse {
   translation: ProviderInfo[]
   detection: ProviderInfo[]
   transliteration: ProviderInfo[]
+  speech_to_text: ProviderInfo[]
+}
+
+export interface STTRequest {
+  audio_base64: string
+  language: string
+  audio_format: string
+  sampling_rate: number
+  provider?: string | null
+}
+
+export interface STTResponse {
+  text: string
+  language: string
+  provider: string
+  model_id?: string | null
+  request_id: string
+  provider_request_id?: string | null
+  fallback_count: number
+  cached: boolean
+  cache_backend: string
 }
 
 export interface TranslateRequest {
