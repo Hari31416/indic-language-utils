@@ -103,12 +103,9 @@ async def run_bhashini_demo() -> None:
         "BHASHINI_ENDPOINT_URL",
         "https://dhruva-api.bhashini.gov.in/services/inference/pipeline",
     )
-    service_id = os.environ.get(
-        "BHASHINI_TRANSLITERATION_SERVICE_ID",
-        "ai4bharat/indicxlit-gpu--t4",
-    )
+    service_id = os.environ.get("BHASHINI_TRANSLITERATION_SERVICE_ID")
 
-    if api_key:
+    if api_key and service_id:
         logger.info("Initializing live Bhashini transliteration client...")
         config = BhashiniConfig(
             endpoint=endpoint,
@@ -117,11 +114,14 @@ async def run_bhashini_demo() -> None:
         )
         provider = BhashiniTransliterationProvider(config)
     else:
-        logger.info("BHASHINI_API_KEY not found in environment; running with Mock Transport.")
+        logger.info(
+            "Live Bhashini transliteration requires BHASHINI_API_KEY and "
+            "BHASHINI_TRANSLITERATION_SERVICE_ID; running with Mock Transport."
+        )
         config = BhashiniConfig(
             endpoint=endpoint,
             api_key=Secret("demo-api-key"),
-            transliteration_service_id=service_id,
+            transliteration_service_id=service_id or "demo-service",
         )
         provider = BhashiniTransliterationProvider(
             config, transport=MockBhashiniTranslitTransport()
