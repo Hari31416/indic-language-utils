@@ -26,7 +26,13 @@ from ..providers import CapabilityId
 from ..providers.bhashini import BhashiniConfig
 from ..providers.sarvam import SarvamConfig
 from ..routing import OrderedRouter
-from ..stt import STTClient, STTRequest, get_stt_client
+from ..stt import (
+    HAVE_FASTER_WHISPER,
+    HAVE_SPEECH_RECOGNITION,
+    STTClient,
+    STTRequest,
+    get_stt_client,
+)
 from ..translation import (
     TextFormat,
     TranslationOptions,
@@ -347,6 +353,22 @@ async def list_providers() -> ProvidersResponse:
             name="Sarvam STT",
             available=sarvam_stt_summary is not None,
             details=sarvam_stt_summary or "Requires SARVAM_API_KEY and an STT model ID",
+        ),
+        ProviderInfo(
+            id="google_free",
+            name="Google Free STT",
+            available=HAVE_SPEECH_RECOGNITION,
+            details="Unofficial Google Web Speech via SpeechRecognition"
+            if HAVE_SPEECH_RECOGNITION
+            else "Requires 'SpeechRecognition' package",
+        ),
+        ProviderInfo(
+            id="faster_whisper",
+            name="Faster Whisper",
+            available=HAVE_FASTER_WHISPER,
+            details="Local offline STT via faster-whisper"
+            if HAVE_FASTER_WHISPER
+            else "Requires 'faster-whisper' package",
         ),
     ]
     tts_providers = [
