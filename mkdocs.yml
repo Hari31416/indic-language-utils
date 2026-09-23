@@ -34,6 +34,7 @@ nav:
   - Translation: translation.md
   - Detection: detection.md
   - Transliteration: transliteration.md
+  - Speech to text: stt.md
   - Configuration: configuration.md
   - Processors: processors.md
 

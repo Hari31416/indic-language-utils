@@ -44,12 +44,21 @@ endpoint = "https://dhruva-api.bhashini.gov.in/services/inference/pipeline"
 translation_service_id = "default-translation-model-id"
 detection_service_id = "default-tld-model-id"
 transliteration_service_id = "default-transliteration-model-id"
+stt_model_id = "default-asr-service-id"
+tts_model_id = "default-tts-service-id"
 timeout_seconds = 20.0
 max_concurrency = 8
 
 [providers.bhashini.translation_service_ids]
 "hi-IN" = "service-for-any-source-to-hindi"
 "en-IN>ta-IN" = "service-for-english-to-tamil"
+
+[providers.bhashini.stt_model_ids]
+"hi-IN" = "asr-service-for-hindi"
+"ta-IN" = "asr-service-for-tamil"
+
+[providers.bhashini.tts_model_ids]
+"hi-IN" = "tts-service-for-hindi"
 
 [providers.googletrans]
 timeout_seconds = 20.0
@@ -65,6 +74,7 @@ max_concurrency = 8
 translation = ["sarvam", "bhashini", "googletrans"]
 text_language_detection = ["sarvam", "bhashini", "fasttext"]
 transliteration = ["bhashini", "indicxlit"]
+speech_to_text = ["bhashini"]
 ```
 
 Relative cache paths resolve relative to the current working directory of the process. In production containers or multi-directory environments, specify an absolute path.
@@ -88,6 +98,8 @@ export BHASHINI_ENDPOINT_URL="https://dhruva-api.bhashini.gov.in/services/infere
 export BHASHINI_TRANSLATION_SERVICE_ID="your-translation-service-id"
 export BHASHINI_DETECTION_SERVICE_ID="your-tld-service-id"
 export BHASHINI_TRANSLITERATION_SERVICE_ID="your-transliteration-service-id"
+export BHASHINI_STT_MODEL_ID="your-default-asr-service-id"
+export BHASHINI_TTS_MODEL_ID="your-default-tts-service-id"
 export BHASHINI_TIMEOUT_SECONDS="20"
 export BHASHINI_MAX_CONCURRENCY="8"
 ```
