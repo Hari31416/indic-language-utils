@@ -24,6 +24,18 @@ const SAMPLE_TEXTS = [
     text: 'namaste bharat aapka swagat hai',
   },
   {
+    title: 'Tamil to Devanagari (Script-to-Script)',
+    source: 'ta',
+    target: 'hi',
+    text: 'வணக்கம், நீங்கள் நலமா?',
+  },
+  {
+    title: 'Devanagari to Bengali (Script-to-Script)',
+    source: 'hi',
+    target: 'bn',
+    text: 'नमस्ते भारत आपका स्वागत है',
+  },
+  {
     title: 'Tamil (Roman to Tamil)',
     source: 'en',
     target: 'ta',
@@ -127,8 +139,8 @@ export const TransliterateView: React.FC<TransliterateViewProps> = ({
               Phonetic &amp; Script Transliteration
             </h2>
             <p className="text-xs text-slate-400">
-              Convert phonetic Roman inputs to native Indic scripts or Romanize
-              native texts using Bhashini and AI4Bharat IndicXlit.
+              Convert phonetic Roman inputs to native Indic scripts, Romanize native texts,
+              or convert directly between Indic scripts using Aksharamukha, Bhashini, and IndicXlit.
             </p>
           </div>
         </div>
