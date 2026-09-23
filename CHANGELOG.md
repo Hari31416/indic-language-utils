@@ -5,6 +5,21 @@ All notable changes to the `indic-language-utils` project will be documented in 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-09-23
+
+### Added
+- Microsoft Edge TTS adapter (`EdgeTTSProvider`) for free, keyless neural speech synthesis across Indian languages (Hindi, Bengali, Tamil, Telugu, Marathi, Gujarati, Kannada, Malayalam, Urdu, Nepali, Assamese, and English).
+- Edge TTS voice selection with female/male defaults and support for explicit `voice`, `rate`, `pitch`, and `volume` options in `TTSOptions.parameters`.
+- `tts-edge` optional dependency extra for `edge-tts`.
+- Support for keyless Google Free Speech-to-Text (`GoogleFreeSTTProvider`) via `SpeechRecognition` (`stt-google-free` extra).
+- Support for local offline Faster-Whisper Speech-to-Text (`FasterWhisperSTTProvider`) via `faster-whisper` (`stt-whisper` extra).
+- Runnable Edge TTS demo script (`examples/tts/edge_tts_demo.py`) and documentation in `docs/tts.md`.
+- Automated provider discovery and routing for Edge TTS and free STT providers in `get_tts_client` and `get_stt_client`.
+
+### Changed
+- Web workbench Text-to-Speech tab updated with Edge TTS parameter presets and option key hints.
+- Web workbench Providers view updated with structured status cards for multiple speech and TTS engines.
+
 ## [0.3.0] - 2026-09-23
 
 ### Added
