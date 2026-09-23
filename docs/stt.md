@@ -1,6 +1,6 @@
 # Speech to text
 
-The STT client accepts audio bytes and a source language. The first provider is Bhashini's batch ASR endpoint. It sends base64 audio through the pipeline compute API and returns the transcript with the selected model ID.
+The STT client accepts audio bytes and an optional source language. The first provider is Bhashini's batch ASR endpoint. It sends base64 audio through the pipeline compute API and returns the transcript with the selected model ID.
 
 ```python
 from indic_language_utils import get_stt_client
@@ -28,7 +28,7 @@ stt_model_id = "default-asr-service-id"
 speech_to_text = ["bhashini"]
 ```
 
-Bhashini calls these IDs `serviceId` in its pipeline request. Its [available models list](https://dibd-bhashini.gitbook.io/bhashini-apis/available-models-for-usage) maps service IDs to ASR models and languages. A language-specific entry takes precedence over `stt_model_id`. Without a matching entry or default, the provider reports an unsupported language. `tts_model_id` and `tts_model_ids` are also accepted by configuration for later TTS support.
+Bhashini calls these IDs `serviceId` in its pipeline request. Its [available models list](https://dibd-bhashini.gitbook.io/bhashini-apis/available-models-for-usage) maps service IDs to ASR models and languages. A language-specific entry takes precedence over `stt_model_id`. Without a matching entry or default, the provider reports an unsupported language. You may omit language for a model that infers it; this uses `stt_model_id` and leaves the language field out of the Bhashini task config.
 
 The client accepts `STTRequest` objects and `transcribe_batch` for multiple clips. The initial adapter makes one call per clip, so mixed languages and formats work. Audio must already match the declared format and sample rate; this library does not resample it.
 

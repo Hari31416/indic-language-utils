@@ -21,6 +21,7 @@ include_content = false
 endpoint = "https://dhruva-api.bhashini.gov.in/services/inference/pipeline"
 translation_service_id = "ai4bharat/indictrans-v2-all-gpu--t4"
 stt_model_id = "bhashini/bodhan/asr-transcribe-core"
+tts_model_id = "Bhashini/IITM/TTS"
 timeout_seconds = 20.0
 max_concurrency = 8
 
@@ -38,3 +39,4 @@ max_concurrency = 4
 translation = ["bhashini", "googletrans"]
 transliteration = ["aksharamukha", "bhashini", "indicxlit"]
 speech_to_text = ["bhashini"]
+text_to_speech = ["bhashini"]

@@ -75,6 +75,7 @@ translation = ["sarvam", "bhashini", "googletrans"]
 text_language_detection = ["sarvam", "bhashini", "fasttext"]
 transliteration = ["bhashini", "indicxlit"]
 speech_to_text = ["bhashini"]
+text_to_speech = ["bhashini"]
 ```
 
 Relative cache paths resolve relative to the current working directory of the process. In production containers or multi-directory environments, specify an absolute path.

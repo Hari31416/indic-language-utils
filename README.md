@@ -11,6 +11,7 @@ Provider-neutral foundations for Indian language operations in Python.
 - Text Language Detection: Identify languages using offline FastText classification (`lid.176.ftz`) or cloud inference pipelines via Bhashini.
 - Transliteration: Convert between Roman script and native Indic scripts via Bhashini or AI4Bharat IndicXlit.
 - Speech to text: Transcribe audio with Bhashini and configure ASR models by language.
+- Text to speech: Generate audio with Bhashini and pass model-specific voice settings.
 - Script Identification: Fast, zero-dependency Unicode script identification across 12+ Indic scripts and Latin.
 - Document and Code Protection: Structural pre-processors and post-processors protect headings, bullet markers, inline code spans, URLs, and code blocks from neural translation corruption.
 - Resilient Execution: Automatic multi-provider fallback routing, bounded concurrency limits per provider, and exponential backoff retries with jitter.
@@ -30,7 +31,7 @@ Bhashini configuration, and the first detection and translation calls.
 | Provider             | Capability                              | Mode               | Prerequisites                 |
 | :------------------- | :-------------------------------------- | :----------------- | :---------------------------- |
 | **Aksharamukha**     | Transliteration (120+ scripts)          | Offline / Local    | `[local-transliteration]` extra |
-| **Bhashini**         | Translation, Detection, Transliteration, STT | Cloud API          | API key, Endpoint, Service ID |
+| **Bhashini**         | Translation, Detection, Transliteration, STT, TTS | Cloud API          | API key, Endpoint, Service ID |
 | **Sarvam AI**        | Translation, Detection                  | Cloud API          | API key (`SARVAM_API_KEY`)    |
 | **AI4Bharat IndicXlit** | Transliteration                      | Offline / Local    | `[neural-transliteration]` extra |
 | **FastText**         | Text Language Detection                 | Offline / Local    | `[local-tld]` extra           |
@@ -90,6 +91,8 @@ Comprehensive guides are available in the documentation site:
 - [Detection Guide](docs/detection.md): Local FastText and cloud Bhashini detection, script analysis, and candidate scoring.
 - [Speech to text guide](docs/stt.md): Bhashini audio transcription and language-specific model IDs.
 - [STT example](examples/stt/README.md): Transcribe an audio file with Bhashini.
+- [Text to speech guide](docs/tts.md): Bhashini synthesis and model-specific options.
+- [TTS example](examples/tts/README.md): Generate and save audio with Bhashini.
 - [Configuration Reference](docs/configuration.md): Project TOML file formats, precedence rules, and environment variables.
 - [Processor Pipelines](docs/processors.md): Structural processors, segment processors, and custom pipeline authoring.
 - [Architecture Proposal](plans/architecture-proposal.md): Design philosophy and ecosystem review.
