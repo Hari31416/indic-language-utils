@@ -66,6 +66,10 @@ class ProviderSettings:
     max_concurrency: int = 8
     credential: Secret | None = None
     model: str | None = None
+    stt_model_id: str | None = None
+    stt_model_ids: Mapping[str, str] = field(default_factory=dict)
+    tts_model_id: str | None = None
+    tts_model_ids: Mapping[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -302,6 +306,10 @@ def _providers(data: Mapping[str, object]) -> dict[str, ProviderSettings]:
         "timeout_seconds",
         "max_concurrency",
         "model",
+        "stt_model_id",
+        "stt_model_ids",
+        "tts_model_id",
+        "tts_model_ids",
     }
     for name, raw in data.items():
         values = _mapping(raw, f"providers.{name}")
@@ -324,6 +332,14 @@ def _providers(data: Mapping[str, object]) -> dict[str, ProviderSettings]:
             timeout_seconds=_number(values.get("timeout_seconds", 20.0)),
             max_concurrency=_integer(values.get("max_concurrency", 8)),
             model=_optional_string(values.get("model")),
+            stt_model_id=_optional_string(values.get("stt_model_id")),
+            stt_model_ids=_string_mapping(
+                values.get("stt_model_ids", {}), f"providers.{name}.stt_model_ids"
+            ),
+            tts_model_id=_optional_string(values.get("tts_model_id")),
+            tts_model_ids=_string_mapping(
+                values.get("tts_model_ids", {}), f"providers.{name}.tts_model_ids"
+            ),
         )
     return result
 

@@ -87,6 +87,10 @@ class BhashiniConfig:
     detection_service_id: str | None = None
     transliteration_service_id: str | None = None
     transliteration_service_ids: Mapping[str, str] = field(default_factory=dict)
+    stt_model_id: str | None = None
+    stt_model_ids: Mapping[str, str] = field(default_factory=dict)
+    tts_model_id: str | None = None
+    tts_model_ids: Mapping[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not self.endpoint.startswith(("https://", "http://")):
@@ -113,12 +117,32 @@ class BhashiniConfig:
             self, "transliteration_service_ids", MappingProxyType(translit_normalized)
         )
 
+        for field_name in ("stt_model_ids", "tts_model_ids"):
+            selected: dict[str, str] = {}
+            for language, model_id in getattr(self, field_name).items():
+                if not model_id or not model_id.strip():
+                    raise ConfigurationError(f"Bhashini {field_name} values cannot be empty")
+                tag = str(DEFAULT_LANGUAGE_REGISTRY.normalize(language))
+                if tag in selected:
+                    raise ConfigurationError(f"Bhashini {field_name} contains duplicate languages")
+                selected[tag] = model_id
+            object.__setattr__(self, field_name, MappingProxyType(selected))
+
+        for field_name in ("stt_model_id", "tts_model_id"):
+            value = getattr(self, field_name)
+            if value is not None and not value.strip():
+                raise ConfigurationError(f"Bhashini {field_name} cannot be empty")
+
         if (
             not self.translation_service_id
             and not normalized
             and not self.detection_service_id
             and not self.transliteration_service_id
             and not translit_normalized
+            and not self.stt_model_id
+            and not self.stt_model_ids
+            and not self.tts_model_id
+            and not self.tts_model_ids
         ):
             raise ConfigurationError(
                 "A default or language-specific Bhashini service ID is required"
@@ -137,10 +161,14 @@ class BhashiniConfig:
                 "BHASHINI_TLD_SERVICE_ID"
             )
             transliteration_service_id = values.get("BHASHINI_TRANSLITERATION_SERVICE_ID")
+            stt_model_id = values.get("BHASHINI_STT_MODEL_ID")
+            tts_model_id = values.get("BHASHINI_TTS_MODEL_ID")
             if (
                 translation_service_id is None
                 and detection_service_id is None
                 and transliteration_service_id is None
+                and stt_model_id is None
+                and tts_model_id is None
             ):
                 raise KeyError("BHASHINI_TRANSLATION_SERVICE_ID")
             timeout = float(values.get("BHASHINI_TIMEOUT_SECONDS", "20"))
@@ -155,6 +183,8 @@ class BhashiniConfig:
             max_concurrency=concurrency,
             detection_service_id=detection_service_id,
             transliteration_service_id=transliteration_service_id,
+            stt_model_id=stt_model_id,
+            tts_model_id=tts_model_id,
         )
 
     @classmethod
@@ -183,6 +213,12 @@ class BhashiniConfig:
             transliteration_service_id = values.get("BHASHINI_TRANSLITERATION_SERVICE_ID") or (
                 provider.transliteration_service_id if provider else None
             )
+            stt_model_id = values.get("BHASHINI_STT_MODEL_ID") or (
+                provider.stt_model_id if provider else None
+            )
+            tts_model_id = values.get("BHASHINI_TTS_MODEL_ID") or (
+                provider.tts_model_id if provider else None
+            )
             api_key = Secret(values["BHASHINI_API_KEY"])
             timeout = float(
                 values.get(
@@ -198,12 +234,18 @@ class BhashiniConfig:
             )
             translation_service_ids = provider.translation_service_ids if provider else {}
             transliteration_service_ids = provider.transliteration_service_ids if provider else {}
+            stt_model_ids = provider.stt_model_ids if provider else {}
+            tts_model_ids = provider.tts_model_ids if provider else {}
             if endpoint is None or (
                 translation_service_id is None
                 and not translation_service_ids
                 and detection_service_id is None
                 and transliteration_service_id is None
                 and not transliteration_service_ids
+                and stt_model_id is None
+                and not stt_model_ids
+                and tts_model_id is None
+                and not tts_model_ids
             ):
                 raise KeyError
         except (KeyError, ValueError) as exc:
@@ -224,6 +266,10 @@ class BhashiniConfig:
             detection_service_id=detection_service_id,
             transliteration_service_id=transliteration_service_id,
             transliteration_service_ids=transliteration_service_ids,
+            stt_model_id=stt_model_id,
+            stt_model_ids=stt_model_ids,
+            tts_model_id=tts_model_id,
+            tts_model_ids=tts_model_ids,
         )
 
 
