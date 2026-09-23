@@ -16,3 +16,11 @@ uv run --env-file .env python examples/tts/bhashini_tts_demo.py \
 ```
 
 Model options are passed to Bhashini's TTS task config. Use the keys supported by your selected model. Pass `--language ''` for models that infer language.
+
+To generate audio with Sarvam, set `SARVAM_API_KEY` and run:
+
+```bash
+uv run --env-file .env python examples/tts/sarvam_tts_demo.py --speaker shubh --pace 1.0
+```
+
+The example explicitly routes to Sarvam and writes `sarvam-speech.wav`. Sarvam Bulbul requires `--language`; its options use `speaker` and `pace` rather than Bhashini's `gender` and `samplingRate`.

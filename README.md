@@ -32,7 +32,7 @@ Bhashini configuration, and the first detection and translation calls.
 | :------------------- | :-------------------------------------- | :----------------- | :---------------------------- |
 | **Aksharamukha**     | Transliteration (120+ scripts)          | Offline / Local    | `[local-transliteration]` extra |
 | **Bhashini**         | Translation, Detection, Transliteration, STT, TTS | Cloud API          | API key, Endpoint, Service ID |
-| **Sarvam AI**        | Translation, Detection                  | Cloud API          | API key (`SARVAM_API_KEY`)    |
+| **Sarvam AI**        | Translation, Detection, STT, TTS        | Cloud API          | API key (`SARVAM_API_KEY`)    |
 | **AI4Bharat IndicXlit** | Transliteration                      | Offline / Local    | `[neural-transliteration]` extra |
 | **FastText**         | Text Language Detection                 | Offline / Local    | `[local-tld]` extra           |
 | **Google Translate** | Translation                             | Cloud (unofficial) | `[googletrans]` extra         |
@@ -66,12 +66,16 @@ max_concurrency = 8
 [providers.sarvam]
 endpoint = "https://api.sarvam.ai"
 model = "sarvam-translate:v1"
+stt_model_id = "saaras:v4"
+tts_model_id = "bulbul:v3"
 max_concurrency = 8
 
 [routes]
 translation = ["sarvam", "bhashini", "googletrans"]
 text_language_detection = ["sarvam", "bhashini", "fasttext"]
 transliteration = ["bhashini", "indicxlit"]
+speech_to_text = ["bhashini", "sarvam"]
+text_to_speech = ["bhashini", "sarvam"]
 ```
 
 Supply credentials securely through environment variables:
@@ -89,10 +93,10 @@ Comprehensive guides are available in the documentation site:
 - [User Guide](docs/user-guide.md): Architecture overview, core capabilities, and usage styles.
 - [Translation Guide](docs/translation.md): Synchronous and asynchronous translation, Markdown preservation, and catalogs.
 - [Detection Guide](docs/detection.md): Local FastText and cloud Bhashini detection, script analysis, and candidate scoring.
-- [Speech to text guide](docs/stt.md): Bhashini audio transcription and language-specific model IDs.
-- [STT example](examples/stt/README.md): Transcribe an audio file with Bhashini.
-- [Text to speech guide](docs/tts.md): Bhashini synthesis and model-specific options.
-- [TTS example](examples/tts/README.md): Generate and save audio with Bhashini.
+- [Speech to text guide](docs/stt.md): Bhashini and Sarvam transcription and model IDs.
+- [STT example](examples/stt/README.md): Transcribe audio with Bhashini or Sarvam.
+- [Text to speech guide](docs/tts.md): Bhashini and Sarvam synthesis and voice options.
+- [TTS example](examples/tts/README.md): Generate audio with Bhashini or Sarvam.
 - [Configuration Reference](docs/configuration.md): Project TOML file formats, precedence rules, and environment variables.
 - [Processor Pipelines](docs/processors.md): Structural processors, segment processors, and custom pipeline authoring.
 - [Architecture Proposal](plans/architecture-proposal.md): Design philosophy and ecosystem review.

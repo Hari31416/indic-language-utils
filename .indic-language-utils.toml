@@ -35,8 +35,16 @@ max_concurrency = 8
 timeout_seconds = 20.0
 max_concurrency = 4
 
+[providers.sarvam]
+endpoint = "https://api.sarvam.ai"
+model = "sarvam-translate:v1"
+stt_model_id = "saaras:v4"
+tts_model_id = "bulbul:v3"
+timeout_seconds = 20.0
+max_concurrency = 8
+
 [routes]
 translation = ["bhashini", "googletrans"]
 transliteration = ["aksharamukha", "bhashini", "indicxlit"]
-speech_to_text = ["bhashini"]
-text_to_speech = ["bhashini"]
+speech_to_text = ["bhashini", "sarvam"]
+text_to_speech = ["bhashini", "sarvam"]

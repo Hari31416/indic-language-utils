@@ -1,6 +1,6 @@
 # Speech to text
 
-The STT client accepts audio bytes and an optional source language. The first provider is Bhashini's batch ASR endpoint. It sends base64 audio through the pipeline compute API and returns the transcript with the selected model ID.
+The STT client accepts audio bytes and an optional source language. Bhashini sends base64 audio through its pipeline API. Sarvam uploads a file to its REST API. Both return the transcript with the selected model ID.
 
 ```python
 from indic_language_utils import get_stt_client
@@ -34,6 +34,24 @@ The client accepts `STTRequest` objects and `transcribe_batch` for multiple clip
 
 STT requests currently go to the provider every time. The API reports `cached: false` and `cache_backend: "none"`, and the demo app shows that status beside the transcript.
 
+## Sarvam
+
+Set `SARVAM_API_KEY`, then configure Saaras and route to it:
+
+```toml
+[providers.sarvam]
+endpoint = "https://api.sarvam.ai"
+stt_model_id = "saaras:v4"
+
+[providers.sarvam.stt_model_ids]
+"hi-IN" = "saaras:v3"
+
+[routes]
+speech_to_text = ["sarvam", "bhashini"]
+```
+
+Sarvam accepts an optional `language_code`. Omit the language for automatic detection; the result uses Sarvam's detected language when it provides one. Its synchronous REST endpoint accepts clips up to 30 seconds; longer recordings need Sarvam's batch API, which this adapter does not provide. The model ID can also come from `SARVAM_STT_MODEL_ID`.
+
 ## FastAPI and demo app
 
 The demo app has a Speech to text tab for file upload. It accepts WAV, FLAC, MP3, and OGG files up to 10 MiB. Enter the file's actual sample rate before transcribing.
@@ -51,3 +69,5 @@ The FastAPI route accepts the same input as JSON:
 ```
 
 Send it to `POST /api/stt`. The response includes the transcript, normalized language, provider, model ID, and request IDs. The repository also includes `examples/stt/bhashini_demo.py` for file-based use.
+
+Use `"provider": "sarvam"` to select Sarvam. `examples/stt/sarvam_demo.py` runs the bundled audio clips against Saaras.

@@ -67,6 +67,8 @@ max_concurrency = 4
 [providers.sarvam]
 endpoint = "https://api.sarvam.ai"
 model = "sarvam-translate:v1"
+stt_model_id = "saaras:v4"
+tts_model_id = "bulbul:v3"
 timeout_seconds = 20.0
 max_concurrency = 8
 
@@ -74,8 +76,8 @@ max_concurrency = 8
 translation = ["sarvam", "bhashini", "googletrans"]
 text_language_detection = ["sarvam", "bhashini", "fasttext"]
 transliteration = ["bhashini", "indicxlit"]
-speech_to_text = ["bhashini"]
-text_to_speech = ["bhashini"]
+speech_to_text = ["bhashini", "sarvam"]
+text_to_speech = ["bhashini", "sarvam"]
 ```
 
 Relative cache paths resolve relative to the current working directory of the process. In production containers or multi-directory environments, specify an absolute path.
@@ -114,6 +116,8 @@ export SARVAM_API_KEY="your-sarvam-api-key"
 # Optional overrides
 export SARVAM_ENDPOINT_URL="https://api.sarvam.ai"
 export SARVAM_MODEL="sarvam-translate:v1"
+export SARVAM_STT_MODEL_ID="saaras:v4"
+export SARVAM_TTS_MODEL_ID="bulbul:v3"
 export SARVAM_TIMEOUT_SECONDS="20"
 export SARVAM_MAX_CONCURRENCY="8"
 ```
@@ -151,6 +155,8 @@ export ILU_TELEMETRY_INCLUDE_CONTENT="false"
 # Route overrides (comma-separated provider names in priority order)
 export ILU_ROUTE_TRANSLATION="bhashini,googletrans"
 export ILU_ROUTE_TEXT_LANGUAGE_DETECTION="bhashini,fasttext"
+export ILU_ROUTE_SPEECH_TO_TEXT="bhashini,sarvam"
+export ILU_ROUTE_TEXT_TO_SPEECH="bhashini,sarvam"
 ```
 
 ## Programmatic Loading and Overrides

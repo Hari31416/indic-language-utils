@@ -28,7 +28,7 @@ Explore the comprehensive documentation guides:
 - [Translation](translation.md): Synchronous and asynchronous translation, batching, Markdown preservation, and catalogs.
 - [Detection](detection.md): Local FastText and cloud Bhashini language detection, script analysis, and candidate scoring.
 - [Transliteration](transliteration.md): Script transliteration between Roman and native Indic scripts via Bhashini and AI4Bharat IndicXlit.
-- [Speech to text](stt.md): Transcribe audio with Bhashini and select ASR models by language.
-- [Text to speech](tts.md): Generate audio with Bhashini and pass model-specific voice controls.
+- [Speech to text](stt.md): Transcribe audio with Bhashini or Sarvam and select ASR models by language.
+- [Text to speech](tts.md): Generate audio with Bhashini or Sarvam and pass model-specific voice controls.
 - [Configuration](configuration.md): Project TOML configuration, precedence hierarchy, and environment variables.
 - [Processors](processors.md): Structure processors, segment processors, and custom pipeline authoring.
