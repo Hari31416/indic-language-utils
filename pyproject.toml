@@ -77,7 +77,6 @@ line-length = 100
 select = ["E", "F", "I", "UP", "B", "ASYNC", "RUF"]
 
 [tool.mypy]
-python_version = "3.11"
 strict = true
 files = ["src", "tests"]
 
