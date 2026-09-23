@@ -15,7 +15,7 @@ _RESERVED_PARAMETERS = {"serviceId", "language"}
 
 @dataclass(frozen=True, slots=True)
 class TTSOptions:
-    """Model-specific Bhashini task config, such as gender, voice, or tone."""
+    """Provider-specific JSON options for voice and audio output."""
 
     parameters: Mapping[str, object] = field(default_factory=dict)
 

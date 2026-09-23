@@ -5,6 +5,7 @@ from .client import STTClient
 from .helpers import get_stt_client
 from .models import ProviderSTTResult, STTRequest, STTResult
 from .protocols import STTProvider
+from .sarvam import SarvamSTTProvider
 
 __all__ = [
     "BhashiniSTTProvider",
@@ -13,5 +14,6 @@ __all__ = [
     "STTProvider",
     "STTRequest",
     "STTResult",
+    "SarvamSTTProvider",
     "get_stt_client",
 ]

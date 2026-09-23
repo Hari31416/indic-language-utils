@@ -44,6 +44,7 @@ class ProviderSTTResult:
     text: str
     model_id: str | None = None
     request_id: str | None = None
+    detected_language: LanguageTag | None = None
 
 
 @dataclass(frozen=True, slots=True)

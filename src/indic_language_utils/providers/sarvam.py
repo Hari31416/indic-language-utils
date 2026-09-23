@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from types import MappingProxyType
 
 import httpx
 
@@ -32,6 +33,10 @@ class SarvamConfig:
     timeout_seconds: float = 20.0
     max_concurrency: int = 8
     retry_policy: RetryPolicy = field(default_factory=RetryPolicy)
+    stt_model_id: str | None = None
+    stt_model_ids: Mapping[str, str] = field(default_factory=dict)
+    tts_model_id: str | None = None
+    tts_model_ids: Mapping[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not self.endpoint.startswith(("https://", "http://")):
@@ -40,6 +45,20 @@ class SarvamConfig:
             raise ConfigurationError("Sarvam model cannot be empty")
         if self.timeout_seconds <= 0 or self.max_concurrency < 1:
             raise ConfigurationError("Sarvam timeout and concurrency must be positive")
+        for field_name in ("stt_model_ids", "tts_model_ids"):
+            selected: dict[str, str] = {}
+            for language, model_id in getattr(self, field_name).items():
+                if not model_id or not model_id.strip():
+                    raise ConfigurationError(f"Sarvam {field_name} values cannot be empty")
+                tag = str(DEFAULT_LANGUAGE_REGISTRY.normalize(language))
+                if tag in selected:
+                    raise ConfigurationError(f"Sarvam {field_name} contains duplicate languages")
+                selected[tag] = model_id
+            object.__setattr__(self, field_name, MappingProxyType(selected))
+        for field_name in ("stt_model_id", "tts_model_id"):
+            value = getattr(self, field_name)
+            if value is not None and not value.strip():
+                raise ConfigurationError(f"Sarvam {field_name} cannot be empty")
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> SarvamConfig:
@@ -58,6 +77,8 @@ class SarvamConfig:
             model=model,
             timeout_seconds=timeout,
             max_concurrency=concurrency,
+            stt_model_id=values.get("SARVAM_STT_MODEL_ID"),
+            tts_model_id=values.get("SARVAM_TTS_MODEL_ID"),
         )
 
     @classmethod
@@ -93,6 +114,12 @@ class SarvamConfig:
                     str(provider.max_concurrency if provider else 8),
                 )
             )
+            stt_model_id = values.get("SARVAM_STT_MODEL_ID") or (
+                provider.stt_model_id if provider else None
+            )
+            tts_model_id = values.get("SARVAM_TTS_MODEL_ID") or (
+                provider.tts_model_id if provider else None
+            )
         except (KeyError, ValueError) as exc:
             raise ConfigurationError("Sarvam configuration is incomplete or invalid") from exc
         retry_policy = RetryPolicy(
@@ -107,6 +134,10 @@ class SarvamConfig:
             timeout_seconds=timeout,
             max_concurrency=concurrency,
             retry_policy=retry_policy,
+            stt_model_id=stt_model_id,
+            stt_model_ids=provider.stt_model_ids if provider else {},
+            tts_model_id=tts_model_id,
+            tts_model_ids=provider.tts_model_ids if provider else {},
         )
 
 

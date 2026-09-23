@@ -62,6 +62,7 @@ from .routing import OrderedRouter, RouteCandidate, RouteRequirement
 from .stt import (
     BhashiniSTTProvider,
     ProviderSTTResult,
+    SarvamSTTProvider,
     STTClient,
     STTProvider,
     STTRequest,
@@ -129,6 +130,7 @@ from .transliteration import (
 from .tts import (
     BhashiniTTSProvider,
     ProviderTTSResult,
+    SarvamTTSProvider,
     TTSClient,
     TTSOptions,
     TTSProvider,
@@ -203,6 +205,8 @@ __all__ = [
     "STTResult",
     "SarvamConfig",
     "SarvamDetectionProvider",
+    "SarvamSTTProvider",
+    "SarvamTTSProvider",
     "SarvamTranslationProvider",
     "Secret",
     "Segment",

@@ -5,10 +5,12 @@ from .client import TTSClient
 from .helpers import get_tts_client
 from .models import ProviderTTSResult, TTSOptions, TTSRequest, TTSResult
 from .protocols import TTSProvider
+from .sarvam import SarvamTTSProvider
 
 __all__ = [
     "BhashiniTTSProvider",
     "ProviderTTSResult",
+    "SarvamTTSProvider",
     "TTSClient",
     "TTSOptions",
     "TTSProvider",

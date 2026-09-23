@@ -8,10 +8,12 @@ from collections.abc import Mapping, Sequence
 from ..config import Settings
 from ..providers import CapabilityId, ProviderRegistry
 from ..providers.bhashini import BhashiniConfig
+from ..providers.sarvam import SarvamConfig
 from ..routing import OrderedRouter
 from .bhashini import BhashiniTTSProvider
 from .client import TTSClient
 from .protocols import TTSProvider
+from .sarvam import SarvamTTSProvider
 
 
 def get_tts_client(
@@ -27,10 +29,19 @@ def get_tts_client(
             registry.register(provider)
     else:
         values = os.environ if env is None else env
-        config = BhashiniConfig.from_settings(settings, env=values)
-        if config.tts_model_id or config.tts_model_ids:
-            registry.register(BhashiniTTSProvider(config))
+        if values.get("BHASHINI_API_KEY"):
+            config = BhashiniConfig.from_settings(settings, env=values)
+            if config.tts_model_id or config.tts_model_ids:
+                registry.register(BhashiniTTSProvider(config))
+        if values.get("SARVAM_API_KEY"):
+            sarvam = SarvamConfig.from_settings(settings, env=values)
+            if sarvam.tts_model_id or sarvam.tts_model_ids:
+                registry.register(SarvamTTSProvider(sarvam))
     default_route = tuple(provider.identity.provider for provider in registry.all())
-    route = settings.routes.get(CapabilityId.TEXT_TO_SPEECH.value, default_route)
+    route = tuple(
+        name
+        for name in settings.routes.get(CapabilityId.TEXT_TO_SPEECH.value, default_route)
+        if name in default_route
+    )
     router = OrderedRouter(registry, {CapabilityId.TEXT_TO_SPEECH: route})
     return TTSClient(router)

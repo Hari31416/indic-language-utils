@@ -8,10 +8,12 @@ from collections.abc import Mapping, Sequence
 from ..config import Settings
 from ..providers import CapabilityId, ProviderRegistry
 from ..providers.bhashini import BhashiniConfig
+from ..providers.sarvam import SarvamConfig
 from ..routing import OrderedRouter
 from .bhashini import BhashiniSTTProvider
 from .client import STTClient
 from .protocols import STTProvider
+from .sarvam import SarvamSTTProvider
 
 
 def get_stt_client(
@@ -27,10 +29,19 @@ def get_stt_client(
             registry.register(provider)
     else:
         values = os.environ if env is None else env
-        config = BhashiniConfig.from_settings(settings, env=values)
-        if config.stt_model_id or config.stt_model_ids:
-            registry.register(BhashiniSTTProvider(config))
+        if values.get("BHASHINI_API_KEY"):
+            config = BhashiniConfig.from_settings(settings, env=values)
+            if config.stt_model_id or config.stt_model_ids:
+                registry.register(BhashiniSTTProvider(config))
+        if values.get("SARVAM_API_KEY"):
+            sarvam = SarvamConfig.from_settings(settings, env=values)
+            if sarvam.stt_model_id or sarvam.stt_model_ids:
+                registry.register(SarvamSTTProvider(sarvam))
     default_route = tuple(provider.identity.provider for provider in registry.all())
-    route = settings.routes.get(CapabilityId.SPEECH_TO_TEXT.value, default_route)
+    route = tuple(
+        name
+        for name in settings.routes.get(CapabilityId.SPEECH_TO_TEXT.value, default_route)
+        if name in default_route
+    )
     router = OrderedRouter(registry, {CapabilityId.SPEECH_TO_TEXT: route})
     return STTClient(router)

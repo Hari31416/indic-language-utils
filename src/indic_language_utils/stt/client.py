@@ -107,7 +107,7 @@ class STTClient:
                     results.append(
                         STTResult(
                             item.text,
-                            language,
+                            language or item.detected_language,
                             provider.identity.provider,
                             item.model_id,
                             request.context.request_id,
