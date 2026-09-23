@@ -303,6 +303,8 @@ def test_stt_endpoint(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> No
         },
     )
 
+    seen_languages: list[object] = []
+
     async def mock_transcribe_batch(
         self: BhashiniSTTProvider,
         audio: tuple[bytes, ...],
@@ -312,6 +314,7 @@ def test_stt_endpoint(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> No
         sampling_rate: int,
         request_id: str,
     ) -> tuple[ProviderSTTResult, ...]:
+        seen_languages.append(language)
         assert audio == (b"test-audio",)
         assert audio_format == "wav"
         assert sampling_rate == 16000
@@ -338,10 +341,71 @@ def test_stt_endpoint(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> No
     assert response.json()["cached"] is False
     assert response.json()["cache_backend"] == "none"
 
+    no_language = client.post(
+        "/api/stt",
+        json={"audio_base64": base64.b64encode(b"test-audio").decode()},
+    )
+    assert no_language.status_code == 200
+    assert no_language.json()["language"] is None
+    assert len(seen_languages) == 2
+    assert seen_languages[1] is None
+
 
 def test_stt_rejects_bad_audio(client: TestClient) -> None:
     response = client.post(
         "/api/stt",
         json={"audio_base64": "not base64", "language": "hi"},
     )
+    assert response.status_code == 400
+
+
+def test_tts_endpoint(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    import base64
+
+    from indic_language_utils.server import routes
+    from indic_language_utils.tts.bhashini import BhashiniTTSProvider
+    from indic_language_utils.tts.models import ProviderTTSResult, TTSOptions
+
+    monkeypatch.setattr(
+        routes,
+        "_get_env_overrides",
+        lambda: {
+            "BHASHINI_API_KEY": "test-key",
+            "BHASHINI_ENDPOINT_URL": "https://example.test/inference",
+            "BHASHINI_TTS_MODEL_ID": "test-tts",
+        },
+    )
+
+    async def mock_synthesize_batch(
+        self: BhashiniTTSProvider,
+        texts: tuple[str, ...],
+        *,
+        language: object,
+        options: TTSOptions,
+        request_id: str,
+    ) -> tuple[ProviderTTSResult, ...]:
+        assert texts == ("Hello",)
+        assert language is None
+        assert options.parameters == {"gender": "female", "tone": "calm"}
+        return (ProviderTTSResult(b"fake-wav", "wav", "test-tts", "provider-123"),)
+
+    monkeypatch.setattr(BhashiniTTSProvider, "synthesize_batch", mock_synthesize_batch)
+    response = client.post(
+        "/api/tts",
+        json={"text": "Hello", "parameters": {"gender": "female", "tone": "calm"}},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert base64.b64decode(data["audio_base64"]) == b"fake-wav"
+    assert data["audio_format"] == "wav"
+    assert data["language"] is None
+    assert data["model_id"] == "test-tts"
+    assert data["cached"] is False
+    assert data["cache_backend"] == "none"
+    providers = client.get("/api/providers").json()["text_to_speech"]
+    assert providers[0]["available"] is True
+
+
+def test_tts_rejects_reserved_parameters(client: TestClient) -> None:
+    response = client.post("/api/tts", json={"text": "Hello", "parameters": {"serviceId": "other"}})
     assert response.status_code == 400

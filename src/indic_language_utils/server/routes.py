@@ -42,6 +42,7 @@ from ..transliteration import (
 from ..transliteration.aksharamukha import HAVE_AKSHARAMUKHA
 from ..transliteration.client import TransliterationClient
 from ..transliteration.indicxlit import HAVE_INDICXLIT
+from ..tts import TTSClient, TTSOptions, TTSRequest, get_tts_client
 
 logger = logging.getLogger(__name__)
 MAX_STT_AUDIO_BYTES = 10 * 1024 * 1024
@@ -89,13 +90,36 @@ class ProvidersResponse(BaseModel):
     detection: list[ProviderInfo]
     transliteration: list[ProviderInfo]
     speech_to_text: list[ProviderInfo]
+    text_to_speech: list[ProviderInfo]
+
+
+class TTSRequestBody(BaseModel):
+    text: str = Field(..., min_length=1, description="Text to synthesize")
+    language: str | None = Field(default=None, description="Optional output language")
+    parameters: dict[str, object] = Field(
+        default_factory=dict, description="Model-specific Bhashini task settings"
+    )
+    provider: str | None = Field(default=None, description="Provider ID or null for auto routing")
+
+
+class TTSResponseBody(BaseModel):
+    audio_base64: str
+    audio_format: str | None
+    language: str | None
+    provider: str
+    model_id: str | None
+    request_id: str
+    provider_request_id: str | None
+    fallback_count: int
+    cached: bool
+    cache_backend: str
 
 
 class STTRequestBody(BaseModel):
     audio_base64: str = Field(
         ..., min_length=1, max_length=14_000_000, description="Base64-encoded audio bytes"
     )
-    language: str = Field(..., min_length=1, description="Source language code")
+    language: str | None = Field(default=None, description="Optional source language code")
     audio_format: str = Field(default="wav", description="Audio container format")
     sampling_rate: int = Field(default=16000, gt=0, description="Audio sample rate in Hz")
     provider: str | None = Field(default=None, description="Provider ID or null for auto routing")
@@ -103,7 +127,7 @@ class STTRequestBody(BaseModel):
 
 class STTResponseBody(BaseModel):
     text: str
-    language: str
+    language: str | None
     provider: str
     model_id: str | None = None
     request_id: str
@@ -277,6 +301,7 @@ async def list_providers() -> ProvidersResponse:
     ]
 
     stt_model_summary: str | None = None
+    tts_model_summary: str | None = None
     if has_bhashini_key:
         try:
             stt_config = BhashiniConfig.from_settings(Settings.load(env=env), env=env)
@@ -284,6 +309,11 @@ async def list_providers() -> ProvidersResponse:
                 model_count = len(stt_config.stt_model_ids)
                 stt_model_summary = f"{model_count} language model(s)" + (
                     f", default: {stt_config.stt_model_id}" if stt_config.stt_model_id else ""
+                )
+            if stt_config.tts_model_id or stt_config.tts_model_ids:
+                model_count = len(stt_config.tts_model_ids)
+                tts_model_summary = f"{model_count} language model(s)" + (
+                    f", default: {stt_config.tts_model_id}" if stt_config.tts_model_id else ""
                 )
         except ConfigurationError:
             pass
@@ -295,12 +325,21 @@ async def list_providers() -> ProvidersResponse:
             details=stt_model_summary or "Requires BHASHINI_API_KEY, endpoint, and an STT model ID",
         )
     ]
+    tts_providers = [
+        ProviderInfo(
+            id="bhashini",
+            name="Bhashini TTS",
+            available=tts_model_summary is not None,
+            details=tts_model_summary or "Requires BHASHINI_API_KEY, endpoint, and a TTS model ID",
+        )
+    ]
 
     return ProvidersResponse(
         translation=translation_providers,
         detection=detection_providers,
         transliteration=transliteration_providers,
         speech_to_text=stt_providers,
+        text_to_speech=tts_providers,
     )
 
 
@@ -593,7 +632,60 @@ async def transcribe_audio(body: STTRequestBody) -> STTResponseBody:
 
     return STTResponseBody(
         text=result.text,
-        language=str(result.language),
+        language=str(result.language) if result.language else None,
+        provider=result.provider,
+        model_id=result.model_id,
+        request_id=result.request_id,
+        provider_request_id=result.provider_request_id,
+        fallback_count=result.fallback_count,
+        cached=False,
+        cache_backend="none",
+    )
+
+
+@router.post("/tts", response_model=TTSResponseBody)
+async def synthesize_speech(body: TTSRequestBody) -> TTSResponseBody:
+    try:
+        request = TTSRequest(body.text, body.language, TTSOptions(body.parameters))
+    except (LanguageUtilsError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    try:
+        base_client = get_tts_client(env=_get_env_overrides())
+    except ConfigurationError as exc:
+        logger.warning("TTS setup error: %s", exc)
+        raise HTTPException(status_code=503, detail="TTS provider is not configured") from exc
+
+    client = base_client
+    if body.provider and body.provider != "auto":
+        available_names = {
+            provider.identity.provider for provider in base_client.router.registry.all()
+        }
+        if body.provider not in available_names:
+            raise HTTPException(
+                status_code=400, detail=f"Provider '{body.provider}' is unavailable"
+            )
+        client = TTSClient(
+            OrderedRouter(
+                base_client.router.registry,
+                {CapabilityId.TEXT_TO_SPEECH: (body.provider,)},
+            )
+        )
+
+    try:
+        async with client:
+            result = await client.synthesize(request)
+    except LanguageUtilsError as exc:
+        logger.warning("TTS error: %s", exc)
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.error("Unexpected TTS error: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail="TTS failed") from exc
+
+    return TTSResponseBody(
+        audio_base64=base64.b64encode(result.audio).decode("ascii"),
+        audio_format=result.audio_format,
+        language=str(result.language) if result.language else None,
         provider=result.provider,
         model_id=result.model_id,
         request_id=result.request_id,
