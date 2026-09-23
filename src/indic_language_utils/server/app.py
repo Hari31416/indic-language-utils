@@ -38,7 +38,8 @@ def create_app() -> FastAPI:
         title="Indic Language Utils",
         version=__version__,
         description=(
-            "REST API and UI for Indian language translation, detection, and script identification"
+            "REST API and UI for Indian language translation, transliteration, "
+            "detection, and script identification"
         ),
     )
 

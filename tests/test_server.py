@@ -41,12 +41,16 @@ def test_list_providers(client: TestClient) -> None:
     data = response.json()
     assert "translation" in data
     assert "detection" in data
+    assert "transliteration" in data
     trans_ids = [p["id"] for p in data["translation"]]
     detect_ids = [p["id"] for p in data["detection"]]
+    translit_ids = [p["id"] for p in data["transliteration"]]
     assert "sarvam" in trans_ids
     assert "sarvam" in detect_ids
     assert "googletrans" in trans_ids or "bhashini" in trans_ids
     assert "fasttext" in detect_ids
+    assert "bhashini" in translit_ids
+    assert "indicxlit" in translit_ids
 
 
 def test_detect_script(client: TestClient) -> None:
@@ -174,6 +178,64 @@ def test_translate_invalid_language(client: TestClient) -> None:
             "text": "Good morning",
             "source": "invalid_lang_xyz",
             "target": "hi",
+        },
+    )
+    assert response.status_code == 400
+
+
+def test_transliterate_text(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    from indic_language_utils.transliteration.bhashini_transliterate import (
+        BhashiniTransliterationProvider,
+    )
+    from indic_language_utils.transliteration.models import ProviderTransliterationResult
+
+    async def mock_transliterate_batch(
+        self: object,
+        texts: tuple[str, ...],
+        *,
+        source: object,
+        target: object,
+        options: object,
+        request_id: str,
+    ) -> ProviderTransliterationResult:
+        return ProviderTransliterationResult(
+            tuple(f"xlit:{t}" for t in texts),
+            service_id="service-1",
+            model_id="bhashini-xlit",
+            request_id=request_id,
+        )
+
+    monkeypatch.setattr(
+        BhashiniTransliterationProvider, "transliterate_batch", mock_transliterate_batch
+    )
+    monkeypatch.setenv("BHASHINI_API_KEY", "mock-key")
+    monkeypatch.setenv("BHASHINI_TRANSLITERATION_SERVICE_ID", "service-1")
+
+    response = client.post(
+        "/api/transliterate",
+        json={
+            "text": "namaste",
+            "source": "en",
+            "target": "hi",
+            "provider": "bhashini",
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["source"] == "en-IN"
+    assert data["target"] == "hi-IN"
+    assert data["provider"] == "bhashini"
+    assert data["text"] == "xlit:namaste"
+
+
+def test_transliterate_invalid_provider(client: TestClient) -> None:
+    response = client.post(
+        "/api/transliterate",
+        json={
+            "text": "namaste",
+            "source": "en",
+            "target": "hi",
+            "provider": "nonexistent_xlit_prov",
         },
     )
     assert response.status_code == 400

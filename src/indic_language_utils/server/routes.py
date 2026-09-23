@@ -29,6 +29,13 @@ from ..translation import (
 )
 from ..translation.client import TranslationClient
 from ..translation.google_translate import HAVE_GOOGLETRANS
+from ..transliteration import (
+    TransliterationOptions,
+    TransliterationRequest,
+    get_transliteration_client,
+)
+from ..transliteration.client import TransliterationClient
+from ..transliteration.indicxlit import HAVE_INDICXLIT
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +80,7 @@ class ProviderInfo(BaseModel):
 class ProvidersResponse(BaseModel):
     translation: list[ProviderInfo]
     detection: list[ProviderInfo]
+    transliteration: list[ProviderInfo]
 
 
 class TranslateRequestBody(BaseModel):
@@ -214,9 +222,28 @@ async def list_providers() -> ProvidersResponse:
         ),
     ]
 
+    bhashini_translit_id = env.get("BHASHINI_TRANSLITERATION_SERVICE_ID")
+    transliteration_providers: list[ProviderInfo] = [
+        ProviderInfo(
+            id="bhashini",
+            name="Bhashini Transliteration",
+            available=has_bhashini_key and bool(bhashini_translit_id),
+            details=bhashini_translit_id
+            if (has_bhashini_key and bhashini_translit_id)
+            else "Requires BHASHINI_API_KEY and BHASHINI_TRANSLITERATION_SERVICE_ID",
+        ),
+        ProviderInfo(
+            id="indicxlit",
+            name="AI4Bharat IndicXlit",
+            available=HAVE_INDICXLIT,
+            details="Local offline model (IndicXlit)",
+        ),
+    ]
+
     return ProvidersResponse(
         translation=translation_providers,
         detection=detection_providers,
+        transliteration=transliteration_providers,
     )
 
 
@@ -375,3 +402,83 @@ async def detect_language(body: DetectRequestBody) -> DetectResponseBody:
 async def detect_script_endpoint(body: ScriptDetectRequestBody) -> ScriptDetectResponseBody:
     script = detect_script(body.text)
     return ScriptDetectResponseBody(script=script)
+
+
+class TransliterateRequestBody(BaseModel):
+    text: str = Field(..., min_length=1, description="Text to transliterate")
+    source: str = Field(..., description="Source language code (e.g., 'en', 'hi')")
+    target: str = Field(..., description="Target language code (e.g., 'hi', 'ta')")
+    provider: str | None = Field(default=None, description="Provider ID or null for auto routing")
+
+
+class TransliterateResponseBody(BaseModel):
+    text: str
+    source: str
+    target: str
+    provider: str
+    service_id: str | None = None
+    model_id: str | None = None
+    unofficial: bool = False
+    elapsed_seconds: float
+    cached: bool
+    cache_backend: str | None = None
+    warnings: list[str] = Field(default_factory=list)
+
+
+@router.post("/transliterate", response_model=TransliterateResponseBody)
+async def transliterate_text(body: TransliterateRequestBody) -> TransliterateResponseBody:
+    env = _get_env_overrides()
+    try:
+        base_client = get_transliteration_client(env=env)
+    except Exception as exc:
+        logger.error("Failed to initialize transliteration client: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Transliteration setup error: {exc}") from exc
+
+    client: TransliterationClient = base_client
+    if body.provider and body.provider != "auto":
+        available_names = {p.identity.provider for p in base_client.router.registry.all()}
+        if body.provider not in available_names:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Provider '{body.provider}' is not available or registered.",
+            )
+        custom_router = OrderedRouter(
+            base_client.router.registry,
+            {CapabilityId.TRANSLITERATION: (body.provider,)},
+        )
+        client = TransliterationClient(
+            custom_router,
+            cache=base_client._cache,
+        )
+
+    options = TransliterationOptions()
+
+    try:
+        async with client:
+            request = TransliterationRequest(
+                body.text,
+                source=body.source,
+                target=body.target,
+                options=options,
+            )
+            result = await client.transliterate(request)
+    except LanguageUtilsError as exc:
+        logger.warning("Transliteration error: %s", exc)
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.error("Unexpected transliteration error: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Transliteration failed: {exc}") from exc
+
+    return TransliterateResponseBody(
+        text=result.text,
+        source=str(result.source),
+        target=str(result.target),
+        provider=result.provider.provider,
+        service_id=result.provider.service_id,
+        model_id=result.provider.model_id,
+        unofficial=result.provider.unofficial,
+        elapsed_seconds=round(result.elapsed_seconds, 4),
+        cached=result.cache.hit,
+        cache_backend=result.cache.backend,
+        warnings=[w.message for w in result.warnings],
+    )
