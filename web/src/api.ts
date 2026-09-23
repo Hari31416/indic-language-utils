@@ -6,6 +6,8 @@ import type {
   ScriptDetectResponse,
   STTRequest,
   STTResponse,
+  TTSRequest,
+  TTSResponse,
   TranslateRequest,
   TranslateResponse,
   TransliterateRequest,
@@ -77,6 +79,13 @@ export async function transliterateText(
 
 export async function transcribeAudio(req: STTRequest): Promise<STTResponse> {
   return requestJson<STTResponse>('/api/stt', {
+    method: 'POST',
+    body: JSON.stringify(req),
+  })
+}
+
+export async function synthesizeSpeech(req: TTSRequest): Promise<TTSResponse> {
+  return requestJson<TTSResponse>('/api/tts', {
     method: 'POST',
     body: JSON.stringify(req),
   })

@@ -22,11 +22,32 @@ export interface ProvidersResponse {
   detection: ProviderInfo[]
   transliteration: ProviderInfo[]
   speech_to_text: ProviderInfo[]
+  text_to_speech: ProviderInfo[]
+}
+
+export interface TTSRequest {
+  text: string
+  language?: string | null
+  parameters: Record<string, unknown>
+  provider?: string | null
+}
+
+export interface TTSResponse {
+  audio_base64: string
+  audio_format?: string | null
+  language?: string | null
+  provider: string
+  model_id?: string | null
+  request_id: string
+  provider_request_id?: string | null
+  fallback_count: number
+  cached: boolean
+  cache_backend: string
 }
 
 export interface STTRequest {
   audio_base64: string
-  language: string
+  language?: string | null
   audio_format: string
   sampling_rate: number
   provider?: string | null
@@ -34,7 +55,7 @@ export interface STTRequest {
 
 export interface STTResponse {
   text: string
-  language: string
+  language?: string | null
   provider: string
   model_id?: string | null
   request_id: string

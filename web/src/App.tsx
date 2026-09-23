@@ -9,16 +9,18 @@ import {
   Mic,
   RefreshCw,
   Terminal,
+  Volume2,
 } from 'lucide-react'
 import { fetchLanguages, fetchProviders } from './api'
 import { DetectView } from './components/DetectView'
 import { ProvidersView } from './components/ProvidersView'
 import { STTView } from './components/STTView'
+import { TTSView } from './components/TTSView'
 import { TranslateView } from './components/TranslateView'
 import { TransliterateView } from './components/TransliterateView'
 import type { LanguageItem, ProvidersResponse } from './types'
 
-type ActiveTab = 'translate' | 'transliterate' | 'detect' | 'stt' | 'providers'
+type ActiveTab = 'translate' | 'transliterate' | 'detect' | 'stt' | 'tts' | 'providers'
 
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('translate')
@@ -151,6 +153,18 @@ export const App: React.FC = () => {
             </button>
             <button
               type="button"
+              onClick={() => setActiveTab('tts')}
+              className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition ${
+                activeTab === 'tts'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Volume2 className="w-4 h-4" />
+              Text to speech
+            </button>
+            <button
+              type="button"
               onClick={() => setActiveTab('providers')}
               className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition ${
                 activeTab === 'providers'
@@ -222,6 +236,12 @@ export const App: React.FC = () => {
               <STTView
                 languages={languages}
                 providers={providersData?.speech_to_text ?? []}
+              />
+            )}
+            {activeTab === 'tts' && (
+              <TTSView
+                languages={languages}
+                providers={providersData?.text_to_speech ?? []}
               />
             )}
             {activeTab === 'providers' && (

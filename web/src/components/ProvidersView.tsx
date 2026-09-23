@@ -5,6 +5,7 @@ import {
   Languages,
   Layers,
   Mic,
+  Volume2,
   XCircle,
 } from 'lucide-react'
 import type { LanguageItem, ProvidersResponse } from '../types'
@@ -164,6 +165,24 @@ export const ProvidersView: React.FC<ProvidersViewProps> = ({
           <h3 className="text-sm font-semibold text-slate-100">Speech to text engines</h3>
         </div>
         {providersData?.speech_to_text.map((prov) => (
+          <div key={prov.id} className="bg-slate-950/80 border border-slate-800 rounded-lg p-3.5">
+            <div className="flex justify-between gap-3 text-sm">
+              <span className="font-semibold text-slate-100">{prov.name}</span>
+              <span className={prov.available ? 'text-emerald-300' : 'text-amber-300'}>
+                {prov.available ? 'Ready' : 'Unconfigured'}
+              </span>
+            </div>
+            <p className="text-xs text-slate-400 mt-1 font-mono">{prov.details}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 backdrop-blur-sm">
+        <div className="flex items-center gap-2 pb-3 mb-4 border-b border-slate-800">
+          <Volume2 className="w-5 h-5 text-indigo-400" />
+          <h3 className="text-sm font-semibold text-slate-100">Text to speech engines</h3>
+        </div>
+        {providersData?.text_to_speech.map((prov) => (
           <div key={prov.id} className="bg-slate-950/80 border border-slate-800 rounded-lg p-3.5">
             <div className="flex justify-between gap-3 text-sm">
               <span className="font-semibold text-slate-100">{prov.name}</span>

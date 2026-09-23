@@ -79,7 +79,7 @@ export const STTView: React.FC<STTViewProps> = ({ languages, providers }) => {
       const audioBase64 = await readBase64(file)
       const response = await transcribeAudio({
         audio_base64: audioBase64,
-        language,
+        language: language || null,
         audio_format: audioFormat,
         sampling_rate: samplingRate,
         provider: provider === 'auto' ? null : provider,
@@ -121,6 +121,7 @@ export const STTView: React.FC<STTViewProps> = ({ languages, providers }) => {
             Language
             <select value={language} onChange={(event) => setLanguage(event.target.value)}
               className="block w-full mt-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100">
+              <option value="">Unspecified (model decides)</option>
               {languages.map((item) => (
                 <option key={item.tag} value={item.code}>{item.name} ({item.code})</option>
               ))}
@@ -176,7 +177,7 @@ export const STTView: React.FC<STTViewProps> = ({ languages, providers }) => {
             </p>
             <dl className="text-xs text-slate-400 space-y-1 border-t border-slate-800 pt-3">
               <div className="flex justify-between gap-4"><dt>Provider</dt><dd>{result.provider}</dd></div>
-              <div className="flex justify-between gap-4"><dt>Language</dt><dd>{result.language}</dd></div>
+              <div className="flex justify-between gap-4"><dt>Language</dt><dd>{result.language ?? 'Unspecified'}</dd></div>
               {result.model_id && <div className="flex justify-between gap-4"><dt>Model</dt><dd className="break-all text-right">{result.model_id}</dd></div>}
             </dl>
           </div>
