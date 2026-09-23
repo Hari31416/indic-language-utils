@@ -37,11 +37,53 @@ def get_stt_client(
             sarvam = SarvamConfig.from_settings(settings, env=values)
             if sarvam.stt_model_id or sarvam.stt_model_ids:
                 registry.register(SarvamSTTProvider(sarvam))
-    default_route = tuple(provider.identity.provider for provider in registry.all())
-    route = tuple(
-        name
-        for name in settings.routes.get(CapabilityId.SPEECH_TO_TEXT.value, default_route)
-        if name in default_route
-    )
+
+        has_google_free = (
+            "google_free" in settings.providers
+            or any("google_free" in p_list for p_list in settings.routes.values())
+            or values.get("STT_SERVICE_PROVIDER") in {"google_free", "google", "speechrecognition"}
+        )
+        if has_google_free:
+            try:
+                from .google_speech import (
+                    HAVE_SPEECH_RECOGNITION,
+                    GoogleFreeSTTConfig,
+                    GoogleFreeSTTProvider,
+                )
+
+                if HAVE_SPEECH_RECOGNITION:
+                    gf_config = GoogleFreeSTTConfig.from_settings(settings, env=values)
+                    registry.register(GoogleFreeSTTProvider(gf_config))
+            except Exception:
+                pass
+
+        has_faster_whisper = (
+            "faster_whisper" in settings.providers
+            or any("faster_whisper" in p_list for p_list in settings.routes.values())
+            or values.get("STT_SERVICE_PROVIDER") in {"faster_whisper", "whisper"}
+        )
+        if has_faster_whisper:
+            try:
+                from .whisper import (
+                    HAVE_FASTER_WHISPER,
+                    FasterWhisperSTTConfig,
+                    FasterWhisperSTTProvider,
+                )
+
+                if HAVE_FASTER_WHISPER:
+                    whisper_config = FasterWhisperSTTConfig.from_settings(settings, env=values)
+                    registry.register(FasterWhisperSTTProvider(whisper_config))
+            except Exception:
+                pass
+
+    if providers is not None:
+        route = tuple(provider.identity.provider for provider in registry.all())
+    else:
+        default_route = tuple(provider.identity.provider for provider in registry.all())
+        route = tuple(
+            name
+            for name in settings.routes.get(CapabilityId.SPEECH_TO_TEXT.value, default_route)
+            if name in default_route
+        )
     router = OrderedRouter(registry, {CapabilityId.SPEECH_TO_TEXT: route})
     return STTClient(router)

@@ -27,6 +27,9 @@ local-tld = ["fasttext-langdetect>=1.1.1"]
 local-transliteration = ["aksharamukha>=2.0.0"]
 neural-transliteration = ["ai4bharat-transliteration>=0.1.0"]
 server = ["fastapi>=0.115.0", "uvicorn[standard]>=0.34.0"]
+stt = ["SpeechRecognition>=3.10.0", "faster-whisper>=1.0.0"]
+stt-google-free = ["SpeechRecognition>=3.10.0"]
+stt-whisper = ["faster-whisper>=1.0.0"]
 
 [project.scripts]
 indic-server = "indic_language_utils.server.app:run_server"
@@ -39,6 +42,7 @@ Source = "https://github.com/hari31416/indic-language-utils"
 dev = [
   "build>=1.2.2",
   "fastapi>=0.115.0",
+  "faster-whisper>=1.0.0",
   "fasttext-langdetect>=1.1.1",
   "googletrans>=4.0.2",
   "mypy>=1.15",
@@ -46,6 +50,7 @@ dev = [
   "pytest>=8.3",
   "pytest-asyncio>=0.25",
   "ruff>=0.11",
+  "SpeechRecognition>=3.10.0",
   "uvicorn[standard]>=0.34.0",
 ]
 docs = [
@@ -75,5 +80,14 @@ strict = true
 files = ["src", "tests"]
 
 [[tool.mypy.overrides]]
-module = ["aksharamukha.*", "aksharamukha", "ai4bharat.*", "ai4bharat"]
+module = [
+  "aksharamukha.*",
+  "aksharamukha",
+  "ai4bharat.*",
+  "ai4bharat",
+  "speech_recognition.*",
+  "speech_recognition",
+  "faster_whisper.*",
+  "faster_whisper",
+]
 ignore_missing_imports = true

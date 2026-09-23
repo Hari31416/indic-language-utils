@@ -35,6 +35,15 @@ max_concurrency = 8
 timeout_seconds = 20.0
 max_concurrency = 4
 
+[providers.google_free]
+timeout_seconds = 20.0
+max_concurrency = 4
+
+[providers.faster_whisper]
+model = "base"
+timeout_seconds = 60.0
+max_concurrency = 2
+
 [providers.sarvam]
 endpoint = "https://api.sarvam.ai"
 model = "sarvam-translate:v1"

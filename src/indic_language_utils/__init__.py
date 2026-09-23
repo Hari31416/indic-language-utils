@@ -61,6 +61,10 @@ from .providers import (
 from .routing import OrderedRouter, RouteCandidate, RouteRequirement
 from .stt import (
     BhashiniSTTProvider,
+    FasterWhisperSTTConfig,
+    FasterWhisperSTTProvider,
+    GoogleFreeSTTConfig,
+    GoogleFreeSTTProvider,
     ProviderSTTResult,
     SarvamSTTProvider,
     STTClient,
@@ -169,6 +173,10 @@ __all__ = [
     "ExecutionTiming",
     "FastTextDetectionConfig",
     "FastTextDetectionProvider",
+    "FasterWhisperSTTConfig",
+    "FasterWhisperSTTProvider",
+    "GoogleFreeSTTConfig",
+    "GoogleFreeSTTProvider",
     "GoogleTranslateConfig",
     "GoogleTranslateProvider",
     "GoogletransConfig",
