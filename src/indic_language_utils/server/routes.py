@@ -34,6 +34,7 @@ from ..transliteration import (
     TransliterationRequest,
     get_transliteration_client,
 )
+from ..transliteration.aksharamukha import HAVE_AKSHARAMUKHA
 from ..transliteration.client import TransliterationClient
 from ..transliteration.indicxlit import HAVE_INDICXLIT
 
@@ -224,6 +225,12 @@ async def list_providers() -> ProvidersResponse:
 
     bhashini_translit_id = env.get("BHASHINI_TRANSLITERATION_SERVICE_ID")
     transliteration_providers: list[ProviderInfo] = [
+        ProviderInfo(
+            id="aksharamukha",
+            name="Aksharamukha",
+            available=HAVE_AKSHARAMUKHA,
+            details="Offline pure-Python engine (120+ scripts)",
+        ),
         ProviderInfo(
             id="bhashini",
             name="Bhashini Transliteration",

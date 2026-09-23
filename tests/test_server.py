@@ -50,6 +50,7 @@ def test_list_providers(client: TestClient) -> None:
     assert "googletrans" in trans_ids or "bhashini" in trans_ids
     assert "fasttext" in detect_ids
     assert "bhashini" in translit_ids
+    assert "aksharamukha" in translit_ids
     assert "indicxlit" in translit_ids
 
 
@@ -239,6 +240,22 @@ def test_transliterate_invalid_provider(client: TestClient) -> None:
         },
     )
     assert response.status_code == 400
+
+
+def test_transliterate_aksharamukha_endpoint(client: TestClient) -> None:
+    response = client.post(
+        "/api/transliterate",
+        json={
+            "text": "வணக்கம்",
+            "source": "ta",
+            "target": "hi",
+            "provider": "aksharamukha",
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["provider"] == "aksharamukha"
+    assert data["text"] == "वणक्कम्"
 
 
 def test_static_ui_served(client: TestClient) -> None:
