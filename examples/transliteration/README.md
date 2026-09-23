@@ -4,13 +4,14 @@ This directory provides runnable examples of script transliteration using `indic
 
 ## Available Examples
 
+- [aksharamukha_demo.py](aksharamukha_demo.py) - Lightweight, pure-Python script-to-script and Romanization conversion using Aksharamukha.
 - [bhashini_demo.py](bhashini_demo.py) - Cloud-based transliteration using the Government of India Bhashini ecosystem.
 - [indicxlit_demo.py](indicxlit_demo.py) - Offline, local transliteration using AI4Bharat IndicXlit.
 - [multi_service_demo.py](multi_service_demo.py) - Resilient multi-provider routing with automatic failover, single-flight deduplication, and caching.
 
 ## Prerequisites
 
-For offline IndicXlit transliteration, install the `local-transliteration` extra:
+For offline Aksharamukha transliteration, install the `local-transliteration` extra:
 
 ```bash
 uv sync --extra local-transliteration
@@ -24,6 +25,12 @@ export BHASHINI_TRANSLITERATION_SERVICE_ID="your-bhashini-translit-service-id"
 ```
 
 ## Running the Examples
+
+Run the Aksharamukha pure-Python transliteration demo:
+
+```bash
+uv run python examples/transliteration/aksharamukha_demo.py
+```
 
 Run the Bhashini cloud transliteration demo (uses mock fallback if credentials are unset):
 

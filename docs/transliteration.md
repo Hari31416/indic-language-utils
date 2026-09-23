@@ -119,13 +119,68 @@ asyncio.run(run_client())
 
 ## Local Offline Transliteration
 
-To perform offline transliteration without network requests or API keys, install the optional `local-transliteration` extra:
+To perform offline transliteration without network requests or API keys, install the `local-transliteration` extra:
 
 ```bash
 pip install 'indic-language-utils[local-transliteration]'
 ```
 
-Then instantiate `IndicXlitTransliterationProvider`:
+### Aksharamukha (Lightweight, Pure-Python)
+
+Aksharamukha provides instant, zero-setup transliteration across all 22 Eighth Schedule Indian languages, 120+ scripts, and standardized Romanization schemes (ITRANS, ISO 15919, IAST, Harvard-Kyoto) with zero deep-learning dependencies:
+
+```python
+import asyncio
+import logging
+from indic_language_utils import (
+    AksharamukhaConfig,
+    AksharamukhaTransliterationProvider,
+    CapabilityId,
+    OrderedRouter,
+    ProviderRegistry,
+    TransliterationClient,
+)
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+async def run_aksharamukha() -> None:
+    config = AksharamukhaConfig(roman_scheme="ITRANS", nativize=True)
+    provider = AksharamukhaTransliterationProvider(config)
+
+    registry = ProviderRegistry()
+    registry.register(provider)
+
+    router = OrderedRouter(
+        registry,
+        {CapabilityId.TRANSLITERATION: ("aksharamukha",)},
+    )
+
+    async with TransliterationClient(router) as client:
+        # Cross-Indic script conversion (Tamil -> Devanagari)
+        res_ta_hi = await client.transliterate("வணக்கம்", source="ta", target="hi")
+        logger.info("Tamil to Devanagari: %s", res_ta_hi.text)
+
+        # Roman to Devanagari
+        res_en_hi = await client.transliterate("namaste", source="en", target="hi")
+        logger.info("Roman to Hindi: %s", res_en_hi.text)
+
+        # Devanagari to Roman
+        res_hi_en = await client.transliterate("नमस्ते", source="hi", target="en")
+        logger.info("Devanagari to Roman: %s", res_hi_en.text)
+
+
+asyncio.run(run_aksharamukha())
+```
+
+### AI4Bharat IndicXlit (Neural Model)
+
+For neural transformer-based transliteration, install the `neural-transliteration` extra:
+
+```bash
+pip install 'indic-language-utils[neural-transliteration]'
+```
 
 ```python
 import asyncio

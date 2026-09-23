@@ -28,9 +28,10 @@ Bhashini configuration, and the first detection and translation calls.
 
 | Provider             | Capability                              | Mode               | Prerequisites                 |
 | :------------------- | :-------------------------------------- | :----------------- | :---------------------------- |
+| **Aksharamukha**     | Transliteration (120+ scripts)          | Offline / Local    | `[local-transliteration]` extra |
 | **Bhashini**         | Translation, Detection, Transliteration | Cloud API          | API key, Endpoint, Service ID |
 | **Sarvam AI**        | Translation, Detection                  | Cloud API          | API key (`SARVAM_API_KEY`)    |
-| **AI4Bharat IndicXlit** | Transliteration                      | Offline / Local    | `[local-transliteration]` extra |
+| **AI4Bharat IndicXlit** | Transliteration                      | Offline / Local    | `[neural-transliteration]` extra |
 | **FastText**         | Text Language Detection                 | Offline / Local    | `[local-tld]` extra           |
 | **Google Translate** | Translation                             | Cloud (unofficial) | `[googletrans]` extra         |
 

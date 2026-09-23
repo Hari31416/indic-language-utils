@@ -35,7 +35,8 @@ credential-free development setup, Bhashini environment variables, and working e
 The system provides built-in adapters for multiple local and cloud providers:
 
 - Bhashini: Official Government of India ecosystem providing neural translation (IndicTrans2), text language detection, and transliteration via pipeline inference endpoints. Requires an API key and service identifiers.
-- IndicXlit: Offline, high-accuracy transliteration engine powered by AI4Bharat's IndicXlit model family for Roman-to-Indic and Indic-to-Roman script conversions.
+- Aksharamukha: Lightweight, offline, pure-Python transliteration engine supporting 120+ scripts, cross-Indic script conversions, and standardized Romanization schemes.
+- IndicXlit: Offline neural transliteration engine powered by AI4Bharat's IndicXlit model family for Roman-to-Indic and Indic-to-Roman script conversions.
 - FastText: Offline, high-speed language detection using Facebook's compressed language identification model (`lid.176.ftz`). Requires no network access or credentials.
 - Google Translate: Unofficial translation adapter powered by `googletrans`, useful for local development and testing without credentials.
 
