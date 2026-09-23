@@ -82,15 +82,23 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
               ))}
             </select>
           </label>
-          <label className="text-xs font-medium text-slate-400">
+          <label className='text-xs font-medium text-slate-400'>
             Provider
             <select value={provider} onChange={(event) => {
               const selected = event.target.value
               setProvider(selected)
-              setParameters(selected === 'sarvam' ? '{"speaker":"shubh","pace":1}' : selected === 'bhashini' ? '{"gender":"female","samplingRate":16000}' : '{}')
+              if (selected === 'sarvam') {
+                setParameters('{"speaker":"shubh","pace":1}')
+              } else if (selected === 'bhashini') {
+                setParameters('{"gender":"female","samplingRate":16000}')
+              } else if (selected === 'edge_tts') {
+                setParameters('{"gender":"female","rate":"+0%","pitch":"+0Hz"}')
+              } else {
+                setParameters('{}')
+              }
             }}
-              className="block w-full mt-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100">
-              <option value="auto">Auto</option>
+              className='block w-full mt-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100'>
+              <option value='auto'>Auto</option>
               {providers.map((item) => (
                 <option key={item.id} value={item.id} disabled={!item.available}>
                   {item.name}{item.available ? '' : ' (Unavailable)'}
@@ -100,14 +108,14 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
           </label>
         </div>
 
-        <label className="block text-xs font-medium text-slate-400">
+        <label className='block text-xs font-medium text-slate-400'>
           Model options (JSON)
           <textarea value={parameters} onChange={(event) => setParameters(event.target.value)} rows={3}
             spellCheck={false}
-            className="block w-full mt-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-3 font-mono text-xs leading-5 text-slate-100 focus:outline-none focus:border-indigo-500 resize-y" />
+            className='block w-full mt-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-3 font-mono text-xs leading-5 text-slate-100 focus:outline-none focus:border-indigo-500 resize-y' />
         </label>
-        <p className="text-xs text-slate-500">
-          Passed to the selected model. Bhashini accepts model-specific keys; Sarvam accepts speaker, pace, and other Bulbul options.
+        <p className='text-xs text-slate-500'>
+          Passed to the selected model. Edge TTS supports gender, voice, rate, pitch, and volume; Bhashini accepts model-specific keys; Sarvam accepts speaker and pace.
         </p>
         <button type="button" disabled={!text.trim() || loading} onClick={() => void handleSynthesize()}
           className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium text-white transition">
