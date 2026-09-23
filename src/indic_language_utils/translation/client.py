@@ -30,6 +30,7 @@ from .models import (
     TranslationResult,
 )
 from .processing import (
+    _PLACEHOLDER,
     DEFAULT_TRANSLATION_PROCESSORS,
     Segment,
     TranslationProcessorPipeline,
@@ -391,10 +392,60 @@ class TranslationClient:
             )
             if len(individual.translations) != 1:
                 raise OutputValidationError("Provider returned the wrong number of translations")
-            self._processors.restore_segment(individual.translations[0], segment, request.options)
-            outputs.append(individual.translations[0])
+            output = individual.translations[0]
+            try:
+                self._processors.restore_segment(output, segment, request.options)
+            except OutputValidationError:
+                if not segment.protected:
+                    raise
+                output, individual = await self._translate_around_protected(
+                    provider, request, segment, individual
+                )
+                self._processors.restore_segment(output, segment, request.options)
+            outputs.append(output)
             latest = individual
         return tuple(outputs), latest
+
+    async def _translate_around_protected(
+        self,
+        provider: TranslationProvider,
+        request: TranslationRequest,
+        segment: Segment,
+        latest: ProviderTranslationResult,
+    ) -> tuple[str, ProviderTranslationResult]:
+        """Keep protected values outside the provider request after a lost placeholder."""
+        pieces: list[str] = []
+        position = 0
+        for match in _PLACEHOLDER.finditer(segment.text):
+            if match.start() > position:
+                translated = await provider.translate_batch(
+                    (segment.text[position : match.start()],),
+                    source=request.source,
+                    target=request.target,
+                    options=request.options,
+                    request_id=request.context.request_id,
+                )
+                if len(translated.translations) != 1:
+                    raise OutputValidationError(
+                        "Provider returned the wrong number of translations"
+                    )
+                pieces.append(translated.translations[0])
+                latest = translated
+            pieces.append(match.group(0))
+            position = match.end()
+        if position < len(segment.text):
+            translated = await provider.translate_batch(
+                (segment.text[position:],),
+                source=request.source,
+                target=request.target,
+                options=request.options,
+                request_id=request.context.request_id,
+            )
+            if len(translated.translations) != 1:
+                raise OutputValidationError("Provider returned the wrong number of translations")
+            pieces.append(translated.translations[0])
+            latest = translated
+        return "".join(pieces), latest
 
     def _key(self, request: TranslationRequest, provider: str, service_id: object) -> str:
         return self._cache_keys.build(

@@ -53,6 +53,22 @@ async def test_malformed_batch_retries_individual_segments() -> None:
 
 
 @pytest.mark.asyncio
+async def test_dropped_placeholder_is_preserved_by_translating_around_it() -> None:
+    def drop_placeholder(text: str) -> str:
+        return text.replace("[[ILU-P-000000]]", "").upper()
+
+    provider = FakeTranslationProvider(transform=drop_placeholder)
+    source = "Read `a value with spaces` and visit https://example.gov/path today."
+    request = TranslationRequest(
+        source, EN, HI, TranslationOptions(text_format=TextFormat.MARKDOWN)
+    )
+    result = await TranslationClient(router_for(provider)).translate(request)
+    assert result.text == "READ `a value with spaces` AND VISIT https://example.gov/path TODAY."
+    assert len(provider.calls) > 2
+    assert all("[[ILU-P-" not in call[0] for call in provider.calls[2:])
+
+
+@pytest.mark.asyncio
 async def test_provider_fallback_is_reported() -> None:
     failing = FakeTranslationProvider(
         "first", fail_with=TransientProviderError("temporary", provider="first")

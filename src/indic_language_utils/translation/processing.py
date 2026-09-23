@@ -123,7 +123,7 @@ class DefaultTranslationStructureProcessor:
                 match = _MARKDOWN_PREFIX.match(content)
             prefix = match.group("prefix") if match else ""
             body = match.group("body") if match else content
-            chunks = _split_large(body, max_characters)
+            chunks = _split_large(body, max_characters, preserve_protected=True)
             for index, chunk in enumerate(chunks):
                 segments.append(
                     Segment(
@@ -225,10 +225,14 @@ def prepare_text(text: str, text_format: TextFormat, max_characters: int) -> Pre
     )
 
 
-def _split_large(text: str, limit: int) -> list[str]:
+def _split_large(text: str, limit: int, *, preserve_protected: bool = False) -> list[str]:
     if len(text) <= limit:
         return [text]
     chunks: list[str] = []
+    protected_spans = (
+        tuple(match.span() for match in _PROTECTED.finditer(text)) if preserve_protected else ()
+    )
+    offset = 0
     remaining = text
     while len(remaining) > limit:
         window = remaining[: limit + 1]
@@ -236,8 +240,13 @@ def _split_large(text: str, limit: int) -> list[str]:
         cut = boundaries[-1] if boundaries else max(window.rfind(" "), window.rfind("\n")) + 1
         if cut <= 0:
             cut = limit
+        for start, end in protected_spans:
+            if start < offset + cut < end:
+                cut = start - offset if start > offset else end - offset
+                break
         chunks.append(remaining[:cut])
         remaining = remaining[cut:]
+        offset += cut
     if remaining:
         chunks.append(remaining)
     return chunks

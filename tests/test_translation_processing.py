@@ -49,6 +49,16 @@ def test_segmentation_preserves_every_character() -> None:
     assert all(len(segment.text) <= 20 for segment in prepared.segments)
 
 
+def test_large_markdown_does_not_split_protected_content() -> None:
+    url = "https://example.gov/" + "long/" * 20
+    code = "`" + "a value with spaces " * 5 + "`"
+    source = "Before " * 8 + code + " and " + url + " after " * 8
+    prepared = prepare_text(source, TextFormat.MARKDOWN, 45)
+    assert prepared.reconstruct(tuple(segment.text for segment in prepared.segments)) == source
+    assert code in (item for segment in prepared.segments for item in segment.protected)
+    assert url in (item for segment in prepared.segments for item in segment.protected)
+
+
 def test_blank_markdown_has_no_translatable_segments() -> None:
     prepared = prepare_text("\n\n", TextFormat.MARKDOWN, 10)
     assert not prepared.segments

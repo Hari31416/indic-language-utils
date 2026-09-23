@@ -264,6 +264,11 @@ The structure processor protects:
 - Markdown links (`[text](url)`) and raw URLs (`https://...`).
 - Blank lines and paragraph indentation.
 
+Long Markdown lines are split without cutting through inline code or URLs. If a provider drops a
+protected placeholder, the client retries the segment and then translates the text around each
+protected value separately. This preserves the value and avoids an output validation error, though
+the translated wording around that value may be less natural.
+
 ### Indic Neural Translation Nuances
 
 Indian language translation presents unique structural challenges:
