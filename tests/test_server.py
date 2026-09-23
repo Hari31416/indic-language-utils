@@ -4,6 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from indic_language_utils.server.app import create_app
+from indic_language_utils.transliteration.aksharamukha import HAVE_AKSHARAMUKHA
 
 
 @pytest.fixture
@@ -242,6 +243,7 @@ def test_transliterate_invalid_provider(client: TestClient) -> None:
     assert response.status_code == 400
 
 
+@pytest.mark.skipif(not HAVE_AKSHARAMUKHA, reason="aksharamukha library is not installed")
 def test_transliterate_aksharamukha_endpoint(client: TestClient) -> None:
     response = client.post(
         "/api/transliterate",
@@ -256,6 +258,25 @@ def test_transliterate_aksharamukha_endpoint(client: TestClient) -> None:
     data = response.json()
     assert data["provider"] == "aksharamukha"
     assert data["text"] == "वणक्कम्"
+
+
+def test_transliterate_aksharamukha_when_unavailable(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "indic_language_utils.transliteration.aksharamukha.HAVE_AKSHARAMUKHA", False
+    )
+    response = client.post(
+        "/api/transliterate",
+        json={
+            "text": "வணக்கம்",
+            "source": "ta",
+            "target": "hi",
+            "provider": "aksharamukha",
+        },
+    )
+    assert response.status_code == 400
+    assert "not available" in response.json()["detail"]
 
 
 def test_static_ui_served(client: TestClient) -> None:
