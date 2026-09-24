@@ -1,6 +1,6 @@
 # Text to speech
 
-The TTS client sends text to Bhashini or Sarvam and returns audio bytes. Configure a default model ID or select one per language. Bhashini calls these IDs `serviceId`; its [model list](https://dibd-bhashini.gitbook.io/bhashini-apis/available-models-for-usage) shows supported languages.
+The TTS client sends text to Bhashini, Sarvam, or Edge TTS and returns audio bytes. Configure a default model ID or select one per language. Bhashini calls these IDs `serviceId`; its [model list](https://dibd-bhashini.gitbook.io/bhashini-apis/available-models-for-usage) shows supported languages.
 
 ```python
 from indic_language_utils import TTSOptions, get_tts_client
@@ -11,7 +11,7 @@ async with get_tts_client() as client:
         language="hi",
         options=TTSOptions({"gender": "female", "samplingRate": 16000}),
     )
-    with open("speech.wav", "wb") as file:
+    with open(f"speech.{result.audio_format or 'bin'}", "wb") as file:
         file.write(result.audio)
 ```
 
@@ -35,7 +35,19 @@ A language-specific model ID takes precedence over `tts_model_id`. You may omit 
 
 `TTSOptions.parameters` sends JSON fields directly into Bhashini's TTS task config. For example, `gender` and `samplingRate` are common fields. A model may expose `voiceId`, `speaker`, `tone`, or other fields. Use the keys and values accepted by that model. The library rejects `serviceId` and `language` in this object because it sets those fields from the configured model and request language.
 
-The options object accepts nested JSON values. The API and demo app expose the same object, so a model-specific control does not need a library release.
+The options object accepts nested JSON values. For a single provider, `parameters` keeps its existing behavior. With an automatic route, `parameters` goes only to the first compatible provider. Fallback providers use their defaults unless you set `provider_parameters`:
+
+```python
+options = TTSOptions(
+    provider_parameters={
+        "sarvam": {"speaker": "shubh", "pace": 1.0},
+        "edge_tts": {"voice": "hi-IN-SwaraNeural", "rate": "+10%"},
+        "bhashini": {"gender": "female", "samplingRate": 16000},
+    }
+)
+```
+
+This prevents Sarvam's `speaker` or `pace` fields from reaching Bhashini or Edge TTS on fallback. The client also skips Sarvam when `language` is omitted, because Sarvam requires it. Bhashini can accept an omitted language only when a default TTS model is configured.
 
 ## Sarvam
 
@@ -107,6 +119,7 @@ Supported languages with built-in voice pairs include Hindi (`hi`), Bengali (`bn
 ## FastAPI and demo app
 
 The Text to speech tab accepts text, an optional language, and model options as a JSON object. It plays or downloads the returned audio.
+Selecting a provider shows its common voice controls. Advanced settings remain available for model-specific fields. Auto routing uses provider defaults unless you enter advanced JSON keyed by provider ID.
 
 Send the equivalent request to `POST /api/tts`:
 
@@ -118,6 +131,8 @@ Send the equivalent request to `POST /api/tts`:
   "provider": "bhashini"
 }
 ```
+
+For auto routing, omit `provider` and pass `provider_parameters` with provider IDs as keys. The API accepts the same `TTSOptions` structure as the Python client.
 
 The response contains base64 audio, its detected format when recognized, the selected model ID, and request IDs. TTS is not cached. The API reports `cached: false` and `cache_backend: "none"`. See `examples/tts/bhashini_tts_demo.py` for a runnable file output example.
 

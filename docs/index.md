@@ -24,6 +24,7 @@ credential-free development, Bhashini configuration, and synchronous and asynchr
 Explore the comprehensive documentation guides:
 
 - [Installation and quick start](getting-started.md): Provider setup and first calls.
+- [Provider reference](provider-reference.md): Capability matrix, setup requirements, routing, and fallback behavior.
 - [User Guide](user-guide.md): Architecture overview, core capabilities, provider matrix, and usage levels.
 - [Translation](translation.md): Synchronous and asynchronous translation, batching, Markdown preservation, and catalogs.
 - [Detection](detection.md): Local FastText and cloud Bhashini language detection, script analysis, and candidate scoring.

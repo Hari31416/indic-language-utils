@@ -41,6 +41,9 @@ pip install "indic-language-utils[stt-google-free]"
 
 # Offline local Faster-Whisper speech-to-text
 pip install "indic-language-utils[stt-whisper]"
+
+# Keyless online Edge text-to-speech
+pip install "indic-language-utils[tts-edge]"
 ```
 
 ## Run without Bhashini credentials
@@ -113,3 +116,51 @@ asyncio.run(main())
 
 Continue with the [translation guide](translation.md) for batching and Markdown protection, or the
 [detection guide](detection.md) for candidate scores and provider setup.
+
+## Try the other capabilities
+
+These calls use the configured route for each capability. They need the matching optional extra or provider credentials. The [provider reference](provider-reference.md) lists those requirements.
+
+```python
+import asyncio
+from pathlib import Path
+
+from indic_language_utils import (
+    get_stt_client,
+    get_tts_client,
+    transliterate_sync,
+)
+
+print(transliterate_sync("namaste", "en", "hi").text)
+
+
+async def speech_example() -> None:
+    async with get_stt_client() as stt:
+        audio = Path("hello.wav").read_bytes()
+        transcript = await stt.transcribe(
+            audio, language="hi", audio_format="wav", sampling_rate=16000
+        )
+        print(transcript.text)
+
+    async with get_tts_client() as tts:
+        speech = await tts.synthesize("नमस्ते", language="hi")
+        Path(f"speech.{speech.audio_format or 'bin'}").write_bytes(speech.audio)
+
+
+asyncio.run(speech_example())
+```
+
+The STT sample rate must match the file. The library does not resample audio. TTS format depends on the selected provider. See the [STT](stt.md) and [TTS](tts.md) guides for provider options and limits.
+
+## Run the demo workbench
+
+The browser workbench is a source checkout tool. Its assets are not included in the Python wheel. From a checkout:
+
+```bash
+uv sync --dev
+pnpm --dir web install --frozen-lockfile
+pnpm --dir web build
+uv run indic-server
+```
+
+Open `http://127.0.0.1:8000`. A wheel installation provides the REST API and its `/docs` page, but shows a build instruction at `/` when the browser assets are absent.

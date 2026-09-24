@@ -2,7 +2,7 @@
 
 Provider-neutral foundations for Indian language operations in Python.
 
-`indic-language-utils` standardizes language detection, neural machine translation, script identification, and text processing across Indian languages. It abstracts concrete cloud and local engines behind unified, resilient interfaces, allowing applications to start with local or low-cost providers and switch routing configuration for production without rewriting business logic.
+`indic-language-utils` standardizes language detection, translation, transliteration, speech, script identification, and text processing across Indian languages. It abstracts cloud and local engines behind shared interfaces.
 
 ## Key Features
 
@@ -11,7 +11,7 @@ Provider-neutral foundations for Indian language operations in Python.
 - Text Language Detection: Identify languages using offline FastText classification (`lid.176.ftz`) or cloud inference pipelines via Bhashini.
 - Transliteration: Convert between Roman script and native Indic scripts via Bhashini or AI4Bharat IndicXlit.
 - Speech to text: Transcribe audio with Bhashini, Sarvam, local Faster-Whisper, or keyless Google Speech.
-- Text to speech: Generate audio with Bhashini and pass model-specific voice settings.
+- Text to speech: Generate audio with Bhashini, Sarvam, or Edge TTS and pass model-specific voice settings.
 - Script Identification: Fast, zero-dependency Unicode script identification across 12+ Indic scripts and Latin.
 - Document and Code Protection: Structural pre-processors and post-processors protect headings, bullet markers, inline code spans, URLs, and code blocks from neural translation corruption.
 - Resilient Execution: Automatic multi-provider fallback routing, bounded concurrency limits per provider, and exponential backoff retries with jitter.
@@ -93,6 +93,7 @@ export SARVAM_API_KEY="your-sarvam-api-key"
 Comprehensive guides are available in the documentation site:
 
 - [Installation and Quick Start](docs/getting-started.md): Provider setup and first calls.
+- [Provider Reference](docs/provider-reference.md): Capability matrix, setup requirements, and fallback behavior.
 - [User Guide](docs/user-guide.md): Architecture overview, core capabilities, and usage styles.
 - [Translation Guide](docs/translation.md): Synchronous and asynchronous translation, Markdown preservation, and catalogs.
 - [Detection Guide](docs/detection.md): Local FastText and cloud Bhashini detection, script analysis, and candidate scoring.
@@ -128,7 +129,7 @@ uv run mkdocs build --strict
 
 ## Interactive Testing Workbench
 
-A local evaluation workbench and REST API server is included for testing translation, language detection, and script identification interactively:
+A local evaluation workbench and REST API server is included for testing translation, detection, transliteration, STT, and TTS interactively. The web assets are built from a source checkout and are not included in the Python wheel:
 
 ```bash
 # Build the web interface

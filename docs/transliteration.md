@@ -9,7 +9,7 @@ In Indian digital communication, text is frequently written phonetically using t
 The library supports two transliteration adapters:
 
 - **Bhashini**: Cloud transliteration via Government of India ULCA pipeline endpoints (`taskType="transliteration"`).
-- **AI4Bharat IndicXlit**: Local offline model inference for 21 scheduled Indic languages, available through the `[local-transliteration]` extra.
+- **AI4Bharat IndicXlit**: Local offline model inference for 21 scheduled Indic languages, available through the `[neural-transliteration]` extra.
 
 ## Quick Start
 
