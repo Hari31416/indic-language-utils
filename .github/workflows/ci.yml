@@ -21,6 +21,7 @@ jobs:
       - run: uv run mypy
       - run: uv run pytest
       - run: uv build
+      - run: uv run --group docs mkdocs build --strict
       - name: Test the built wheel
         run: |
           expected_version="$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
@@ -29,3 +30,18 @@ jobs:
           uv pip install --python "$wheel_venv/bin/python" dist/*.whl
           cd /tmp
           EXPECTED_VERSION="$expected_version" "$wheel_venv/bin/python" -c 'import os; import indic_language_utils; assert indic_language_utils.__version__ == os.environ["EXPECTED_VERSION"]'
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm --dir web install --frozen-lockfile
+      - run: pnpm --dir web build

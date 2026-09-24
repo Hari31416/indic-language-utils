@@ -49,6 +49,7 @@ jobs:
         id: extract_changelog
         run: |
           python -c '
+          import os
           import re
           from pathlib import Path
 
@@ -60,12 +61,12 @@ jobs:
               content = match.group(0).strip()
               content_lines = content.split("\n")[1:]
               body = "\n".join(content_lines).strip()
-              with open(Path("${{ github.output }}"), "a", encoding="utf-8") as f:
+              with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
                   f.write("body<<EOF\n")
                   f.write(body + "\n")
                   f.write("EOF\n")
           else:
-              with open(Path("${{ github.output }}"), "a", encoding="utf-8") as f:
+              with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
                   f.write("body=No changelog entry found for this version.\n")
           '
 
