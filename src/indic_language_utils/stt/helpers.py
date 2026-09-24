@@ -44,18 +44,10 @@ def get_stt_client(
             or values.get("STT_SERVICE_PROVIDER") in {"google_free", "google", "speechrecognition"}
         )
         if has_google_free:
-            try:
-                from .google_speech import (
-                    HAVE_SPEECH_RECOGNITION,
-                    GoogleFreeSTTConfig,
-                    GoogleFreeSTTProvider,
-                )
+            from .google_speech import GoogleFreeSTTConfig, GoogleFreeSTTProvider
 
-                if HAVE_SPEECH_RECOGNITION:
-                    gf_config = GoogleFreeSTTConfig.from_settings(settings, env=values)
-                    registry.register(GoogleFreeSTTProvider(gf_config))
-            except Exception:
-                pass
+            gf_config = GoogleFreeSTTConfig.from_settings(settings, env=values)
+            registry.register(GoogleFreeSTTProvider(gf_config))
 
         has_faster_whisper = (
             "faster_whisper" in settings.providers
@@ -63,18 +55,10 @@ def get_stt_client(
             or values.get("STT_SERVICE_PROVIDER") in {"faster_whisper", "whisper"}
         )
         if has_faster_whisper:
-            try:
-                from .whisper import (
-                    HAVE_FASTER_WHISPER,
-                    FasterWhisperSTTConfig,
-                    FasterWhisperSTTProvider,
-                )
+            from .whisper import FasterWhisperSTTConfig, FasterWhisperSTTProvider
 
-                if HAVE_FASTER_WHISPER:
-                    whisper_config = FasterWhisperSTTConfig.from_settings(settings, env=values)
-                    registry.register(FasterWhisperSTTProvider(whisper_config))
-            except Exception:
-                pass
+            whisper_config = FasterWhisperSTTConfig.from_settings(settings, env=values)
+            registry.register(FasterWhisperSTTProvider(whisper_config))
 
     if providers is not None:
         route = tuple(provider.identity.provider for provider in registry.all())
