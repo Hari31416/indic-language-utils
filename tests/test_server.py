@@ -55,6 +55,19 @@ def test_list_providers(client: TestClient) -> None:
     assert "indicxlit" in translit_ids
 
 
+def test_invalid_edge_tts_settings_are_visible(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from indic_language_utils.server import routes
+
+    monkeypatch.setattr(routes, "_get_env_overrides", lambda: {"EDGE_TTS_TIMEOUT_SECONDS": "0"})
+    response = client.get("/api/providers")
+    assert response.status_code == 200
+    edge = next(item for item in response.json()["text_to_speech"] if item["id"] == "edge_tts")
+    assert edge["available"] is False
+    assert "Invalid configuration" in edge["details"]
+
+
 def test_detect_script(client: TestClient) -> None:
     response = client.post("/api/detect-script", json={"text": "नमस्ते"})
     assert response.status_code == 200
@@ -404,6 +417,15 @@ def test_tts_endpoint(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> No
     assert data["cache_backend"] == "none"
     providers = client.get("/api/providers").json()["text_to_speech"]
     assert providers[0]["available"] is True
+    named_response = client.post(
+        "/api/tts",
+        json={
+            "text": "Hello",
+            "provider": "bhashini",
+            "provider_parameters": {"bhashini": {"gender": "female", "tone": "calm"}},
+        },
+    )
+    assert named_response.status_code == 200
 
 
 def test_tts_rejects_reserved_parameters(client: TestClient) -> None:

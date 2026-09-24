@@ -50,6 +50,7 @@ from ..transliteration.aksharamukha import HAVE_AKSHARAMUKHA
 from ..transliteration.client import TransliterationClient
 from ..transliteration.indicxlit import HAVE_INDICXLIT
 from ..tts import HAVE_EDGE_TTS, TTSClient, TTSOptions, TTSRequest, get_tts_client
+from ..tts.edge_tts import EdgeTTSConfig
 
 logger = logging.getLogger(__name__)
 MAX_STT_AUDIO_BYTES = 10 * 1024 * 1024
@@ -104,7 +105,10 @@ class TTSRequestBody(BaseModel):
     text: str = Field(..., min_length=1, description="Text to synthesize")
     language: str | None = Field(default=None, description="Optional output language")
     parameters: dict[str, object] = Field(
-        default_factory=dict, description="Model-specific Bhashini task settings"
+        default_factory=dict, description="Settings for the first selected TTS provider"
+    )
+    provider_parameters: dict[str, dict[str, object]] = Field(
+        default_factory=dict, description="Provider-specific settings used on each route"
     )
     provider: str | None = Field(default=None, description="Provider ID or null for auto routing")
 
@@ -341,6 +345,12 @@ async def list_providers() -> ProvidersResponse:
             )
         except ConfigurationError:
             pass
+    edge_tts_error: str | None = None
+    if HAVE_EDGE_TTS:
+        try:
+            EdgeTTSConfig.from_settings(Settings.load(env=env), env=env)
+        except ConfigurationError as exc:
+            edge_tts_error = str(exc)
     stt_providers = [
         ProviderInfo(
             id="bhashini",
@@ -375,10 +385,14 @@ async def list_providers() -> ProvidersResponse:
         ProviderInfo(
             id="edge_tts",
             name="Microsoft Edge TTS",
-            available=HAVE_EDGE_TTS,
-            details="Free online TTS via Microsoft Edge neural voices"
-            if HAVE_EDGE_TTS
-            else "Requires 'edge-tts' package",
+            available=HAVE_EDGE_TTS and edge_tts_error is None,
+            details=(
+                f"Invalid configuration: {edge_tts_error}"
+                if edge_tts_error
+                else "Free online TTS via Microsoft Edge neural voices"
+                if HAVE_EDGE_TTS
+                else "Requires 'edge-tts' package"
+            ),
         ),
         ProviderInfo(
             id="bhashini",
@@ -706,7 +720,11 @@ async def transcribe_audio(body: STTRequestBody) -> STTResponseBody:
 @router.post("/tts", response_model=TTSResponseBody)
 async def synthesize_speech(body: TTSRequestBody) -> TTSResponseBody:
     try:
-        request = TTSRequest(body.text, body.language, TTSOptions(body.parameters))
+        request = TTSRequest(
+            body.text,
+            body.language,
+            TTSOptions(body.parameters, body.provider_parameters),
+        )
     except (LanguageUtilsError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

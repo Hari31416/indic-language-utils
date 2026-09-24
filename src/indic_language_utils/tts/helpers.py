@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from collections.abc import Mapping, Sequence
 
 from ..config import Settings
+from ..errors import ConfigurationError
 from ..providers import CapabilityId, ProviderRegistry
 from ..providers.bhashini import BhashiniConfig
 from ..providers.sarvam import SarvamConfig
@@ -14,6 +16,8 @@ from .bhashini import BhashiniTTSProvider
 from .client import TTSClient
 from .protocols import TTSProvider
 from .sarvam import SarvamTTSProvider
+
+logger = logging.getLogger(__name__)
 
 
 def get_tts_client(
@@ -38,14 +42,16 @@ def get_tts_client(
             if sarvam.tts_model_id or sarvam.tts_model_ids:
                 registry.register(SarvamTTSProvider(sarvam))
 
-        try:
-            from .edge_tts import HAVE_EDGE_TTS, EdgeTTSConfig, EdgeTTSProvider
+        from .edge_tts import HAVE_EDGE_TTS, EdgeTTSConfig, EdgeTTSProvider
 
-            if HAVE_EDGE_TTS:
+        if HAVE_EDGE_TTS:
+            try:
                 edge_config = EdgeTTSConfig.from_settings(settings, env=values)
                 registry.register(EdgeTTSProvider(edge_config))
-        except Exception:
-            pass
+            except ConfigurationError as exc:
+                if not registry.all():
+                    raise
+                logger.warning("Edge TTS is unavailable: %s", exc)
 
     if providers is not None:
         route = tuple(provider.identity.provider for provider in registry.all())

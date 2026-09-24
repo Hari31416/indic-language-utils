@@ -31,6 +31,7 @@ class BhashiniTTSProvider:
 
     def __init__(self, config: BhashiniConfig, *, transport: JsonTransport | None = None) -> None:
         self.config = config
+        self.supports_unspecified_language = bool(config.tts_model_id)
         self._transport = transport
         self._owns_transport = transport is None
         self._limiter = ConcurrencyLimiter(config.max_concurrency)

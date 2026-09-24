@@ -27,6 +27,7 @@ _RESERVED = {"text", "language_code", "model"}
 
 class SarvamTTSProvider:
     identity = ProviderIdentity("sarvam", "Sarvam AI")
+    supports_unspecified_language = False
     capabilities: tuple[CapabilityDeclaration, ...]
 
     def __init__(self, config: SarvamConfig, *, transport: JsonTransport | None = None) -> None:

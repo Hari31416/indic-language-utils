@@ -7,9 +7,20 @@ from dataclasses import dataclass, field
 import pytest
 
 from indic_language_utils import BhashiniConfig, Secret, TTSOptions, TTSRequest, get_tts_client
-from indic_language_utils.errors import MalformedProviderResponseError, UnsupportedLanguageError
+from indic_language_utils.errors import (
+    ConfigurationError,
+    MalformedProviderResponseError,
+    TransientProviderError,
+    UnsupportedLanguageError,
+)
+from indic_language_utils.languages import LanguageTag
+from indic_language_utils.models import ProviderIdentity
+from indic_language_utils.providers import CapabilityDeclaration, CapabilityId
 from indic_language_utils.providers.bhashini import JsonResponse
+from indic_language_utils.providers.sarvam import SarvamConfig
 from indic_language_utils.tts.bhashini import BhashiniTTSProvider
+from indic_language_utils.tts.models import ProviderTTSResult
+from indic_language_utils.tts.sarvam import SarvamTTSProvider
 
 WAV = b"RIFF\x04\x00\x00\x00WAVE" + b"test-audio"
 
@@ -99,6 +110,72 @@ def test_tts_options_reject_reserved_or_invalid_values() -> None:
         TTSOptions({"serviceId": "other"})
     with pytest.raises(ValueError, match="JSON"):
         TTSOptions({"tone": object()})
+    with pytest.raises(ValueError, match="override"):
+        TTSOptions(provider_parameters={"bhashini": {"serviceId": "other"}})
+
+
+@pytest.mark.asyncio
+async def test_tts_skips_provider_requiring_language() -> None:
+    sarvam = SarvamTTSProvider(SarvamConfig(Secret("key"), tts_model_id="bulbul:v3"))
+    transport = FakeTransport([response()])
+    bhashini = BhashiniTTSProvider(config(), transport=transport)
+    client = get_tts_client(providers=[sarvam, bhashini])
+    result = await client.synthesize("Hello")
+    assert result.provider == "bhashini"
+    assert result.fallback_count == 0
+
+
+@pytest.mark.asyncio
+async def test_tts_fallback_uses_only_target_provider_options() -> None:
+    class FailingProvider:
+        identity = ProviderIdentity("first", "First")
+        capabilities: tuple[CapabilityDeclaration, ...] = (
+            CapabilityDeclaration(CapabilityId.TEXT_TO_SPEECH),
+        )
+
+        async def synthesize_batch(
+            self,
+            texts: tuple[str, ...],
+            *,
+            language: LanguageTag | None,
+            options: TTSOptions,
+            request_id: str,
+        ) -> tuple[ProviderTTSResult, ...]:
+            assert options.parameters == {"speaker": "first-speaker"}
+            raise TransientProviderError("temporary failure")
+
+    class SuccessProvider:
+        identity = ProviderIdentity("second", "Second")
+        capabilities: tuple[CapabilityDeclaration, ...] = (
+            CapabilityDeclaration(CapabilityId.TEXT_TO_SPEECH),
+        )
+
+        async def synthesize_batch(
+            self,
+            texts: tuple[str, ...],
+            *,
+            language: LanguageTag | None,
+            options: TTSOptions,
+            request_id: str,
+        ) -> tuple[ProviderTTSResult, ...]:
+            assert options.parameters == {"voice": "second-voice"}
+            return (ProviderTTSResult(WAV, "wav"),)
+
+    client = get_tts_client(providers=[FailingProvider(), SuccessProvider()])
+    result = await client.synthesize(
+        "Hello",
+        options=TTSOptions(
+            {"speaker": "first-speaker"},
+            {"second": {"voice": "second-voice"}},
+        ),
+    )
+    assert result.provider == "second"
+    assert result.fallback_count == 1
+
+
+def test_invalid_edge_tts_configuration_is_reported() -> None:
+    with pytest.raises(ConfigurationError, match="Edge TTS timeout and concurrency"):
+        get_tts_client(env={"EDGE_TTS_TIMEOUT_SECONDS": "0"})
 
 
 @pytest.mark.asyncio

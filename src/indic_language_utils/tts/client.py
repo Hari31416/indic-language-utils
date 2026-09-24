@@ -10,6 +10,7 @@ from ..errors import (
     ProviderTimeoutError,
     RateLimitError,
     TransientProviderError,
+    UnsupportedLanguageError,
 )
 from ..languages import LanguageTag
 from ..providers import AsyncLifecycle, CapabilityId, ResourceManager
@@ -75,6 +76,17 @@ class TTSClient:
             candidates = self._router.candidates(
                 RouteRequirement(CapabilityId.TEXT_TO_SPEECH, source=request.language)
             )
+            if request.language is None:
+                candidates = tuple(
+                    candidate
+                    for candidate in candidates
+                    if getattr(candidate.provider, "supports_unspecified_language", True)
+                )
+                if not candidates:
+                    raise UnsupportedLanguageError(
+                        "No configured TTS provider accepts an unspecified language",
+                        capability=CapabilityId.TEXT_TO_SPEECH.value,
+                    )
             for fallback_count, candidate in enumerate(candidates):
                 provider = candidate.provider
                 if not isinstance(provider, TTSProvider):
@@ -83,7 +95,9 @@ class TTSClient:
                     response = await provider.synthesize_batch(
                         (request.text,),
                         language=request.language,
-                        options=request.options,
+                        options=request.options.for_provider(
+                            provider.identity.provider, primary=fallback_count == 0
+                        ),
                         request_id=request.context.request_id,
                     )
                     if (
