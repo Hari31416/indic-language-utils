@@ -8,7 +8,7 @@ import logging
 import os
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from ..config import Settings
@@ -74,6 +74,24 @@ def _get_env_overrides() -> dict[str, str]:
     return env
 
 
+def _apply_request_overrides(env: dict[str, str], request: Request | None) -> dict[str, str]:
+    if request is not None:
+        sarvam_key = request.headers.get("x-sarvam-api-key")
+        if sarvam_key:
+            env["SARVAM_API_KEY"] = sarvam_key.strip()
+        sarvam_endpoint = request.headers.get("x-sarvam-endpoint")
+        if sarvam_endpoint:
+            env["SARVAM_ENDPOINT_URL"] = sarvam_endpoint.strip()
+
+        bhashini_key = request.headers.get("x-bhashini-api-key")
+        if bhashini_key:
+            env["BHASHINI_API_KEY"] = bhashini_key.strip()
+        bhashini_endpoint = request.headers.get("x-bhashini-endpoint")
+        if bhashini_endpoint:
+            env["BHASHINI_ENDPOINT_URL"] = bhashini_endpoint.strip()
+    return env
+
+
 class LanguageItem(BaseModel):
     tag: str
     code: str
@@ -104,11 +122,14 @@ class ProvidersResponse(BaseModel):
 class TTSRequestBody(BaseModel):
     text: str = Field(..., min_length=1, description="Text to synthesize")
     language: str | None = Field(default=None, description="Optional output language")
+    model_id: str | None = Field(default=None, description="Optional model ID or voice ID override")
+    api_key: str | None = Field(default=None, description="Optional API key override")
     parameters: dict[str, object] = Field(
         default_factory=dict, description="Settings for the first selected TTS provider"
     )
     provider_parameters: dict[str, dict[str, object]] = Field(
-        default_factory=dict, description="Provider-specific settings used on each route"
+        default_factory=dict,
+        description="Provider-specific settings used on each route",
     )
     provider: str | None = Field(default=None, description="Provider ID or null for auto routing")
 
@@ -128,9 +149,14 @@ class TTSResponseBody(BaseModel):
 
 class STTRequestBody(BaseModel):
     audio_base64: str = Field(
-        ..., min_length=1, max_length=14_000_000, description="Base64-encoded audio bytes"
+        ...,
+        min_length=1,
+        max_length=14_000_000,
+        description="Base64-encoded audio bytes",
     )
     language: str | None = Field(default=None, description="Optional source language code")
+    model_id: str | None = Field(default=None, description="Optional model ID override")
+    api_key: str | None = Field(default=None, description="Optional API key override")
     audio_format: str = Field(default="wav", description="Audio container format")
     sampling_rate: int = Field(default=16000, gt=0, description="Audio sample rate in Hz")
     provider: str | None = Field(default=None, description="Provider ID or null for auto routing")
@@ -152,6 +178,10 @@ class TranslateRequestBody(BaseModel):
     text: str = Field(..., min_length=1, description="Text to translate")
     source: str = Field(..., description="Source language code (e.g., 'en', 'hi')")
     target: str = Field(..., description="Target language code (e.g., 'hi', 'ta')")
+    model_id: str | None = Field(
+        default=None, description="Optional model ID / service ID override"
+    )
+    api_key: str | None = Field(default=None, description="Optional API key override")
     provider: str | None = Field(default=None, description="Provider ID or null for auto routing")
     text_format: str = Field(default="plain", description="'plain' or 'markdown'")
 
@@ -172,6 +202,8 @@ class TranslateResponseBody(BaseModel):
 
 class DetectRequestBody(BaseModel):
     text: str = Field(..., min_length=1, description="Text to detect language for")
+    model_id: str | None = Field(default=None, description="Optional model ID override")
+    api_key: str | None = Field(default=None, description="Optional API key override")
     provider: str | None = Field(default=None, description="Provider ID or null for auto routing")
 
 
@@ -224,8 +256,8 @@ async def list_languages() -> LanguagesResponse:
 
 
 @router.get("/providers", response_model=ProvidersResponse)
-async def list_providers() -> ProvidersResponse:
-    env = _get_env_overrides()
+async def list_providers(request: Request) -> ProvidersResponse:
+    env = _apply_request_overrides(_get_env_overrides(), request)
     has_bhashini_key = bool(env.get("BHASHINI_API_KEY"))
     bhashini_service_id = env.get(
         "BHASHINI_TRANSLATION_SERVICE_ID", "ai4bharat/indictrans-v2-all-gpu--t4"
@@ -242,17 +274,19 @@ async def list_providers() -> ProvidersResponse:
             id="sarvam",
             name="Sarvam AI",
             available=has_sarvam_key,
-            details=sarvam_model
-            if has_sarvam_key
-            else "Requires SARVAM_API_KEY environment variable",
+            details=(
+                sarvam_model if has_sarvam_key else "Requires SARVAM_API_KEY environment variable"
+            ),
         ),
         ProviderInfo(
             id="bhashini",
             name="Bhashini (IndicTrans2)",
             available=has_bhashini_key,
-            details=bhashini_service_id
-            if has_bhashini_key
-            else "Requires BHASHINI_API_KEY environment variable",
+            details=(
+                bhashini_service_id
+                if has_bhashini_key
+                else "Requires BHASHINI_API_KEY environment variable"
+            ),
         ),
         ProviderInfo(
             id="googletrans",
@@ -273,17 +307,21 @@ async def list_providers() -> ProvidersResponse:
             id="sarvam",
             name="Sarvam Detection",
             available=has_sarvam_key,
-            details="Language Identification (LID)"
-            if has_sarvam_key
-            else "Requires SARVAM_API_KEY environment variable",
+            details=(
+                "Language Identification (LID)"
+                if has_sarvam_key
+                else "Requires SARVAM_API_KEY environment variable"
+            ),
         ),
         ProviderInfo(
             id="bhashini",
             name="Bhashini Detection",
             available=has_bhashini_key and bool(bhashini_detect_id),
-            details=bhashini_detect_id
-            if (has_bhashini_key and bhashini_detect_id)
-            else "Requires BHASHINI_API_KEY and BHASHINI_DETECTION_SERVICE_ID",
+            details=(
+                bhashini_detect_id
+                if (has_bhashini_key and bhashini_detect_id)
+                else "Requires BHASHINI_API_KEY and BHASHINI_DETECTION_SERVICE_ID"
+            ),
         ),
     ]
 
@@ -299,9 +337,11 @@ async def list_providers() -> ProvidersResponse:
             id="bhashini",
             name="Bhashini Transliteration",
             available=has_bhashini_key and bool(bhashini_translit_id),
-            details=bhashini_translit_id
-            if (has_bhashini_key and bhashini_translit_id)
-            else "Requires BHASHINI_API_KEY and BHASHINI_TRANSLITERATION_SERVICE_ID",
+            details=(
+                bhashini_translit_id
+                if (has_bhashini_key and bhashini_translit_id)
+                else "Requires BHASHINI_API_KEY and BHASHINI_TRANSLITERATION_SERVICE_ID"
+            ),
         ),
         ProviderInfo(
             id="indicxlit",
@@ -368,17 +408,21 @@ async def list_providers() -> ProvidersResponse:
             id="google_free",
             name="Google Free STT",
             available=HAVE_SPEECH_RECOGNITION,
-            details="Unofficial Google Web Speech via SpeechRecognition"
-            if HAVE_SPEECH_RECOGNITION
-            else "Requires 'SpeechRecognition' package",
+            details=(
+                "Unofficial Google Web Speech via SpeechRecognition"
+                if HAVE_SPEECH_RECOGNITION
+                else "Requires 'SpeechRecognition' package"
+            ),
         ),
         ProviderInfo(
             id="faster_whisper",
             name="Faster Whisper",
             available=HAVE_FASTER_WHISPER,
-            details="Local offline STT via faster-whisper"
-            if HAVE_FASTER_WHISPER
-            else "Requires 'faster-whisper' package",
+            details=(
+                "Local offline STT via faster-whisper"
+                if HAVE_FASTER_WHISPER
+                else "Requires 'faster-whisper' package"
+            ),
         ),
     ]
     tts_providers = [
@@ -389,9 +433,11 @@ async def list_providers() -> ProvidersResponse:
             details=(
                 f"Invalid configuration: {edge_tts_error}"
                 if edge_tts_error
-                else "Free online TTS via Microsoft Edge neural voices"
-                if HAVE_EDGE_TTS
-                else "Requires 'edge-tts' package"
+                else (
+                    "Free online TTS via Microsoft Edge neural voices"
+                    if HAVE_EDGE_TTS
+                    else "Requires 'edge-tts' package"
+                )
             ),
         ),
         ProviderInfo(
@@ -418,8 +464,23 @@ async def list_providers() -> ProvidersResponse:
 
 
 @router.post("/translate", response_model=TranslateResponseBody)
-async def translate_text(body: TranslateRequestBody) -> TranslateResponseBody:
-    env = _get_env_overrides()
+async def translate_text(body: TranslateRequestBody, request: Request) -> TranslateResponseBody:
+    env = _apply_request_overrides(_get_env_overrides(), request)
+    if body.api_key:
+        if body.provider == "sarvam":
+            env["SARVAM_API_KEY"] = body.api_key
+        elif body.provider == "bhashini":
+            env["BHASHINI_API_KEY"] = body.api_key
+        else:
+            env["SARVAM_API_KEY"] = body.api_key
+            env["BHASHINI_API_KEY"] = body.api_key
+
+    if body.model_id:
+        if body.provider == "sarvam" or not body.provider or body.provider == "auto":
+            env["SARVAM_MODEL"] = body.model_id
+        if body.provider == "bhashini" or not body.provider or body.provider == "auto":
+            env["BHASHINI_TRANSLATION_SERVICE_ID"] = body.model_id
+
     try:
         base_client = get_translation_client(env=env)
     except Exception as exc:
@@ -450,13 +511,13 @@ async def translate_text(body: TranslateRequestBody) -> TranslateResponseBody:
 
     try:
         async with client:
-            request = TranslationRequest(
+            request_obj = TranslationRequest(
                 body.text,
                 body.source,
                 body.target,
                 options=options,
             )
-            result = await client.translate(request)
+            result = await client.translate(request_obj)
     except LanguageUtilsError as exc:
         logger.warning("Translation error: %s", exc)
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -480,8 +541,22 @@ async def translate_text(body: TranslateRequestBody) -> TranslateResponseBody:
 
 
 @router.post("/detect", response_model=DetectResponseBody)
-async def detect_language(body: DetectRequestBody) -> DetectResponseBody:
-    env = _get_env_overrides()
+async def detect_language(body: DetectRequestBody, request: Request) -> DetectResponseBody:
+    env = _apply_request_overrides(_get_env_overrides(), request)
+    if body.api_key:
+        if body.provider == "sarvam":
+            env["SARVAM_API_KEY"] = body.api_key
+        elif body.provider == "bhashini":
+            env["BHASHINI_API_KEY"] = body.api_key
+        else:
+            env["SARVAM_API_KEY"] = body.api_key
+            env["BHASHINI_API_KEY"] = body.api_key
+
+    if body.model_id:
+        if body.provider == "bhashini" or not body.provider or body.provider == "auto":
+            env["BHASHINI_DETECTION_SERVICE_ID"] = body.model_id
+            env["BHASHINI_TLD_SERVICE_ID"] = body.model_id
+
     try:
         base_client = get_detection_client(env=env)
     except Exception as exc:
@@ -509,8 +584,8 @@ async def detect_language(body: DetectRequestBody) -> DetectResponseBody:
 
     try:
         async with client:
-            request = DetectionRequest(body.text, options=options)
-            result = await client.detect(request)
+            request_obj = DetectionRequest(body.text, options=options)
+            result = await client.detect(request_obj)
     except LanguageUtilsError as exc:
         logger.warning("Detection error: %s", exc)
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -569,7 +644,9 @@ async def detect_language(body: DetectRequestBody) -> DetectResponseBody:
 
 
 @router.post("/detect-script", response_model=ScriptDetectResponseBody)
-async def detect_script_endpoint(body: ScriptDetectRequestBody) -> ScriptDetectResponseBody:
+async def detect_script_endpoint(
+    body: ScriptDetectRequestBody,
+) -> ScriptDetectResponseBody:
     script = detect_script(body.text)
     return ScriptDetectResponseBody(script=script)
 
@@ -578,6 +655,8 @@ class TransliterateRequestBody(BaseModel):
     text: str = Field(..., min_length=1, description="Text to transliterate")
     source: str = Field(..., description="Source language code (e.g., 'en', 'hi')")
     target: str = Field(..., description="Target language code (e.g., 'hi', 'ta')")
+    model_id: str | None = Field(default=None, description="Optional model ID override")
+    api_key: str | None = Field(default=None, description="Optional API key override")
     provider: str | None = Field(default=None, description="Provider ID or null for auto routing")
 
 
@@ -596,8 +675,21 @@ class TransliterateResponseBody(BaseModel):
 
 
 @router.post("/transliterate", response_model=TransliterateResponseBody)
-async def transliterate_text(body: TransliterateRequestBody) -> TransliterateResponseBody:
-    env = _get_env_overrides()
+async def transliterate_text(
+    body: TransliterateRequestBody, request: Request
+) -> TransliterateResponseBody:
+    env = _apply_request_overrides(_get_env_overrides(), request)
+    if body.api_key:
+        if body.provider == "bhashini":
+            env["BHASHINI_API_KEY"] = body.api_key
+        else:
+            env["BHASHINI_API_KEY"] = body.api_key
+
+    if body.model_id:
+        if body.provider == "bhashini" or not body.provider or body.provider == "auto":
+            env["BHASHINI_TRANSLITERATION_SERVICE_ID"] = body.model_id
+            env["BHASHINI_TRANSLATION_SERVICE_ID"] = body.model_id
+
     try:
         base_client = get_transliteration_client(env=env)
     except Exception as exc:
@@ -625,13 +717,13 @@ async def transliterate_text(body: TransliterateRequestBody) -> TransliterateRes
 
     try:
         async with client:
-            request = TransliterationRequest(
+            request_obj = TransliterationRequest(
                 body.text,
                 source=body.source,
                 target=body.target,
                 options=options,
             )
-            result = await client.transliterate(request)
+            result = await client.transliterate(request_obj)
     except LanguageUtilsError as exc:
         logger.warning("Transliteration error: %s", exc)
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -655,7 +747,7 @@ async def transliterate_text(body: TransliterateRequestBody) -> TransliterateRes
 
 
 @router.post("/stt", response_model=STTResponseBody)
-async def transcribe_audio(body: STTRequestBody) -> STTResponseBody:
+async def transcribe_audio(body: STTRequestBody, request: Request) -> STTResponseBody:
     try:
         audio = base64.b64decode(body.audio_base64, validate=True)
     except (binascii.Error, ValueError) as exc:
@@ -668,12 +760,31 @@ async def transcribe_audio(body: STTRequestBody) -> STTResponseBody:
         raise HTTPException(status_code=413, detail="Audio exceeds the 10 MiB limit")
 
     try:
-        request = STTRequest(audio, body.language, body.audio_format, body.sampling_rate)
+        request_obj = STTRequest(audio, body.language, body.audio_format, body.sampling_rate)
     except (LanguageUtilsError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    env = _apply_request_overrides(_get_env_overrides(), request)
+    if body.api_key:
+        if body.provider == "sarvam":
+            env["SARVAM_API_KEY"] = body.api_key
+        elif body.provider == "bhashini":
+            env["BHASHINI_API_KEY"] = body.api_key
+        else:
+            env["SARVAM_API_KEY"] = body.api_key
+            env["BHASHINI_API_KEY"] = body.api_key
+
+    if body.model_id:
+        if body.provider == "sarvam" or not body.provider or body.provider == "auto":
+            env["SARVAM_STT_MODEL_ID"] = body.model_id
+        if body.provider == "bhashini" or not body.provider or body.provider == "auto":
+            env["BHASHINI_STT_MODEL_ID"] = body.model_id
+        if body.provider == "faster_whisper" or not body.provider or body.provider == "auto":
+            env["FASTER_WHISPER_MODEL"] = body.model_id
+            env["WHISPER_MODEL"] = body.model_id
+
     try:
-        base_client = get_stt_client(env=_get_env_overrides())
+        base_client = get_stt_client(env=env)
     except ConfigurationError as exc:
         logger.warning("STT setup error: %s", exc)
         raise HTTPException(status_code=503, detail="STT provider is not configured") from exc
@@ -696,7 +807,7 @@ async def transcribe_audio(body: STTRequestBody) -> STTResponseBody:
 
     try:
         async with client:
-            result = await client.transcribe(request)
+            result = await client.transcribe(request_obj)
     except LanguageUtilsError as exc:
         logger.warning("STT error: %s", exc)
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -718,18 +829,38 @@ async def transcribe_audio(body: STTRequestBody) -> STTResponseBody:
 
 
 @router.post("/tts", response_model=TTSResponseBody)
-async def synthesize_speech(body: TTSRequestBody) -> TTSResponseBody:
+async def synthesize_speech(body: TTSRequestBody, request: Request) -> TTSResponseBody:
+    env = _apply_request_overrides(_get_env_overrides(), request)
+    if body.api_key:
+        if body.provider == "sarvam":
+            env["SARVAM_API_KEY"] = body.api_key
+        elif body.provider == "bhashini":
+            env["BHASHINI_API_KEY"] = body.api_key
+        else:
+            env["SARVAM_API_KEY"] = body.api_key
+            env["BHASHINI_API_KEY"] = body.api_key
+
+    parameters = dict(body.parameters)
+    if body.model_id:
+        if body.provider == "sarvam" or not body.provider or body.provider == "auto":
+            env["SARVAM_TTS_MODEL_ID"] = body.model_id
+        if body.provider == "bhashini" or not body.provider or body.provider == "auto":
+            env["BHASHINI_TTS_MODEL_ID"] = body.model_id
+        if body.provider in ("edge_tts", "edge") or not body.provider or body.provider == "auto":
+            parameters["voice"] = body.model_id
+            env["EDGE_TTS_VOICE"] = body.model_id
+
     try:
-        request = TTSRequest(
+        request_obj = TTSRequest(
             body.text,
             body.language,
-            TTSOptions(body.parameters, body.provider_parameters),
+            TTSOptions(parameters, body.provider_parameters),
         )
     except (LanguageUtilsError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     try:
-        base_client = get_tts_client(env=_get_env_overrides())
+        base_client = get_tts_client(env=env)
     except ConfigurationError as exc:
         logger.warning("TTS setup error: %s", exc)
         raise HTTPException(status_code=503, detail="TTS provider is not configured") from exc
@@ -758,7 +889,7 @@ async def synthesize_speech(body: TTSRequestBody) -> TTSResponseBody:
 
     try:
         async with client:
-            result = await client.synthesize(request)
+            result = await client.synthesize(request_obj)
     except LanguageUtilsError as exc:
         logger.warning("TTS error: %s", exc)
         raise HTTPException(status_code=400, detail=str(exc)) from exc

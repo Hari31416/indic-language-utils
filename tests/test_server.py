@@ -93,7 +93,9 @@ def test_detect_language(client: TestClient) -> None:
 
 
 def test_translate_text(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    from indic_language_utils.translation.google_translate import GoogleTranslateProvider
+    from indic_language_utils.translation.google_translate import (
+        GoogleTranslateProvider,
+    )
     from indic_language_utils.translation.models import ProviderTranslationResult
 
     async def mock_translate_batch(
@@ -134,7 +136,9 @@ def test_translate_text(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> 
 
 def test_translate_text_sarvam(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     from indic_language_utils.translation.models import ProviderTranslationResult
-    from indic_language_utils.translation.sarvam_translate import SarvamTranslationProvider
+    from indic_language_utils.translation.sarvam_translate import (
+        SarvamTranslationProvider,
+    )
 
     async def mock_translate_batch(
         self: object,
@@ -202,7 +206,9 @@ def test_transliterate_text(client: TestClient, monkeypatch: pytest.MonkeyPatch)
     from indic_language_utils.transliteration.bhashini_transliterate import (
         BhashiniTransliterationProvider,
     )
-    from indic_language_utils.transliteration.models import ProviderTransliterationResult
+    from indic_language_utils.transliteration.models import (
+        ProviderTransliterationResult,
+    )
 
     async def mock_transliterate_batch(
         self: object,
@@ -431,3 +437,19 @@ def test_tts_endpoint(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> No
 def test_tts_rejects_reserved_parameters(client: TestClient) -> None:
     response = client.post("/api/tts", json={"text": "Hello", "parameters": {"serviceId": "other"}})
     assert response.status_code == 400
+
+
+def test_client_api_key_headers_enable_providers(client: TestClient) -> None:
+    response = client.get(
+        "/api/providers",
+        headers={
+            "x-sarvam-api-key": "test-sarvam-key",
+            "x-bhashini-api-key": "test-bhashini-key",
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    sarvam_trans = next(p for p in data["translation"] if p["id"] == "sarvam")
+    assert sarvam_trans["available"] is True
+    bhashini_trans = next(p for p in data["translation"] if p["id"] == "bhashini")
+    assert bhashini_trans["available"] is True
