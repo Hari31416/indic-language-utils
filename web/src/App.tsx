@@ -66,7 +66,7 @@ export const App: React.FC = () => {
                   indic-language-utils
                 </span>
                 <span className="text-[11px] px-1.5 py-0.5 rounded font-mono bg-slate-800 text-slate-400">
-                  v0.4.0
+                  v0.5.0
                 </span>
               </div>
               <p className="text-[11px] text-slate-400 hidden sm:block">

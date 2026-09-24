@@ -5,6 +5,24 @@ All notable changes to the `indic-language-utils` project will be documented in 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-09-24
+
+### Added
+- Provider-specific TTS fallback settings through `TTSOptions.provider_parameters` and the `/api/tts` request body.
+- Voice controls for Bhashini, Sarvam, and Edge TTS in the web workbench.
+- Provider reference covering capabilities, setup requirements, routing, and errors.
+
+### Changed
+- The STT workbench reads sample rates from WAV files and asks for the actual rate for other formats.
+- The quick start covers transliteration and speech, and documents that web assets are built from a source checkout.
+- CI builds the web workbench and checks documentation with strict warnings.
+
+### Fixed
+- TTS routing skips providers that require a language when none is supplied.
+- TTS fallback keeps model options with their intended provider.
+- Invalid Edge TTS settings are reported instead of silently removing the provider.
+- GitHub release notes are written to the GitHub Actions output file.
+
 ## [0.4.0] - 2026-09-23
 
 ### Added
