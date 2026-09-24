@@ -3,7 +3,6 @@ import {
   Check,
   ChevronDown,
   Copy,
-  Cpu,
   FileAudio2,
   Loader2,
   Mic,
@@ -12,7 +11,18 @@ import {
   Zap,
 } from 'lucide-react'
 import { transcribeAudio } from '../api'
+import { useLocalHistory } from '../history'
 import type { LanguageItem, ProviderInfo, STTResponse } from '../types'
+import {
+  EmptyState,
+  ErrorBox,
+  Field,
+  HistoryStrip,
+  MetaTable,
+  ModelDrawer,
+  ResultPanel,
+  ToolHeader,
+} from './ui'
 
 interface STTViewProps {
   languages: LanguageItem[]
@@ -67,6 +77,12 @@ function readBase64(file: File): Promise<string> {
   })
 }
 
+interface Hist {
+  name: string
+  out: string
+  provider: string
+}
+
 export const STTView: React.FC<STTViewProps> = ({ languages, providers }) => {
   const [file, setFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
@@ -81,6 +97,7 @@ export const STTView: React.FC<STTViewProps> = ({ languages, providers }) => {
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [isDragOver, setIsDragOver] = useState(false)
+  const { items: history, push, clear } = useLocalHistory<Hist>('ilu-hist-stt')
 
   useEffect(() => {
     if (!file) {
@@ -135,6 +152,7 @@ export const STTView: React.FC<STTViewProps> = ({ languages, providers }) => {
         model_id: modelId.trim() || null,
       })
       setResult(response)
+      push({ name: file.name, out: response.text, provider: response.provider })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Transcription failed')
     } finally {
@@ -153,319 +171,248 @@ export const STTView: React.FC<STTViewProps> = ({ languages, providers }) => {
   const wordCount = result?.text.trim() ? result.text.trim().split(/\s+/).length : 0
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-      {/* Left Column: Upload & Parameters */}
-      <div className="lg:col-span-7 bg-slate-900/80 border border-slate-800/90 rounded-2xl p-5 sm:p-6 backdrop-blur-sm shadow-xl space-y-5">
-        <div className="flex items-center gap-3 pb-3 border-b border-slate-800/70">
-          <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
-            <Mic className="w-4 h-4" />
-          </div>
-          <div>
-            <h2 className="text-sm font-semibold text-slate-100">Speech to Text (ASR)</h2>
-            <p className="text-xs text-slate-400">
-              Upload speech audio to transcribe with Sarvam, Bhashini, Faster-Whisper, or Google STT
-            </p>
-          </div>
-        </div>
+    <div className="space-y-5">
+      <ToolHeader
+        icon={<Mic className="h-4 w-4" />}
+        tileClass="border-clay-500/30 bg-clay-500/10 text-clay-300"
+        title="Speech to Text"
+        blurb="Upload speech audio and transcribe it with Sarvam Saarika, Bhashini, Faster-Whisper, or Google STT."
+        glyph="ई"
+      />
 
-        {/* Audio Dropzone */}
-        <div
-          onDragOver={(e) => {
-            e.preventDefault()
-            setIsDragOver(true)
-          }}
-          onDragLeave={() => setIsDragOver(false)}
-          onDrop={(e) => {
-            e.preventDefault()
-            setIsDragOver(false)
-            void handleFile(e.dataTransfer.files[0])
-          }}
-          className={`relative border-2 border-dashed rounded-2xl p-6 text-center transition cursor-pointer ${
-            isDragOver
-              ? 'border-indigo-500 bg-indigo-950/20'
-              : file
-                ? 'border-indigo-500/60 bg-slate-950/70'
-                : 'border-slate-700/80 hover:border-slate-600 bg-slate-950/40'
-          }`}
-        >
-          <input
-            type="file"
-            accept=".wav,.flac,.mp3,.ogg,audio/*"
-            className="sr-only"
-            id="audio-upload-input"
-            onChange={(event) => void handleFile(event.target.files?.[0])}
-          />
-          <label htmlFor="audio-upload-input" className="cursor-pointer block">
-            <div className="p-3 rounded-full bg-slate-900 border border-slate-800 w-12 h-12 mx-auto mb-3 flex items-center justify-center text-indigo-400 shadow-md">
-              {file ? <FileAudio2 className="w-6 h-6" /> : <UploadCloud className="w-6 h-6" />}
-            </div>
-            <div className="text-sm font-semibold text-slate-100">
-              {file ? file.name : 'Choose an audio file or drag & drop'}
-            </div>
-            <p className="text-xs text-slate-400 mt-1">
-              WAV, FLAC, MP3, or OGG up to 10 MiB
-            </p>
-            {file && (
-              <div className="flex items-center justify-center gap-2 mt-3 text-xs font-mono text-slate-400">
-                <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800">
-                  {(file.size / (1024 * 1024)).toFixed(2)} MB
-                </span>
-                <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 uppercase">
-                  {audioFormat}
-                </span>
-                {samplingRate && (
-                  <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800">
-                    {samplingRate} Hz
-                  </span>
-                )}
-              </div>
-            )}
-          </label>
-        </div>
-
-        {/* Audio Player Preview */}
-        {previewUrl && (
-          <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
-            <audio controls src={previewUrl} className="w-full h-10" aria-label="Audio preview" />
-          </div>
-        )}
-
-        {/* Configuration Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Spoken Language
-            </label>
-            <div className="relative">
-              <select
-                value={language}
-                onChange={(event) => setLanguage(event.target.value)}
-                className="w-full appearance-none bg-slate-950 border border-slate-700/80 rounded-xl px-3.5 py-2.5 text-xs font-medium text-slate-100 focus:outline-none focus:border-indigo-500"
-              >
-                <option value="">Unspecified (Auto Detect)</option>
-                {languages.map((item) => (
-                  <option key={item.tag} value={item.code}>
-                    {item.name} ({item.code})
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-3 pointer-events-none" />
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
-                Engine
-              </label>
-              <button
-                type="button"
-                onClick={() => setShowModelConfig(!showModelConfig)}
-                className="inline-flex items-center gap-1 text-[11px] font-medium text-indigo-400 hover:text-indigo-300"
-              >
-                <Sliders className="w-3 h-3" />
-                {showModelConfig ? 'Hide Model' : 'Custom Model'}
-              </button>
-            </div>
-            <div className="relative">
-              <select
-                value={provider}
-                onChange={(event) => {
-                  setProvider(event.target.value)
-                  setModelId('')
-                }}
-                className="w-full appearance-none bg-slate-950 border border-slate-700/80 rounded-xl px-3.5 py-2.5 text-xs font-medium text-slate-100 focus:outline-none focus:border-indigo-500"
-              >
-                <option value="auto">Auto (Default Route)</option>
-                {providers.map((item) => (
-                  <option key={item.id} value={item.id} disabled={!item.available}>
-                    {item.name} {item.available ? '' : '(Unavailable)'}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-3 pointer-events-none" />
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Audio Format
-            </label>
-            <div className="relative">
-              <select
-                value={audioFormat}
-                onChange={(event) => setAudioFormat(event.target.value)}
-                className="w-full appearance-none bg-slate-950 border border-slate-700/80 rounded-xl px-3.5 py-2.5 text-xs font-medium text-slate-100 focus:outline-none focus:border-indigo-500 uppercase"
-              >
-                {FORMATS.map((format) => (
-                  <option key={format} value={format}>
-                    {format.toUpperCase()}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-3 pointer-events-none" />
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Sample Rate (Hz)
-            </label>
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
+        <div className="panel space-y-5 p-5 sm:p-6 lg:col-span-7">
+          <div
+            onDragOver={(e) => {
+              e.preventDefault()
+              setIsDragOver(true)
+            }}
+            onDragLeave={() => setIsDragOver(false)}
+            onDrop={(e) => {
+              e.preventDefault()
+              setIsDragOver(false)
+              void handleFile(e.dataTransfer.files[0])
+            }}
+            className={`relative rounded-2xl border-2 border-dashed p-6 text-center transition cursor-pointer ${
+              isDragOver
+                ? 'border-marigold-400 bg-marigold-500/10'
+                : file
+                  ? 'border-moss-500/50 bg-ink-900/80'
+                  : 'border-ink-600 bg-ink-900/50 hover:border-parchment-600/60'
+            }`}
+          >
             <input
-              type="number"
-              min={1}
-              step={1}
-              value={samplingRate}
-              onChange={(event) =>
-                setSamplingRate(event.target.value ? Number(event.target.value) : '')
-              }
-              placeholder="e.g. 16000"
-              className="w-full bg-slate-950 border border-slate-700/80 rounded-xl px-3.5 py-2.5 text-xs font-mono text-slate-100 focus:outline-none focus:border-indigo-500"
+              type="file"
+              accept=".wav,.flac,.mp3,.ogg,audio/*"
+              className="sr-only"
+              id="audio-upload-input"
+              onChange={(event) => void handleFile(event.target.files?.[0])}
             />
-          </div>
-        </div>
-
-        {/* Model ID Config Drawer */}
-        {showModelConfig && (
-          <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800/80 space-y-2.5 animate-in fade-in duration-150">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div className="flex items-center gap-2 text-xs font-semibold text-slate-200">
-                <Cpu className="w-4 h-4 text-indigo-400" />
-                <span>STT Model ID Override</span>
+            <label htmlFor="audio-upload-input" className="block cursor-pointer">
+              <div
+                className={`mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full border shadow-card ${
+                  file
+                    ? 'border-moss-500/40 bg-moss-500/10 text-moss-300'
+                    : 'border-ink-600 bg-ink-800 text-marigold-300'
+                }`}
+              >
+                {file ? <FileAudio2 className="h-6 w-6" /> : <UploadCloud className="h-6 w-6" />}
               </div>
-              {activeModelPresets.length > 0 && (
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-[11px] text-slate-500">Presets:</span>
-                  {activeModelPresets.map((preset) => (
-                    <button
-                      key={preset}
-                      type="button"
-                      onClick={() => setModelId(preset)}
-                      className={`px-2 py-0.5 rounded text-[11px] font-mono transition ${
-                        modelId === preset
-                          ? 'bg-indigo-600 text-white'
-                          : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                      }`}
-                    >
-                      {preset}
-                    </button>
-                  ))}
+              <div className="truncate text-sm font-semibold text-parchment-100">
+                {file ? file.name : 'Choose an audio file or drag & drop'}
+              </div>
+              <p className="mt-1 text-xs text-parchment-500">
+                WAV, FLAC, MP3, or OGG up to 10 MiB
+              </p>
+              {file && (
+                <div className="mt-3 flex items-center justify-center gap-2 font-mono text-xs text-parchment-400">
+                  <span className="meta-chip">{(file.size / (1024 * 1024)).toFixed(2)} MB</span>
+                  <span className="meta-chip uppercase">{audioFormat}</span>
+                  {samplingRate && <span className="meta-chip">{samplingRate} Hz</span>}
                 </div>
               )}
+            </label>
+          </div>
+
+          {previewUrl && (
+            <div className="panel-sunken p-3">
+              <audio controls src={previewUrl} className="h-10 w-full" aria-label="Audio preview" />
             </div>
-            <input
-              type="text"
-              value={modelId}
-              onChange={(e) => setModelId(e.target.value)}
-              placeholder={
-                provider === 'sarvam'
-                  ? 'Default: saarika:v1 (or saarika:v2, saarika:flash)'
-                  : provider === 'bhashini'
-                    ? 'Default: configured Bhashini model ID'
-                    : provider === 'faster_whisper'
-                      ? 'Default: base (or tiny, small, medium, large-v3)'
-                      : 'Enter model ID override...'
+          )}
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label="Spoken language">
+              <div className="relative">
+                <select
+                  value={language}
+                  onChange={(event) => setLanguage(event.target.value)}
+                  className="field !py-2.5 text-xs"
+                >
+                  <option value="">Unspecified (Auto Detect)</option>
+                  {languages.map((item) => (
+                    <option key={item.tag} value={item.code}>
+                      {item.name} ({item.code})
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-3 top-3 h-3.5 w-3.5 text-parchment-500" />
+              </div>
+            </Field>
+
+            <Field
+              label="Engine"
+              action={
+                <button
+                  type="button"
+                  onClick={() => setShowModelConfig(!showModelConfig)}
+                  className="link-accent"
+                >
+                  <Sliders className="h-3 w-3" />
+                  {showModelConfig ? 'Hide Model' : 'Custom Model'}
+                </button>
               }
-              className="w-full bg-slate-900 border border-slate-700/80 rounded-lg px-3 py-2 text-xs font-mono text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition"
-            />
+            >
+              <div className="relative">
+                <select
+                  value={provider}
+                  onChange={(event) => {
+                    setProvider(event.target.value)
+                    setModelId('')
+                  }}
+                  className="field !py-2.5 text-xs"
+                >
+                  <option value="auto">Auto (Default Route)</option>
+                  {providers.map((item) => (
+                    <option key={item.id} value={item.id} disabled={!item.available}>
+                      {item.name} {item.available ? '' : '(Unavailable)'}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-3 top-3 h-3.5 w-3.5 text-parchment-500" />
+              </div>
+            </Field>
+
+            <Field label="Audio format">
+              <div className="relative">
+                <select
+                  value={audioFormat}
+                  onChange={(event) => setAudioFormat(event.target.value)}
+                  className="field uppercase !py-2.5 text-xs"
+                >
+                  {FORMATS.map((format) => (
+                    <option key={format} value={format}>
+                      {format.toUpperCase()}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-3 top-3 h-3.5 w-3.5 text-parchment-500" />
+              </div>
+            </Field>
+
+            <Field label="Sample rate (Hz)">
+              <input
+                type="number"
+                min={1}
+                step={1}
+                value={samplingRate}
+                onChange={(event) =>
+                  setSamplingRate(event.target.value ? Number(event.target.value) : '')
+                }
+                placeholder="e.g. 16000"
+                className="field field-mono !py-2.5"
+              />
+            </Field>
           </div>
-        )}
 
-        <button
-          type="button"
-          disabled={!file || loading || !samplingRate || samplingRate <= 0}
-          onClick={() => void handleTranscribe()}
-          className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-600 text-white text-xs font-semibold rounded-xl shadow-lg shadow-indigo-600/20 transition active:scale-95"
-        >
-          {loading ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Transcribing Audio...
-            </>
-          ) : (
-            <>
-              <Zap className="w-4 h-4" />
-              Transcribe Audio
-            </>
-          )}
-        </button>
+          <ModelDrawer
+            open={showModelConfig}
+            title="STT Model ID Override"
+            presets={activeModelPresets}
+            modelId={modelId}
+            onChange={setModelId}
+            placeholder={
+              provider === 'sarvam'
+                ? 'Default: saarika:v1 (or saarika:v2, saarika:flash)'
+                : provider === 'bhashini'
+                  ? 'Default: configured Bhashini model ID'
+                  : provider === 'faster_whisper'
+                    ? 'Default: base (or tiny, small, medium, large-v3)'
+                    : 'Enter model ID override...'
+            }
+          />
 
-        {error && (
-          <div className="p-3 bg-rose-950/60 border border-rose-800/70 text-rose-300 text-xs rounded-xl">
-            {error}
-          </div>
-        )}
-      </div>
+          <button
+            type="button"
+            disabled={!file || loading || !samplingRate || samplingRate <= 0}
+            onClick={() => void handleTranscribe()}
+            className="btn-primary w-full !py-3"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" /> Transcribing audio…
+              </>
+            ) : (
+              <>
+                <Zap className="h-4 w-4" /> Transcribe audio
+              </>
+            )}
+          </button>
 
-      {/* Right Column: Transcript Result */}
-      <div className="lg:col-span-5 bg-slate-900/80 border border-slate-800/90 rounded-2xl p-5 sm:p-6 backdrop-blur-sm shadow-xl flex flex-col min-h-[380px]">
-        <div className="flex justify-between items-center pb-3 text-xs text-slate-400 border-b border-slate-800/80">
-          <span className="font-semibold uppercase tracking-wider text-slate-300">
-            Transcription
-          </span>
-          {result && (
-            <div className="flex items-center gap-3">
-              <span>{wordCount} words</span>
-              <button
-                type="button"
-                onClick={() => void handleCopy()}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-300 border border-indigo-500/20 text-xs font-medium transition"
-              >
-                {copied ? (
-                  <>
-                    <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    Copied
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3.5 h-3.5" />
-                    Copy
-                  </>
-                )}
-              </button>
-            </div>
-          )}
+          {error && <ErrorBox message={error} />}
+
+          <HistoryStrip
+            items={history}
+            onClear={clear}
+            onRestore={(h) => void navigator.clipboard.writeText(h.out)}
+            renderLabel={(h) => `${h.name.slice(0, 26)} → ${h.out.slice(0, 30)}${h.out.length > 30 ? '…' : ''}`}
+            renderSub={(h) => h.out}
+          />
         </div>
 
-        <div className="flex-1 mt-4 flex flex-col justify-between">
-          {result ? (
-            <div className="space-y-4">
-              <p className="text-base leading-relaxed text-slate-100 whitespace-pre-wrap font-sans">
+        <div className="lg:col-span-5">
+          <ResultPanel
+            title="Transcription"
+            actions={
+              result ? (
+                <div className="flex items-center gap-3 text-xs text-parchment-500">
+                  <span>{wordCount} words</span>
+                  <button type="button" onClick={() => void handleCopy()} className="btn-ghost">
+                    {copied ? (
+                      <>
+                        <Check className="h-3.5 w-3.5 text-moss-300" /> Copied
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-3.5 w-3.5" /> Copy
+                      </>
+                    )}
+                  </button>
+                </div>
+              ) : undefined
+            }
+          >
+            {result ? (
+              <p className="whitespace-pre-wrap font-display text-[17px] leading-relaxed text-parchment-100">
                 {result.text || 'No speech detected in audio stream.'}
               </p>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center h-48 text-center text-slate-500">
-              <FileAudio2 className="w-10 h-10 mb-2 opacity-40" />
-              <span className="text-sm font-medium">No audio transcribed yet</span>
-              <span className="text-xs mt-1">Upload a clip and click Transcribe</span>
-            </div>
-          )}
-
-          {result && (
-            <div className="pt-4 border-t border-slate-800/80 space-y-2 text-xs text-slate-400">
-              <div className="flex justify-between">
-                <span>Provider:</span>
-                <span className="text-slate-200 font-medium">{result.provider}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Language:</span>
-                <span className="text-slate-200">{result.language ?? 'Auto'}</span>
-              </div>
-              {result.model_id && (
-                <div className="flex justify-between">
-                  <span>Model ID:</span>
-                  <span className="text-slate-200 font-mono text-[11px] break-all">
-                    {result.model_id}
-                  </span>
-                </div>
-              )}
-              <div className="flex justify-between">
-                <span>Route Fallbacks:</span>
-                <span className="text-slate-200">{result.fallback_count}</span>
-              </div>
-            </div>
-          )}
+            ) : (
+              <EmptyState
+                icon={<FileAudio2 className="h-8 w-8 opacity-60" />}
+                title="No audio transcribed yet"
+                hint="Upload a clip and press Transcribe"
+              />
+            )}
+            {result && (
+              <MetaTable
+                rows={[
+                  ['Provider', result.provider],
+                  ['Language', result.language ?? 'Auto'],
+                  ...(result.model_id ? [['Model ID', result.model_id] as [string, string]] : []),
+                  ['Route fallbacks', String(result.fallback_count)],
+                ]}
+              />
+            )}
+          </ResultPanel>
         </div>
       </div>
     </div>

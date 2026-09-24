@@ -1,7 +1,8 @@
 import React, { useState } from 'react'
 import {
+  Check,
   ChevronDown,
-  Cpu,
+  Copy,
   FileSearch,
   Globe,
   Loader2,
@@ -11,7 +12,16 @@ import {
   Zap,
 } from 'lucide-react'
 import { detectLanguage } from '../api'
+import { useLocalHistory } from '../history'
 import type { DetectResponse, ProviderInfo } from '../types'
+import {
+  ErrorBox,
+  Field,
+  HistoryStrip,
+  MetaBar,
+  ModelDrawer,
+  ToolHeader,
+} from './ui'
 
 interface DetectViewProps {
   providers: ProviderInfo[]
@@ -52,16 +62,24 @@ const SAMPLE_DETECT_TEXTS = [
   },
 ]
 
+interface Hist {
+  text: string
+  lang: string
+  script: string
+}
+
 export const DetectView: React.FC<DetectViewProps> = ({ providers }) => {
   const [provider, setProvider] = useState('auto')
   const [modelId, setModelId] = useState('')
   const [showModelConfig, setShowModelConfig] = useState(false)
   const [text, setText] = useState(
-    'भारत सरकार ने राष्ट्रीय शिक्षा नीति की घोषणा की है।'
+    'भारत सरकार ने राष्ट्रीय शिक्षा नीति की घोषणा की है।',
   )
   const [result, setResult] = useState<DetectResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+  const { items: history, push, clear } = useLocalHistory<Hist>('ilu-hist-detect')
 
   const handleDetect = async () => {
     if (!text.trim()) return
@@ -76,6 +94,11 @@ export const DetectView: React.FC<DetectViewProps> = ({ providers }) => {
         model_id: modelId.trim() || null,
       })
       setResult(response)
+      push({
+        text,
+        lang: response.language_name || response.language || 'Unknown',
+        script: response.script || '—',
+      })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Detection failed'
       setError(message)
@@ -91,42 +114,67 @@ export const DetectView: React.FC<DetectViewProps> = ({ providers }) => {
     }
   }
 
+  const handleCopySummary = async () => {
+    if (!result) return
+    const top = result.candidates[0]
+    await navigator.clipboard.writeText(
+      `Language: ${result.language_name || result.language || 'Unknown'} (${result.language ?? 'n/a'}), Script: ${result.script || 'unknown'}${top ? `, confidence: ${(top.confidence * 100).toFixed(2)}%` : ''}`,
+    )
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
   return (
     <div className="space-y-5">
-      {/* Control Card */}
-      <div className="bg-slate-900/80 border border-slate-800/90 rounded-2xl p-4 sm:p-5 backdrop-blur-sm shadow-xl space-y-4">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-800/70">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20">
-              <FileSearch className="w-4 h-4" />
-            </div>
-            <div>
-              <h2 className="text-sm font-semibold text-slate-100">
-                Language &amp; Script Identification
-              </h2>
-              <p className="text-xs text-slate-400">
-                Detect natural language from text, analyze Unicode scripts, and view candidate probabilities
-              </p>
-            </div>
-          </div>
+      <ToolHeader
+        icon={<FileSearch className="h-4 w-4" />}
+        tileClass="border-orchid-500/30 bg-orchid-500/10 text-orchid-300"
+        title="Detection & Script"
+        blurb="Detect the natural language behind any text, analyze its Unicode script, and inspect candidate probabilities."
+        glyph="इ"
+      />
 
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <button
-              type="button"
-              onClick={() => setShowModelConfig(!showModelConfig)}
-              className="inline-flex items-center gap-1 text-[11px] font-medium text-purple-400 hover:text-purple-300 px-2 py-1 rounded bg-slate-950 border border-slate-800"
-            >
-              <Sliders className="w-3 h-3" />
-              {showModelConfig ? 'Hide Model' : 'Custom Model'}
-            </button>
-            <div className="relative flex-1 sm:w-48">
+      <div className="panel space-y-4 p-4 sm:p-5">
+        <div className="grid grid-cols-1 items-end gap-3 md:grid-cols-[1fr_240px]">
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="flex items-center gap-1 font-medium text-parchment-500">
+              <Sparkles className="h-3.5 w-3.5 text-orchid-300" /> Samples:
+            </span>
+            {SAMPLE_DETECT_TEXTS.map((sample) => (
+              <button
+                key={sample.language}
+                type="button"
+                onClick={() => {
+                  setText(sample.text)
+                  setResult(null)
+                }}
+                className="sample-btn"
+              >
+                {sample.language}
+              </button>
+            ))}
+          </div>
+          <Field
+            label="Engine"
+            action={
+              <button
+                type="button"
+                onClick={() => setShowModelConfig(!showModelConfig)}
+                className="link-accent"
+              >
+                <Sliders className="h-3 w-3" />
+                {showModelConfig ? 'Hide' : 'Custom'}
+              </button>
+            }
+          >
+            <div className="relative">
               <select
                 value={provider}
                 onChange={(e) => {
                   setProvider(e.target.value)
                   setModelId('')
                 }}
-                className="w-full appearance-none bg-slate-950 border border-slate-700/80 hover:border-slate-600 rounded-xl px-3 py-2 text-xs font-medium text-slate-100 focus:outline-none focus:border-purple-500 transition"
+                className="field !py-2 text-xs"
               >
                 <option value="auto">Auto (Default Route)</option>
                 {providers.map((p) => (
@@ -135,176 +183,165 @@ export const DetectView: React.FC<DetectViewProps> = ({ providers }) => {
                   </option>
                 ))}
               </select>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-2.5 pointer-events-none" />
+              <ChevronDown className="pointer-events-none absolute right-3 top-3 h-3.5 w-3.5 text-parchment-500" />
             </div>
-          </div>
+          </Field>
         </div>
 
-        {/* Model ID Config Drawer */}
-        {showModelConfig && (
-          <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800/80 space-y-2 animate-in fade-in duration-150">
-            <div className="flex items-center gap-2 text-xs font-semibold text-slate-200">
-              <Cpu className="w-4 h-4 text-purple-400" />
-              <span>Detection Model / Service ID Override</span>
-            </div>
-            <input
-              type="text"
-              value={modelId}
-              onChange={(e) => setModelId(e.target.value)}
-              placeholder="e.g. lid.176.ftz or Bhashini detection service ID..."
-              className="w-full bg-slate-900 border border-slate-700/80 rounded-lg px-3 py-2 text-xs font-mono text-slate-100 placeholder-slate-600 focus:outline-none focus:border-purple-500 transition"
-            />
-          </div>
-        )}
+        <ModelDrawer
+          open={showModelConfig}
+          title="Detection Model / Service ID Override"
+          presets={[]}
+          modelId={modelId}
+          onChange={setModelId}
+          placeholder="e.g. lid.176.ftz or Bhashini detection service ID..."
+        />
 
-        {/* Sample Texts */}
-        <div className="flex flex-wrap items-center gap-2 pt-1 text-xs text-slate-400">
-          <span className="flex items-center gap-1 text-slate-500 font-medium">
-            <Sparkles className="w-3.5 h-3.5 text-purple-400" /> Samples:
-          </span>
-          {SAMPLE_DETECT_TEXTS.map((sample) => (
-            <button
-              key={sample.language}
-              type="button"
-              onClick={() => {
-                setText(sample.text)
-                setResult(null)
-              }}
-              className="px-2.5 py-1 rounded-lg bg-slate-950/60 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800/80 transition"
-            >
-              {sample.language}
-            </button>
-          ))}
-        </div>
+        <HistoryStrip
+          items={history}
+          onClear={clear}
+          onRestore={(h) => {
+            setText(h.text)
+            setResult(null)
+          }}
+          renderLabel={(h) => `${h.lang} · ${h.text.slice(0, 28)}${h.text.length > 28 ? '…' : ''}`}
+          renderSub={(h) => h.text}
+        />
       </div>
 
-      {/* Input Box */}
-      <div className="bg-slate-900/80 border border-slate-800/90 rounded-2xl p-4 sm:p-5 shadow-xl space-y-3">
-        <div className="flex justify-between items-center pb-2 text-xs text-slate-400 border-b border-slate-800/80">
-          <span className="font-semibold uppercase tracking-wider text-slate-300">
-            Input Text
+      <div className="panel flex flex-col p-4 sm:p-5">
+        <div className="flex items-center justify-between border-b divider pb-2.5">
+          <span className="text-xs font-bold uppercase tracking-[0.14em] text-parchment-300">
+            Input text
           </span>
-          <span>{text.length} characters</span>
+          <span className="text-xs text-parchment-500">{text.length} characters</span>
         </div>
-
         <textarea
           rows={4}
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Type or paste text in any Indic language or English... (Cmd+Enter to analyze)"
-          className="w-full bg-transparent text-slate-100 placeholder-slate-600 focus:outline-none resize-none font-sans text-sm leading-relaxed"
+          placeholder="Type or paste text in any Indic language or English…"
+          className="mt-3 w-full resize-none bg-transparent text-[15px] leading-relaxed text-parchment-100 placeholder:text-parchment-600 focus:outline-none"
         />
-
-        <div className="pt-2 flex justify-between items-center border-t border-slate-800/80">
-          <button
-            type="button"
-            onClick={() => setText('')}
-            className="text-xs text-slate-500 hover:text-slate-300 transition"
-          >
-            Clear
-          </button>
+        <div className="mt-2 flex items-center justify-between border-t divider pt-3">
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => setText('')} className="btn-quiet">
+              Clear
+            </button>
+            <span className="hidden items-center gap-1 text-[11px] text-parchment-600 sm:flex">
+              <span className="kbd">⌘</span>+<span className="kbd">↵</span> to run
+            </span>
+          </div>
           <button
             type="button"
             onClick={() => void handleDetect()}
             disabled={loading || !text.trim()}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-purple-600 hover:bg-purple-500 disabled:bg-slate-800 disabled:text-slate-600 text-white text-xs font-semibold rounded-xl shadow-lg shadow-purple-600/20 transition active:scale-95"
+            className="btn-primary"
           >
             {loading ? (
               <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Analyzing...
+                <Loader2 className="h-4 w-4 animate-spin" /> Analyzing…
               </>
             ) : (
               <>
-                <Zap className="w-4 h-4" />
-                Identify Language &amp; Script
+                <Zap className="h-4 w-4" /> Identify language & script
               </>
             )}
           </button>
         </div>
       </div>
 
-      {error && (
-        <div className="p-3 bg-rose-950/60 border border-rose-800/70 text-rose-300 text-xs rounded-xl">
-          {error}
-        </div>
-      )}
+      {error && <ErrorBox message={error} />}
 
-      {/* Results Dashboard */}
       {result && (
-        <div className="space-y-4 animate-in fade-in duration-200">
-          {/* Top Result Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Primary Language */}
-            <div className="bg-slate-900/80 border border-slate-800/90 rounded-2xl p-5 flex items-start gap-3.5 shadow-xl">
-              <div className="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
-                <Globe className="w-6 h-6" />
-              </div>
-              <div className="flex-1">
-                <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  Primary Detected Language
+        <div className="animate-fade-in space-y-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="panel relative overflow-hidden p-5">
+              <span aria-hidden className="glyph-mark absolute -right-1 -top-6 text-[88px]">
+                {result.language_name?.charAt(0) ?? 'अ'}
+              </span>
+              <div className="relative flex items-start gap-3.5">
+                <div className="rounded-xl border border-marigold-500/30 bg-marigold-500/10 p-3 text-marigold-300">
+                  <Globe className="h-6 w-6" />
                 </div>
-                <div className="text-xl font-bold text-slate-100 mt-1">
-                  {result.language_name || result.language || 'Unknown'}
-                </div>
-                <div className="text-xs font-mono text-indigo-400 mt-1">
-                  ISO Code: {result.language ?? 'N/A'}
+                <div className="min-w-0 flex-1">
+                  <div className="eyebrow">Detected language</div>
+                  <div className="mt-1 truncate font-display text-2xl font-semibold tracking-tight">
+                    {result.language_name || result.language || 'Unknown'}
+                  </div>
+                  <div className="mt-1 font-mono text-xs text-marigold-300">
+                    ISO · {result.language ?? 'n/a'}
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Unicode Script */}
-            <div className="bg-slate-900/80 border border-slate-800/90 rounded-2xl p-5 flex items-start gap-3.5 shadow-xl">
-              <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400">
-                <Type className="w-6 h-6" />
-              </div>
-              <div className="flex-1">
-                <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  Unicode Script Code
+            <div className="panel relative overflow-hidden p-5">
+              <span aria-hidden className="glyph-mark absolute -right-1 -top-6 text-[88px]">
+                {result.script?.charAt(0) ?? '§'}
+              </span>
+              <div className="relative flex items-start gap-3.5">
+                <div className="rounded-xl border border-orchid-500/30 bg-orchid-500/10 p-3 text-orchid-300">
+                  <Type className="h-6 w-6" />
                 </div>
-                <div className="text-xl font-bold text-slate-100 mt-1">
-                  {result.script || 'Unknown / Mixed'}
-                </div>
-                <div className="text-xs text-slate-400 mt-1">
-                  Deterministic code-point range analysis
+                <div className="min-w-0 flex-1">
+                  <div className="eyebrow">Unicode script</div>
+                  <div className="mt-1 truncate font-display text-2xl font-semibold tracking-tight">
+                    {result.script || 'Unknown / Mixed'}
+                  </div>
+                  <div className="mt-1 text-xs text-parchment-500">
+                    Deterministic code-point range analysis
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Candidate Breakdown */}
-          <div className="bg-slate-900/80 border border-slate-800/90 rounded-2xl p-5 shadow-xl space-y-4">
-            <div className="text-xs font-semibold uppercase tracking-wider text-slate-300">
-              Candidate Confidence Breakdown
+          <div className="panel space-y-4 p-5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-[0.14em] text-parchment-300">
+                Candidate confidence
+              </span>
+              <button type="button" onClick={() => void handleCopySummary()} className="btn-ghost">
+                {copied ? (
+                  <>
+                    <Check className="h-3.5 w-3.5 text-moss-300" /> Copied
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-3.5 w-3.5" /> Copy summary
+                  </>
+                )}
+              </button>
             </div>
-            <div className="space-y-3">
+            <div className="space-y-3.5">
               {result.candidates.map((cand, idx) => {
                 const percentage = Math.round(cand.confidence * 100)
                 return (
                   <div key={`${cand.language}-${idx}`} className="space-y-1.5">
-                    <div className="flex justify-between text-xs">
-                      <span className="font-semibold text-slate-200">
+                    <div className="flex items-baseline justify-between gap-2 text-xs">
+                      <span className="min-w-0 truncate font-semibold text-parchment-100">
                         {cand.name || cand.language}{' '}
-                        <span className="text-slate-500 font-mono font-normal">
+                        <span className="font-mono font-normal text-parchment-500">
                           ({cand.language})
                         </span>
                         {cand.script && (
-                          <span className="ml-2 text-[11px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-400">
-                            Script: {cand.script}
+                          <span className="ml-2 rounded bg-ink-700/70 px-1.5 py-px text-[11px] text-parchment-400">
+                            {cand.script}
                           </span>
                         )}
                       </span>
-                      <span className="font-mono text-slate-300">
-                        {percentage}% ({cand.confidence.toFixed(4)})
+                      <span className="shrink-0 font-mono text-parchment-300">
+                        {percentage}% · {cand.confidence.toFixed(4)}
                       </span>
                     </div>
-                    <div className="w-full bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-800">
+                    <div className="h-2 overflow-hidden rounded-full border border-ink-700 bg-ink-900">
                       <div
                         className={`h-full rounded-full transition-all duration-700 ${
                           idx === 0
-                            ? 'bg-gradient-to-r from-purple-500 to-indigo-500'
-                            : 'bg-slate-700'
+                            ? 'bg-gradient-to-r from-orchid-500 via-marigold-400 to-marigold-300'
+                            : 'bg-ink-600'
                         }`}
                         style={{ width: `${Math.max(percentage, 2)}%` }}
                       />
@@ -313,24 +350,16 @@ export const DetectView: React.FC<DetectViewProps> = ({ providers }) => {
                 )
               })}
             </div>
-
-            {/* Metadata Footer */}
-            <div className="pt-3 mt-4 flex flex-wrap items-center gap-2 text-xs text-slate-400 border-t border-slate-800/80">
-              <span className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 font-medium">
-                Provider: {result.provider}
-              </span>
-              {result.model_id && (
-                <span className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-slate-300 font-mono text-[11px]">
-                  Model: {result.model_id}
-                </span>
-              )}
-              <span className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-slate-300 font-mono text-[11px]">
-                {Math.round(result.elapsed_seconds * 1000)}ms
-              </span>
-              <span className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-slate-300 font-mono text-[11px]">
-                {result.cached ? 'Cache HIT' : 'Computed Live'}
-              </span>
-            </div>
+            <MetaBar
+              items={[
+                { label: 'Provider', value: result.provider },
+                ...(result.model_id ? [{ label: 'Model', value: result.model_id }] : []),
+                { label: 'Time', value: `${Math.round(result.elapsed_seconds * 1000)}ms` },
+                result.cached
+                  ? { label: 'Cache', value: 'HIT', tone: 'hit' as const }
+                  : { label: 'Cache', value: 'Computed live' },
+              ]}
+            />
           </div>
         </div>
       )}

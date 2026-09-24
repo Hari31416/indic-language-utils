@@ -1,7 +1,6 @@
 import React, { useState } from 'react'
 import {
   ChevronDown,
-  Cpu,
   Download,
   Loader2,
   Sliders,
@@ -10,7 +9,18 @@ import {
   Zap,
 } from 'lucide-react'
 import { synthesizeSpeech } from '../api'
+import { useLocalHistory } from '../history'
 import type { LanguageItem, ProviderInfo, TTSResponse } from '../types'
+import {
+  EmptyState,
+  ErrorBox,
+  Field,
+  HistoryStrip,
+  MetaTable,
+  ModelDrawer,
+  ResultPanel,
+  ToolHeader,
+} from './ui'
 
 interface TTSViewProps {
   languages: LanguageItem[]
@@ -89,17 +99,24 @@ function parseObject(value: string, label: string): Record<string, unknown> {
   return parsed as Record<string, unknown>
 }
 
+interface Hist {
+  lang: string
+  text: string
+}
+
 export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
   const [text, setText] = useState('नमस्ते! भारतीय भाषा यूटिलिटीज वर्कबेंच में आपका स्वागत है।')
   const [language, setLanguage] = useState('hi')
   const [provider, setProvider] = useState('auto')
   const [modelId, setModelId] = useState('')
   const [showModelConfig, setShowModelConfig] = useState(false)
+  const [showAdvanced, setShowAdvanced] = useState(false)
   const [fields, setFields] = useState<ProviderFields>(initialFields)
   const [advanced, setAdvanced] = useState('{}')
   const [result, setResult] = useState<TTSResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { items: history, push, clear } = useLocalHistory<Hist>('ilu-hist-tts')
 
   const updateField = (key: string, value: string) => {
     setFields((current) => ({
@@ -157,6 +174,7 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
         model_id: modelId.trim() || null,
       })
       setResult(response)
+      push({ lang: language, text })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Speech synthesis failed')
     } finally {
@@ -170,424 +188,415 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
     : null
 
   const activeModelPresets = TTS_MODEL_PRESETS[provider] ?? []
+  const charCount = text.length
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-      {/* Left Column: Voice Synthesis Controls */}
-      <div className="lg:col-span-7 bg-slate-900/80 border border-slate-800/90 rounded-2xl p-5 sm:p-6 backdrop-blur-sm shadow-xl space-y-5">
-        <div className="flex items-center gap-3 pb-3 border-b border-slate-800/70">
-          <div className="p-2 rounded-xl bg-violet-500/10 text-violet-400 border border-violet-500/20">
-            <Volume2 className="w-4 h-4" />
-          </div>
-          <div>
-            <h2 className="text-sm font-semibold text-slate-100">Text to Speech (TTS)</h2>
-            <p className="text-xs text-slate-400">
-              Synthesize natural Indian speech using Edge TTS, Sarvam Bulbul, or Bhashini Indic-TTS
-            </p>
-          </div>
-        </div>
+    <div className="space-y-5">
+      <ToolHeader
+        icon={<Volume2 className="h-4 w-4" />}
+        tileClass="border-rosewood-500/30 bg-rosewood-500/10 text-rosewood-300"
+        title="Text to Speech"
+        blurb="Synthesize natural Indian speech with Edge neural voices, Sarvam Bulbul, or Bhashini Indic-TTS."
+        glyph="उ"
+      />
 
-        {/* Text Input */}
-        <div className="space-y-1.5">
-          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
-            Text to Synthesize
-          </label>
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
+        <div className="panel space-y-5 p-5 sm:p-6 lg:col-span-7">
+          <div className="flex items-center justify-between">
+            <label className="eyebrow">Text to synthesize</label>
+            <span className="font-mono text-[11px] text-parchment-500">{charCount} chars</span>
+          </div>
           <textarea
             value={text}
             onChange={(event) => setText(event.target.value)}
             rows={5}
-            placeholder="Type text in native script or English..."
-            className="w-full bg-slate-950 border border-slate-700/80 rounded-xl px-3.5 py-3 text-sm text-slate-100 focus:outline-none focus:border-violet-500 resize-y leading-relaxed"
+            placeholder="Type text in native script or English…"
+            className="field -mt-3 min-h-[120px] resize-y !leading-relaxed"
+          />
+
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="flex items-center gap-1 font-medium text-parchment-500">
+              <Sparkles className="h-3.5 w-3.5 text-rosewood-300" /> Samples:
+            </span>
+            {TTS_SAMPLE_TEXTS.map((sample) => (
+              <button
+                key={sample.title}
+                type="button"
+                onClick={() => {
+                  setLanguage(sample.lang)
+                  setText(sample.text)
+                  setResult(null)
+                }}
+                className="sample-btn"
+              >
+                {sample.title}
+              </button>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label="Language">
+              <div className="relative">
+                <select
+                  value={language}
+                  onChange={(event) => setLanguage(event.target.value)}
+                  className="field !py-2.5 text-xs"
+                >
+                  <option value="">Unspecified</option>
+                  {languages.map((item) => (
+                    <option key={item.tag} value={item.code}>
+                      {item.name} ({item.code})
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-3 top-3 h-3.5 w-3.5 text-parchment-500" />
+              </div>
+            </Field>
+
+            <Field
+              label="Engine"
+              action={
+                <button
+                  type="button"
+                  onClick={() => setShowModelConfig(!showModelConfig)}
+                  className="link-accent"
+                >
+                  <Sliders className="h-3 w-3" />
+                  {showModelConfig ? 'Hide Model' : 'Custom Model'}
+                </button>
+              }
+            >
+              <div className="relative">
+                <select
+                  value={provider}
+                  onChange={(event) => {
+                    setProvider(event.target.value)
+                    setModelId('')
+                    setAdvanced('{}')
+                  }}
+                  className="field !py-2.5 text-xs"
+                >
+                  <option value="auto">Auto (Default Route)</option>
+                  {providers.map((item) => (
+                    <option key={item.id} value={item.id} disabled={!item.available}>
+                      {item.name} {item.available ? '' : '(Unavailable)'}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-3 top-3 h-3.5 w-3.5 text-parchment-500" />
+              </div>
+            </Field>
+          </div>
+
+          <ModelDrawer
+            open={showModelConfig}
+            title="TTS Model / Voice ID Override"
+            presets={activeModelPresets}
+            modelId={modelId}
+            onChange={setModelId}
+            placeholder={
+              provider === 'sarvam'
+                ? 'Default: bulbul:v3 (or bulbul:v3-beta, bulbul:v2, bulbul:v1)'
+                : provider === 'bhashini'
+                  ? 'Default: configured Bhashini TTS model'
+                  : provider === 'edge_tts'
+                    ? 'Default: hi-IN-SwaraNeural (or hi-IN-MadhurNeural, en-IN-NeerjaNeural...)'
+                    : 'Enter model ID or voice ID override...'
+            }
+          />
+
+          {provider !== 'auto' && (
+            <div className="panel-sunken animate-fade-in space-y-3.5 p-4">
+              <div className="eyebrow !text-rosewood-300">Voice parameters</div>
+              <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+                {provider === 'edge_tts' && (
+                  <>
+                    <Field label="Gender">
+                      <select
+                        value={fields.edge_tts.gender}
+                        onChange={(event) => updateField('gender', event.target.value)}
+                        className="field !bg-ink-850 !py-2 text-xs"
+                      >
+                        <option value="female">Female</option>
+                        <option value="male">Male</option>
+                      </select>
+                    </Field>
+                    <Field label="Voice name override">
+                      <input
+                        value={fields.edge_tts.voice}
+                        onChange={(event) => updateField('voice', event.target.value)}
+                        placeholder="e.g. hi-IN-SwaraNeural"
+                        className="field field-mono !bg-ink-850 !py-2"
+                      />
+                    </Field>
+                    <Field label="Rate">
+                      <input
+                        value={fields.edge_tts.rate}
+                        onChange={(event) => updateField('rate', event.target.value)}
+                        placeholder="+0% (e.g. +10%)"
+                        className="field field-mono !bg-ink-850 !py-2"
+                      />
+                    </Field>
+                    <Field label="Pitch">
+                      <input
+                        value={fields.edge_tts.pitch}
+                        onChange={(event) => updateField('pitch', event.target.value)}
+                        placeholder="+0Hz"
+                        className="field field-mono !bg-ink-850 !py-2"
+                      />
+                    </Field>
+                    <div className="sm:col-span-2">
+                      <Field label="Volume">
+                        <input
+                          value={fields.edge_tts.volume}
+                          onChange={(event) => updateField('volume', event.target.value)}
+                          placeholder="+0% (e.g. -10%)"
+                          className="field field-mono !bg-ink-850 !py-2"
+                        />
+                      </Field>
+                    </div>
+                  </>
+                )}
+
+                {provider === 'sarvam' && (
+                  <>
+                    <div className="sm:col-span-2">
+                      <Field label="Speaker voice">
+                        <select
+                          value={fields.sarvam.speaker}
+                          onChange={(event) => updateField('speaker', event.target.value)}
+                          className="field !bg-ink-850 !py-2 text-xs"
+                        >
+                          <optgroup label="Bulbul v3 Verified Voices (37 Speakers)">
+                            <option value="aditya">aditya (Male)</option>
+                            <option value="ritu">ritu (Female)</option>
+                            <option value="ashutosh">ashutosh (Male)</option>
+                            <option value="priya">priya (Female)</option>
+                            <option value="neha">neha (Female)</option>
+                            <option value="rahul">rahul (Male)</option>
+                            <option value="pooja">pooja (Female)</option>
+                            <option value="rohan">rohan (Male)</option>
+                            <option value="simran">simran (Female)</option>
+                            <option value="kavya">kavya (Female)</option>
+                            <option value="amit">amit (Male)</option>
+                            <option value="dev">dev (Male)</option>
+                            <option value="ishita">ishita (Female)</option>
+                            <option value="shreya">shreya (Female)</option>
+                            <option value="ratan">ratan (Male)</option>
+                            <option value="varun">varun (Male)</option>
+                            <option value="manan">manan (Male)</option>
+                            <option value="sumit">sumit (Male)</option>
+                            <option value="roopa">roopa (Female)</option>
+                            <option value="kabir">kabir (Male)</option>
+                            <option value="aayan">aayan (Male)</option>
+                            <option value="shubh">shubh (Male)</option>
+                            <option value="advait">advait (Male)</option>
+                            <option value="anand">anand (Male)</option>
+                            <option value="tanya">tanya (Female)</option>
+                            <option value="tarun">tarun (Male)</option>
+                            <option value="sunny">sunny (Male)</option>
+                            <option value="mani">mani (Male)</option>
+                            <option value="gokul">gokul (Male)</option>
+                            <option value="vijay">vijay (Male)</option>
+                            <option value="shruti">shruti (Female)</option>
+                            <option value="suhani">suhani (Female)</option>
+                            <option value="mohit">mohit (Male)</option>
+                            <option value="kavitha">kavitha (Female)</option>
+                            <option value="rehan">rehan (Male)</option>
+                            <option value="soham">soham (Male)</option>
+                            <option value="rupali">rupali (Female)</option>
+                          </optgroup>
+                          <optgroup label="Bulbul v2 Legacy Voices">
+                            <option value="shubh">shubh (Male)</option>
+                            <option value="arvind">arvind (Male)</option>
+                            <option value="amartya">amartya (Male)</option>
+                            <option value="priya">priya (Female)</option>
+                            <option value="meera">meera (Female)</option>
+                            <option value="pavithra">pavithra (Female)</option>
+                          </optgroup>
+                          <optgroup label="Bulbul v4-flash Conversational / Specialized">
+                            <option value="aayan_hi_conversational">aayan_hi_conversational (Hindi)</option>
+                            <option value="amit_hi_conversational">amit_hi_conversational (Hindi)</option>
+                            <option value="kavya_hi_conversational">kavya_hi_conversational (Hindi)</option>
+                            <option value="rahul_hi_conversational">rahul_hi_conversational (Hindi)</option>
+                            <option value="simran_hi_conversation">simran_hi_conversation (Hindi)</option>
+                            <option value="shubh_hi_customer">shubh_hi_customer (Hindi)</option>
+                            <option value="sanchita_hi_assistant">sanchita_hi_assistant (Hindi)</option>
+                            <option value="dev_en_conversational">dev_en_conversational (English)</option>
+                            <option value="simran_en_conversation">simran_en_conversation (English)</option>
+                            <option value="ishita_enhi_companion">ishita_enhi_companion (Hinglish)</option>
+                            <option value="shubh_enhi_companion">shubh_enhi_companion (Hinglish)</option>
+                            <option value="bappa_bn_conversation">bappa_bn_conversation (Bengali)</option>
+                            <option value="pooja_gu_conversational">pooja_gu_conversational (Gujarati)</option>
+                            <option value="chaitra_kn_conversation">chaitra_kn_conversation (Kannada)</option>
+                            <option value="mrunal_mr_narration">mrunal_mr_narration (Marathi)</option>
+                            <option value="anand_pa_conversation">anand_pa_conversation (Punjabi)</option>
+                            <option value="gokul_ta_narration">gokul_ta_narration (Tamil)</option>
+                            <option value="kavitha_te_conversation">kavitha_te_conversation (Telugu)</option>
+                          </optgroup>
+                        </select>
+                      </Field>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <Field
+                        label="Speech pace"
+                        action={
+                          <span className="font-mono text-[11px] text-marigold-300">
+                            {Number(fields.sarvam.pace || 0).toFixed(1)}×
+                          </span>
+                        }
+                      >
+                        <input
+                          type="range"
+                          min="0.5"
+                          max="2.0"
+                          step="0.1"
+                          value={fields.sarvam.pace || '1.0'}
+                          onChange={(event) => updateField('pace', event.target.value)}
+                          className="w-full"
+                          aria-label="Speech pace"
+                        />
+                        <div className="flex justify-between font-mono text-[10px] text-parchment-600">
+                          <span>0.5× slow</span>
+                          <span>1.0×</span>
+                          <span>2.0× brisk</span>
+                        </div>
+                      </Field>
+                    </div>
+                  </>
+                )}
+
+                {provider === 'bhashini' && (
+                  <>
+                    <Field label="Gender">
+                      <select
+                        value={fields.bhashini.gender}
+                        onChange={(event) => updateField('gender', event.target.value)}
+                        className="field !bg-ink-850 !py-2 text-xs"
+                      >
+                        <option value="female">Female</option>
+                        <option value="male">Male</option>
+                      </select>
+                    </Field>
+                    <Field label="Sample rate (Hz)">
+                      <input
+                        type="number"
+                        min="8000"
+                        step="1000"
+                        value={fields.bhashini.samplingRate}
+                        onChange={(event) => updateField('samplingRate', event.target.value)}
+                        placeholder="16000"
+                        className="field field-mono !bg-ink-850 !py-2"
+                      />
+                    </Field>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              className="link-accent"
+            >
+              <Sliders className="h-3 w-3" />
+              {showAdvanced ? 'Hide advanced JSON' : 'Advanced JSON options'}
+            </button>
+            {showAdvanced && (
+              <div className="drawer mt-2 animate-fade-in">
+                <p className="text-[11px] leading-relaxed text-parchment-500">
+                  {provider === 'auto'
+                    ? 'Per-provider settings object, e.g. {"sarvam": {"speaker": "priya"}}.'
+                    : 'Extra options merged into this provider\u2019s parameters.'}
+                </p>
+                <textarea
+                  value={advanced}
+                  onChange={(event) => setAdvanced(event.target.value)}
+                  rows={3}
+                  spellCheck={false}
+                  placeholder='{}'
+                  className="field field-mono !bg-ink-850"
+                />
+              </div>
+            )}
+          </div>
+
+          <button
+            type="button"
+            disabled={!text.trim() || loading}
+            onClick={() => void handleSynthesize()}
+            className="btn-primary w-full !py-3"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" /> Synthesizing speech…
+              </>
+            ) : (
+              <>
+                <Zap className="h-4 w-4" /> Generate speech
+              </>
+            )}
+          </button>
+
+          {error && <ErrorBox message={error} />}
+
+          <HistoryStrip
+            items={history}
+            onClear={clear}
+            onRestore={(h) => {
+              setLanguage(h.lang)
+              setText(h.text)
+              setResult(null)
+            }}
+            renderLabel={(h) => `${h.lang || 'auto'}: ${h.text.slice(0, 36)}${h.text.length > 36 ? '…' : ''}`}
+            renderSub={(h) => h.text}
           />
         </div>
 
-        {/* Sample Texts */}
-        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
-          <span className="flex items-center gap-1 text-slate-500 font-medium">
-            <Sparkles className="w-3.5 h-3.5 text-violet-400" /> Samples:
-          </span>
-          {TTS_SAMPLE_TEXTS.map((sample) => (
-            <button
-              key={sample.title}
-              type="button"
-              onClick={() => {
-                setLanguage(sample.lang)
-                setText(sample.text)
-                setResult(null)
-              }}
-              className="px-2.5 py-1 rounded-lg bg-slate-950/60 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800/80 transition"
-            >
-              {sample.title}
-            </button>
-          ))}
-        </div>
-
-        {/* Language & Provider Selection */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Language
-            </label>
-            <div className="relative">
-              <select
-                value={language}
-                onChange={(event) => setLanguage(event.target.value)}
-                className="w-full appearance-none bg-slate-950 border border-slate-700/80 rounded-xl px-3.5 py-2.5 text-xs font-medium text-slate-100 focus:outline-none focus:border-violet-500"
-              >
-                <option value="">Unspecified</option>
-                {languages.map((item) => (
-                  <option key={item.tag} value={item.code}>
-                    {item.name} ({item.code})
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-3 pointer-events-none" />
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
-                Engine
-              </label>
-              <button
-                type="button"
-                onClick={() => setShowModelConfig(!showModelConfig)}
-                className="inline-flex items-center gap-1 text-[11px] font-medium text-violet-400 hover:text-violet-300"
-              >
-                <Sliders className="w-3 h-3" />
-                {showModelConfig ? 'Hide Model' : 'Custom Model'}
-              </button>
-            </div>
-            <div className="relative">
-              <select
-                value={provider}
-                onChange={(event) => {
-                  setProvider(event.target.value)
-                  setModelId('')
-                  setAdvanced('{}')
-                }}
-                className="w-full appearance-none bg-slate-950 border border-slate-700/80 rounded-xl px-3.5 py-2.5 text-xs font-medium text-slate-100 focus:outline-none focus:border-violet-500"
-              >
-                <option value="auto">Auto (Default Route)</option>
-                {providers.map((item) => (
-                  <option key={item.id} value={item.id} disabled={!item.available}>
-                    {item.name} {item.available ? '' : '(Unavailable)'}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-3 pointer-events-none" />
-            </div>
-          </div>
-        </div>
-
-        {/* Model ID Config Drawer */}
-        {showModelConfig && (
-          <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800/80 space-y-2.5 animate-in fade-in duration-150">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div className="flex items-center gap-2 text-xs font-semibold text-slate-200">
-                <Cpu className="w-4 h-4 text-violet-400" />
-                <span>TTS Model / Voice ID Override</span>
-              </div>
-              {activeModelPresets.length > 0 && (
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-[11px] text-slate-500">Presets:</span>
-                  {activeModelPresets.map((preset) => (
-                    <button
-                      key={preset}
-                      type="button"
-                      onClick={() => setModelId(preset)}
-                      className={`px-2 py-0.5 rounded text-[11px] font-mono transition ${modelId === preset
-                          ? 'bg-violet-600 text-white'
-                          : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                        }`}
-                    >
-                      {preset}
-                    </button>
-                  ))}
+        <div className="lg:col-span-5">
+          <ResultPanel
+            title="Generated audio"
+            badge={
+              result ? (
+                <span className="rounded bg-ink-700/70 px-1.5 py-0.5 font-mono text-[10px] uppercase text-parchment-300">
+                  {format}
+                </span>
+              ) : undefined
+            }
+          >
+            {result && audioUrl ? (
+              <div className="space-y-4">
+                <div className="panel-sunken p-4">
+                  <audio controls src={audioUrl} className="w-full" aria-label="Generated speech" />
                 </div>
-              )}
-            </div>
-            <input
-              type="text"
-              value={modelId}
-              onChange={(e) => setModelId(e.target.value)}
-              placeholder={
-                provider === 'sarvam'
-                  ? 'Default: bulbul:v3 (or bulbul:v3-beta, bulbul:v2, bulbul:v1)'
-                  : provider === 'bhashini'
-                    ? 'Default: configured Bhashini TTS model'
-                    : provider === 'edge_tts'
-                      ? 'Default: hi-IN-SwaraNeural (or hi-IN-MadhurNeural, en-IN-NeerjaNeural...)'
-                      : 'Enter model ID or voice ID override...'
-              }
-              className="w-full bg-slate-900 border border-slate-700/80 rounded-lg px-3 py-2 text-xs font-mono text-slate-100 placeholder-slate-600 focus:outline-none focus:border-violet-500 transition"
-            />
-          </div>
-        )}
-
-        {/* Provider-Specific Voice Controls */}
-        {provider !== 'auto' && (
-          <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-3">
-            <div className="text-xs font-semibold uppercase tracking-wider text-violet-300">
-              Voice Parameters
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              {provider === 'edge_tts' && (
-                <>
-                  <div className="space-y-1">
-                    <label className="block text-xs font-medium text-slate-400">Gender</label>
-                    <select
-                      value={fields.edge_tts.gender}
-                      onChange={(event) => updateField('gender', event.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100"
-                    >
-                      <option value="female">Female</option>
-                      <option value="male">Male</option>
-                    </select>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="block text-xs font-medium text-slate-400">Voice Name Override</label>
-                    <input
-                      value={fields.edge_tts.voice}
-                      onChange={(event) => updateField('voice', event.target.value)}
-                      placeholder="e.g. hi-IN-SwaraNeural"
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono text-slate-100"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="block text-xs font-medium text-slate-400">Rate</label>
-                    <input
-                      value={fields.edge_tts.rate}
-                      onChange={(event) => updateField('rate', event.target.value)}
-                      placeholder="+0% (e.g. +10%)"
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono text-slate-100"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="block text-xs font-medium text-slate-400">Pitch</label>
-                    <input
-                      value={fields.edge_tts.pitch}
-                      onChange={(event) => updateField('pitch', event.target.value)}
-                      placeholder="+0Hz"
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono text-slate-100"
-                    />
-                  </div>
-                </>
-              )}
-
-              {provider === 'sarvam' && (
-                <>
-                  <div className="space-y-1">
-                    <label className="block text-xs font-medium text-slate-400">Speaker Name</label>
-                    <select
-                      value={fields.sarvam.speaker}
-                      onChange={(event) => updateField('speaker', event.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100"
-                    >
-                      <optgroup label="Bulbul v3 Verified Voices (37 Speakers)">
-                        <option value="aditya">aditya (Male)</option>
-                        <option value="ritu">ritu (Female)</option>
-                        <option value="ashutosh">ashutosh (Male)</option>
-                        <option value="priya">priya (Female)</option>
-                        <option value="neha">neha (Female)</option>
-                        <option value="rahul">rahul (Male)</option>
-                        <option value="pooja">pooja (Female)</option>
-                        <option value="rohan">rohan (Male)</option>
-                        <option value="simran">simran (Female)</option>
-                        <option value="kavya">kavya (Female)</option>
-                        <option value="amit">amit (Male)</option>
-                        <option value="dev">dev (Male)</option>
-                        <option value="ishita">ishita (Female)</option>
-                        <option value="shreya">shreya (Female)</option>
-                        <option value="ratan">ratan (Male)</option>
-                        <option value="varun">varun (Male)</option>
-                        <option value="manan">manan (Male)</option>
-                        <option value="sumit">sumit (Male)</option>
-                        <option value="roopa">roopa (Female)</option>
-                        <option value="kabir">kabir (Male)</option>
-                        <option value="aayan">aayan (Male)</option>
-                        <option value="shubh">shubh (Male)</option>
-                        <option value="advait">advait (Male)</option>
-                        <option value="anand">anand (Male)</option>
-                        <option value="tanya">tanya (Female)</option>
-                        <option value="tarun">tarun (Male)</option>
-                        <option value="sunny">sunny (Male)</option>
-                        <option value="mani">mani (Male)</option>
-                        <option value="gokul">gokul (Male)</option>
-                        <option value="vijay">vijay (Male)</option>
-                        <option value="shruti">shruti (Female)</option>
-                        <option value="suhani">suhani (Female)</option>
-                        <option value="mohit">mohit (Male)</option>
-                        <option value="kavitha">kavitha (Female)</option>
-                        <option value="rehan">rehan (Male)</option>
-                        <option value="soham">soham (Male)</option>
-                        <option value="rupali">rupali (Female)</option>
-                      </optgroup>
-                      <optgroup label="Bulbul v2 Legacy Voices">
-                        <option value="shubh">shubh (Male)</option>
-                        <option value="arvind">arvind (Male)</option>
-                        <option value="amartya">amartya (Male)</option>
-                        <option value="priya">priya (Female)</option>
-                        <option value="meera">meera (Female)</option>
-                        <option value="pavithra">pavithra (Female)</option>
-                      </optgroup>
-                      <optgroup label="Bulbul v4-flash Conversational / Specialized">
-                        <option value="aayan_hi_conversational">aayan_hi_conversational (Hindi)</option>
-                        <option value="amit_hi_conversational">amit_hi_conversational (Hindi)</option>
-                        <option value="kavya_hi_conversational">kavya_hi_conversational (Hindi)</option>
-                        <option value="rahul_hi_conversational">rahul_hi_conversational (Hindi)</option>
-                        <option value="simran_hi_conversation">simran_hi_conversation (Hindi)</option>
-                        <option value="shubh_hi_customer">shubh_hi_customer (Hindi)</option>
-                        <option value="sanchita_hi_assistant">sanchita_hi_assistant (Hindi)</option>
-                        <option value="dev_en_conversational">dev_en_conversational (English)</option>
-                        <option value="simran_en_conversation">simran_en_conversation (English)</option>
-                        <option value="ishita_enhi_companion">ishita_enhi_companion (Hinglish)</option>
-                        <option value="shubh_enhi_companion">shubh_enhi_companion (Hinglish)</option>
-                        <option value="bappa_bn_conversation">bappa_bn_conversation (Bengali)</option>
-                        <option value="pooja_gu_conversational">pooja_gu_conversational (Gujarati)</option>
-                        <option value="chaitra_kn_conversation">chaitra_kn_conversation (Kannada)</option>
-                        <option value="mrunal_mr_narration">mrunal_mr_narration (Marathi)</option>
-                        <option value="anand_pa_conversation">anand_pa_conversation (Punjabi)</option>
-                        <option value="gokul_ta_narration">gokul_ta_narration (Tamil)</option>
-                        <option value="kavitha_te_conversation">kavitha_te_conversation (Telugu)</option>
-                      </optgroup>
-                    </select>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="block text-xs font-medium text-slate-400">Speech Pace (Pace)</label>
-                    <input
-                      type="number"
-                      min="0.5"
-                      max="2.0"
-                      step="0.1"
-                      value={fields.sarvam.pace}
-                      onChange={(event) => updateField('pace', event.target.value)}
-                      placeholder="1.0"
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono text-slate-100"
-                    />
-                  </div>
-                </>
-              )}
-
-              {provider === 'bhashini' && (
-                <>
-                  <div className="space-y-1">
-                    <label className="block text-xs font-medium text-slate-400">Gender</label>
-                    <select
-                      value={fields.bhashini.gender}
-                      onChange={(event) => updateField('gender', event.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100"
-                    >
-                      <option value="female">Female</option>
-                      <option value="male">Male</option>
-                    </select>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="block text-xs font-medium text-slate-400">Sample Rate (Hz)</label>
-                    <input
-                      type="number"
-                      min="8000"
-                      step="1000"
-                      value={fields.bhashini.samplingRate}
-                      onChange={(event) => updateField('samplingRate', event.target.value)}
-                      placeholder="16000"
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono text-slate-100"
-                    />
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        )}
-
-        <button
-          type="button"
-          disabled={!text.trim() || loading}
-          onClick={() => void handleSynthesize()}
-          className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 bg-violet-600 hover:bg-violet-500 disabled:bg-slate-800 disabled:text-slate-600 text-white text-xs font-semibold rounded-xl shadow-lg shadow-violet-600/20 transition active:scale-95"
-        >
-          {loading ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Synthesizing Speech...
-            </>
-          ) : (
-            <>
-              <Zap className="w-4 h-4" />
-              Generate Speech
-            </>
-          )}
-        </button>
-
-        {error && (
-          <div className="p-3 bg-rose-950/60 border border-rose-800/70 text-rose-300 text-xs rounded-xl">
-            {error}
-          </div>
-        )}
-      </div>
-
-      {/* Right Column: Audio Output */}
-      <div className="lg:col-span-5 bg-slate-900/80 border border-slate-800/90 rounded-2xl p-5 sm:p-6 backdrop-blur-sm shadow-xl flex flex-col min-h-[380px]">
-        <div className="flex justify-between items-center pb-3 text-xs text-slate-400 border-b border-slate-800/80">
-          <span className="font-semibold uppercase tracking-wider text-slate-300">
-            Generated Speech Audio
-          </span>
-          {result && (
-            <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono text-[11px] uppercase">
-              {format}
-            </span>
-          )}
-        </div>
-
-        <div className="flex-1 mt-4 flex flex-col justify-between">
-          {result && audioUrl ? (
-            <div className="space-y-5">
-              <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-3">
-                <audio controls src={audioUrl} className="w-full" aria-label="Generated speech" />
+                <a
+                  href={audioUrl}
+                  download={`${result.provider}-speech.${format}`}
+                  className="btn-ghost w-full justify-center !py-2.5 !text-[13px]"
+                >
+                  <Download className="h-4 w-4 text-marigold-300" /> Download audio file
+                </a>
               </div>
-
-              <a
-                href={audioUrl}
-                download={`${result.provider}-speech.${format}`}
-                className="inline-flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700/80 text-xs font-semibold transition"
-              >
-                <Download className="w-4 h-4 text-violet-400" /> Download Audio File
-              </a>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center h-48 text-center text-slate-500">
-              <Volume2 className="w-10 h-10 mb-2 opacity-40" />
-              <span className="text-sm font-medium">No audio generated yet</span>
-              <span className="text-xs mt-1">Enter text and click Generate Speech</span>
-            </div>
-          )}
-
-          {result && (
-            <div className="pt-4 border-t border-slate-800/80 space-y-2 text-xs text-slate-400">
-              <div className="flex justify-between">
-                <span>Provider:</span>
-                <span className="text-slate-200 font-medium">{result.provider}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Language:</span>
-                <span className="text-slate-200">{result.language ?? 'Auto'}</span>
-              </div>
-              {result.model_id && (
-                <div className="flex justify-between">
-                  <span>Model ID:</span>
-                  <span className="text-slate-200 font-mono text-[11px] break-all">
-                    {result.model_id}
-                  </span>
-                </div>
-              )}
-              <div className="flex justify-between">
-                <span>Route Fallbacks:</span>
-                <span className="text-slate-200">{result.fallback_count}</span>
-              </div>
-            </div>
-          )}
+            ) : (
+              <EmptyState
+                icon={<Volume2 className="h-8 w-8 opacity-60" />}
+                title="No audio generated yet"
+                hint="Enter text and press Generate speech"
+              />
+            )}
+            {result && (
+              <MetaTable
+                rows={[
+                  ['Provider', result.provider],
+                  ['Language', result.language ?? 'Auto'],
+                  ...(result.model_id ? [['Model ID', result.model_id] as [string, string]] : []),
+                  ['Route fallbacks', String(result.fallback_count)],
+                ]}
+              />
+            )}
+          </ResultPanel>
         </div>
       </div>
     </div>
