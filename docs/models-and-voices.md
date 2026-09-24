@@ -88,11 +88,11 @@ Environment variable override: `BHASHINI_STT_MODEL_ID`
 
 ### Text to Speech Service IDs
 
-| Service ID                                     | Provider / Architecture | Description                                                    | Supported Parameters                |
-| ---------------------------------------------- | ----------------------- | -------------------------------------------------------------- | ----------------------------------- |
-| `ai4bharat/indic-tts-coqui-indo_aryan-gpu--t4` | AI4Bharat Indic-TTS     | Indic-TTS for Indo-Aryan languages (Default)                   | `gender`, `voiceId`, `samplingRate` |
-| `ai4bharat/indic-tts-coqui-dravidian-gpu--t4`  | AI4Bharat Indic-TTS     | Indic-TTS for Dravidian languages                              | `gender`, `voiceId`, `samplingRate` |
-| `ai4bharat/indic-tts-coqui-misc-gpu--t4`       | AI4Bharat Indic-TTS     | Indic-TTS for other scheduled languages                        | `gender`, `voiceId`, `samplingRate` |
+| Service ID                                     | Provider / Architecture | Description                                  | Supported Parameters                |
+| ---------------------------------------------- | ----------------------- | -------------------------------------------- | ----------------------------------- |
+| `ai4bharat/indic-tts-coqui-indo_aryan-gpu--t4` | AI4Bharat Indic-TTS     | Indic-TTS for Indo-Aryan languages (Default) | `gender`, `voiceId`, `samplingRate` |
+| `ai4bharat/indic-tts-coqui-dravidian-gpu--t4`  | AI4Bharat Indic-TTS     | Indic-TTS for Dravidian languages            | `gender`, `voiceId`, `samplingRate` |
+| `ai4bharat/indic-tts-coqui-misc-gpu--t4`       | AI4Bharat Indic-TTS     | Indic-TTS for other scheduled languages      | `gender`, `voiceId`, `samplingRate` |
 
 Environment variable override: `BHASHINI_TTS_MODEL_ID`
 

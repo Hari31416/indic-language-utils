@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -23,6 +24,8 @@ from ..errors import (
 from ..languages import DEFAULT_LANGUAGE_REGISTRY, LanguageTag
 from ..retry import RetryPolicy
 from .base import CapabilityId
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,7 +71,7 @@ class HttpxJsonTransport:
         try:
             data: object = response.json()
         except ValueError:
-            data = None
+            data = response.text.strip() if response.text else None
         return JsonResponse(response.status_code, data, response.headers)
 
     async def close(self) -> None:
@@ -273,6 +276,36 @@ class BhashiniConfig:
         )
 
 
+def _extract_bhashini_error_message(data: object, status_code: int) -> str:
+    if isinstance(data, str) and data.strip():
+        return data.strip()[:300]
+    if isinstance(data, Mapping):
+        if "message" in data and isinstance(data["message"], str) and data["message"].strip():
+            return data["message"].strip()
+        if "detail" in data and isinstance(data["detail"], str) and data["detail"].strip():
+            return data["detail"].strip()
+        if (
+            "statusReason" in data
+            and isinstance(data["statusReason"], str)
+            and data["statusReason"].strip()
+        ):
+            return data["statusReason"].strip()
+        if "error" in data:
+            err = data["error"]
+            if isinstance(err, Mapping) and "message" in err and isinstance(err["message"], str):
+                return err["message"].strip()
+            if isinstance(err, str) and err.strip():
+                return err.strip()
+        pipeline_res = data.get("pipelineResponse")
+        if isinstance(pipeline_res, list) and pipeline_res and isinstance(pipeline_res[0], Mapping):
+            first = pipeline_res[0]
+            for key in ("statusReason", "message", "errorMessage"):
+                val = first.get(key)
+                if isinstance(val, str) and val.strip():
+                    return val.strip()
+    return f"HTTP {status_code}"
+
+
 def _raise_bhashini_status(
     provider: str,
     capability: CapabilityId,
@@ -281,23 +314,34 @@ def _raise_bhashini_status(
 ) -> None:
     if response.status_code < 400:
         return
+    logger.warning(
+        "Bhashini request failed with status %d: %s", response.status_code, response.data
+    )
+    detail = _extract_bhashini_error_message(response.data, response.status_code)
+    fallback_tag = f"HTTP {response.status_code}"
     if response.status_code == 401:
         raise AuthenticationError(
-            "Bhashini authentication failed",
+            f"Bhashini authentication failed: {detail}"
+            if detail != fallback_tag
+            else "Bhashini authentication failed",
             provider=provider,
             capability=capability.value,
             request_id=request_id,
         )
     if response.status_code == 403:
         raise PermissionDeniedError(
-            "Bhashini denied the request",
+            f"Bhashini denied the request: {detail}"
+            if detail != fallback_tag
+            else "Bhashini denied the request",
             provider=provider,
             capability=capability.value,
             request_id=request_id,
         )
     if response.status_code == 429:
         raise RateLimitError(
-            "Bhashini rate limit exceeded",
+            f"Bhashini rate limit exceeded: {detail}"
+            if detail != fallback_tag
+            else "Bhashini rate limit exceeded",
             provider=provider,
             capability=capability.value,
             request_id=request_id,
@@ -305,20 +349,26 @@ def _raise_bhashini_status(
         )
     if response.status_code in {408, 504}:
         raise ProviderTimeoutError(
-            "Bhashini request timed out",
+            f"Bhashini request timed out: {detail}"
+            if detail != fallback_tag
+            else "Bhashini request timed out",
             provider=provider,
             capability=capability.value,
             request_id=request_id,
         )
     if response.status_code >= 500:
         raise TransientProviderError(
-            "Bhashini service failed",
+            f"Bhashini service error: {detail}"
+            if detail != fallback_tag
+            else f"Bhashini service failed (HTTP {response.status_code})",
             provider=provider,
             capability=capability.value,
             request_id=request_id,
         )
     raise InvalidInputError(
-        "Bhashini rejected the request",
+        f"Bhashini rejected the request: {detail}"
+        if detail != fallback_tag
+        else "Bhashini rejected the request",
         provider=provider,
         capability=capability.value,
         request_id=request_id,
