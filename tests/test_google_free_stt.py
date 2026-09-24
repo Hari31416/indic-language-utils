@@ -22,6 +22,7 @@ from indic_language_utils.stt import (
     get_stt_client,
 )
 from indic_language_utils.stt.google_speech import (
+    _decode_to_pcm,
     google_speech_language_code,
 )
 
@@ -99,6 +100,14 @@ def test_google_free_missing_dependency(monkeypatch: pytest.MonkeyPatch) -> None
     assert "SpeechRecognition" in str(exc_info.value)
 
 
+def test_google_free_invalid_factory_config_is_reported() -> None:
+    with pytest.raises(ConfigurationError, match="Google Free STT configuration is invalid"):
+        get_stt_client(
+            Settings._from_mapping({"routes": {"speech_to_text": ["google_free"]}}),
+            env={"GOOGLE_FREE_STT_TIMEOUT_SECONDS": "bad"},
+        )
+
+
 @pytest.mark.asyncio
 async def test_google_free_transcribe_batch_success() -> None:
     rec = MockRecognizer("भारत एक महान देश है")
@@ -118,6 +127,40 @@ async def test_google_free_transcribe_batch_success() -> None:
     assert results[0].model_id == "google_free"
     assert rec.recorded_lang == "hi-IN"
     assert rec.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_google_free_uses_configured_default_language() -> None:
+    rec = MockRecognizer()
+    provider = GoogleFreeSTTProvider(GoogleFreeSTTConfig(default_language="ta-IN"), recognizer=rec)
+    await provider.transcribe_batch(
+        (_make_wav_bytes(),),
+        language=None,
+        audio_format="wav",
+        sampling_rate=16000,
+        request_id="req-default",
+    )
+    assert rec.recorded_lang == "ta-IN"
+
+
+def test_google_free_rejects_undecoded_compressed_audio(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import indic_language_utils.stt.google_speech as gs_module
+
+    monkeypatch.setattr(gs_module, "HAVE_AV", False)
+    with pytest.raises(MissingOptionalDependencyError, match="PyAV"):
+        _decode_to_pcm(b"ID3compressed-data", "mp3", 16000)
+
+
+def test_google_free_rejects_invalid_wav_without_decoder(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import indic_language_utils.stt.google_speech as gs_module
+
+    monkeypatch.setattr(gs_module, "HAVE_AV", False)
+    with pytest.raises(InvalidInputError, match="WAV"):
+        _decode_to_pcm(b"RIFFbad-data", "wav", 16000)
 
 
 @pytest.mark.asyncio

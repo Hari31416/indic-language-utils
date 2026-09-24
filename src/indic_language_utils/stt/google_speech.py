@@ -171,6 +171,9 @@ class GoogleFreeSTTConfig:
 
 
 def _decode_to_pcm(clip: bytes, audio_format: str, sampling_rate: int) -> tuple[bytes, int]:
+    if audio_format.lower() in {"pcm", "l16"}:
+        return clip, sampling_rate or 16000
+
     if HAVE_AV and av is not None:
         try:
             container: Any = av.open(io.BytesIO(clip))
@@ -181,19 +184,27 @@ def _decode_to_pcm(clip: bytes, audio_format: str, sampling_rate: int) -> tuple[
                     pcm_chunks.append(rf.to_ndarray().tobytes())
             if pcm_chunks:
                 return b"".join(pcm_chunks), sampling_rate or 16000
-        except Exception:
-            pass
+        except Exception as exc:
+            raise InvalidInputError(f"Cannot decode {audio_format} audio") from exc
 
-    if clip.startswith(b"RIFF"):
+    if audio_format.lower() == "wav" and clip.startswith(b"RIFF"):
         try:
             with wave.open(io.BytesIO(clip), "rb") as wf:
+                if wf.getnchannels() != 1 or wf.getsampwidth() != 2 or wf.getcomptype() != "NONE":
+                    raise InvalidInputError("WAV audio must be mono, 16-bit PCM")
                 frames = wf.readframes(wf.getnframes())
                 rate = wf.getframerate()
                 return frames, rate
-        except Exception:
-            pass
+        except (EOFError, wave.Error) as exc:
+            raise InvalidInputError("Cannot decode WAV audio") from exc
 
-    return clip, sampling_rate or 16000
+    if not HAVE_AV:
+        raise MissingOptionalDependencyError(
+            "PyAV is required to decode compressed audio. "
+            "Install it with: pip install 'indic-language-utils[stt-google-free]'",
+            provider="google_free",
+        )
+    raise InvalidInputError(f"Cannot decode {audio_format} audio")
 
 
 class GoogleFreeSTTProvider(STTProvider):
@@ -241,6 +252,8 @@ class GoogleFreeSTTProvider(STTProvider):
         frames = clip
         rate = sampling_rate
         width = 2
+        if audio_format.lower() not in {"wav", "pcm", "l16"}:
+            frames, rate = _decode_to_pcm(clip, audio_format, sampling_rate)
         if clip.startswith(b"RIFF"):
             try:
                 with wave.open(io.BytesIO(clip), "rb") as wf:
@@ -270,7 +283,9 @@ class GoogleFreeSTTProvider(STTProvider):
                 request_id=request_id,
             )
 
-        lang_code = google_speech_language_code(language)
+        lang_code = google_speech_language_code(
+            language or LanguageTag.parse(self.config.default_language)
+        )
         recognizer = self._recognizer
 
         def _transcribe_one(clip: bytes) -> str:

@@ -1244,10 +1244,12 @@ server = [
     { name = "uvicorn", extra = ["standard"] },
 ]
 stt = [
+    { name = "av" },
     { name = "faster-whisper" },
     { name = "speechrecognition" },
 ]
 stt-google-free = [
+    { name = "av" },
     { name = "speechrecognition" },
 ]
 stt-whisper = [
@@ -1282,6 +1284,8 @@ docs = [
 requires-dist = [
     { name = "ai4bharat-transliteration", marker = "extra == 'neural-transliteration'", specifier = ">=0.1.0" },
     { name = "aksharamukha", marker = "extra == 'local-transliteration'", specifier = ">=2.0.0" },
+    { name = "av", marker = "extra == 'stt'", specifier = ">=12" },
+    { name = "av", marker = "extra == 'stt-google-free'", specifier = ">=12" },
     { name = "edge-tts", marker = "extra == 'tts-edge'", specifier = ">=6.1.12" },
     { name = "fastapi", marker = "extra == 'server'", specifier = ">=0.115.0" },
     { name = "faster-whisper", marker = "extra == 'stt'", specifier = ">=1.0.0" },
