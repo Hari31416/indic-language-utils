@@ -1,4 +1,6 @@
+import { getApiKeyHeaders } from './storage'
 import type {
+  ApiKeysConfig,
   DetectRequest,
   DetectResponse,
   LanguagesResponse,
@@ -14,10 +16,12 @@ import type {
   TransliterateResponse,
 } from './types'
 
-async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
+async function requestJson<T>(url: string, init?: RequestInit, customKeys?: ApiKeysConfig): Promise<T> {
+  const authHeaders = getApiKeyHeaders(customKeys)
   const response = await fetch(url, {
     headers: {
       'Content-Type': 'application/json',
+      ...authHeaders,
       ...init?.headers,
     },
     ...init,
@@ -39,54 +43,94 @@ async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T
 }
 
-export async function fetchLanguages(): Promise<LanguagesResponse> {
-  return requestJson<LanguagesResponse>('/api/languages')
+export async function fetchLanguages(customKeys?: ApiKeysConfig): Promise<LanguagesResponse> {
+  return requestJson<LanguagesResponse>('/api/languages', undefined, customKeys)
 }
 
-export async function fetchProviders(): Promise<ProvidersResponse> {
-  return requestJson<ProvidersResponse>('/api/providers')
+export async function fetchProviders(customKeys?: ApiKeysConfig): Promise<ProvidersResponse> {
+  return requestJson<ProvidersResponse>('/api/providers', undefined, customKeys)
 }
 
-export async function translateText(req: TranslateRequest): Promise<TranslateResponse> {
-  return requestJson<TranslateResponse>('/api/translate', {
-    method: 'POST',
-    body: JSON.stringify(req),
-  })
+export async function translateText(
+  req: TranslateRequest,
+  customKeys?: ApiKeysConfig
+): Promise<TranslateResponse> {
+  return requestJson<TranslateResponse>(
+    '/api/translate',
+    {
+      method: 'POST',
+      body: JSON.stringify(req),
+    },
+    customKeys
+  )
 }
 
-export async function detectLanguage(req: DetectRequest): Promise<DetectResponse> {
-  return requestJson<DetectResponse>('/api/detect', {
-    method: 'POST',
-    body: JSON.stringify(req),
-  })
+export async function detectLanguage(
+  req: DetectRequest,
+  customKeys?: ApiKeysConfig
+): Promise<DetectResponse> {
+  return requestJson<DetectResponse>(
+    '/api/detect',
+    {
+      method: 'POST',
+      body: JSON.stringify(req),
+    },
+    customKeys
+  )
 }
 
-export async function detectScript(text: string): Promise<ScriptDetectResponse> {
-  return requestJson<ScriptDetectResponse>('/api/detect-script', {
-    method: 'POST',
-    body: JSON.stringify({ text }),
-  })
+export async function detectScript(
+  text: string,
+  customKeys?: ApiKeysConfig
+): Promise<ScriptDetectResponse> {
+  return requestJson<ScriptDetectResponse>(
+    '/api/detect-script',
+    {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    },
+    customKeys
+  )
 }
 
 export async function transliterateText(
-  req: TransliterateRequest
+  req: TransliterateRequest,
+  customKeys?: ApiKeysConfig
 ): Promise<TransliterateResponse> {
-  return requestJson<TransliterateResponse>('/api/transliterate', {
-    method: 'POST',
-    body: JSON.stringify(req),
-  })
+  return requestJson<TransliterateResponse>(
+    '/api/transliterate',
+    {
+      method: 'POST',
+      body: JSON.stringify(req),
+    },
+    customKeys
+  )
 }
 
-export async function transcribeAudio(req: STTRequest): Promise<STTResponse> {
-  return requestJson<STTResponse>('/api/stt', {
-    method: 'POST',
-    body: JSON.stringify(req),
-  })
+export async function transcribeAudio(
+  req: STTRequest,
+  customKeys?: ApiKeysConfig
+): Promise<STTResponse> {
+  return requestJson<STTResponse>(
+    '/api/stt',
+    {
+      method: 'POST',
+      body: JSON.stringify(req),
+    },
+    customKeys
+  )
 }
 
-export async function synthesizeSpeech(req: TTSRequest): Promise<TTSResponse> {
-  return requestJson<TTSResponse>('/api/tts', {
-    method: 'POST',
-    body: JSON.stringify(req),
-  })
+export async function synthesizeSpeech(
+  req: TTSRequest,
+  customKeys?: ApiKeysConfig
+): Promise<TTSResponse> {
+  return requestJson<TTSResponse>(
+    '/api/tts',
+    {
+      method: 'POST',
+      body: JSON.stringify(req),
+    },
+    customKeys
+  )
 }

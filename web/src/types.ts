@@ -25,9 +25,18 @@ export interface ProvidersResponse {
   text_to_speech: ProviderInfo[]
 }
 
+export interface ApiKeysConfig {
+  sarvamApiKey: string
+  sarvamEndpoint: string
+  bhashiniApiKey: string
+  bhashiniEndpoint: string
+}
+
 export interface TTSRequest {
   text: string
   language?: string | null
+  model_id?: string | null
+  api_key?: string | null
   parameters: Record<string, unknown>
   provider_parameters?: Record<string, Record<string, unknown>>
   provider?: string | null
@@ -49,6 +58,8 @@ export interface TTSResponse {
 export interface STTRequest {
   audio_base64: string
   language?: string | null
+  model_id?: string | null
+  api_key?: string | null
   audio_format: string
   sampling_rate: number
   provider?: string | null
@@ -70,6 +81,8 @@ export interface TranslateRequest {
   text: string
   source: string
   target: string
+  model_id?: string | null
+  api_key?: string | null
   provider?: string | null
   text_format?: 'plain' | 'markdown'
 }
@@ -90,6 +103,8 @@ export interface TranslateResponse {
 
 export interface DetectRequest {
   text: string
+  model_id?: string | null
+  api_key?: string | null
   provider?: string | null
 }
 
@@ -120,6 +135,8 @@ export interface TransliterateRequest {
   text: string
   source: string
   target: string
+  model_id?: string | null
+  api_key?: string | null
   provider?: string | null
 }
 
