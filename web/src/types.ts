@@ -29,6 +29,7 @@ export interface TTSRequest {
   text: string
   language?: string | null
   parameters: Record<string, unknown>
+  provider_parameters?: Record<string, Record<string, unknown>>
   provider?: string | null
 }
 

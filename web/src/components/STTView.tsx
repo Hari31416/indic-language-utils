@@ -11,6 +11,24 @@ interface STTViewProps {
 const MAX_AUDIO_BYTES = 10 * 1024 * 1024
 const FORMATS = ['wav', 'flac', 'mp3', 'ogg']
 
+async function wavSampleRate(file: File): Promise<number | null> {
+  const header = await file.slice(0, 65536).arrayBuffer()
+  if (header.byteLength < 28) return null
+  const bytes = new Uint8Array(header)
+  const signature = (start: number) => String.fromCharCode(...bytes.slice(start, start + 4))
+  if (signature(0) !== 'RIFF' || signature(8) !== 'WAVE') return null
+  const view = new DataView(header)
+  let offset = 12
+  while (offset + 8 <= header.byteLength) {
+    const size = view.getUint32(offset + 4, true)
+    if (signature(offset) === 'fmt ' && size >= 16 && offset + 20 <= header.byteLength) {
+      return view.getUint32(offset + 12, true)
+    }
+    offset += 8 + size + (size % 2)
+  }
+  return null
+}
+
 function readBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -32,7 +50,7 @@ export const STTView: React.FC<STTViewProps> = ({ languages, providers }) => {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [language, setLanguage] = useState('hi')
   const [audioFormat, setAudioFormat] = useState('wav')
-  const [samplingRate, setSamplingRate] = useState(16000)
+  const [samplingRate, setSamplingRate] = useState<number | ''>('')
   const [provider, setProvider] = useState('auto')
   const [result, setResult] = useState<STTResponse | null>(null)
   const [loading, setLoading] = useState(false)
@@ -48,30 +66,34 @@ export const STTView: React.FC<STTViewProps> = ({ languages, providers }) => {
     return () => URL.revokeObjectURL(url)
   }, [file])
 
-  const handleFile = (selected: File | undefined) => {
+  const handleFile = async (selected: File | undefined) => {
     setResult(null)
     setError(null)
     if (!selected) {
       setFile(null)
+      setSamplingRate('')
       return
     }
     if (selected.size === 0 || selected.size > MAX_AUDIO_BYTES) {
       setFile(null)
+      setSamplingRate('')
       setError('Choose an audio file between 1 byte and 10 MiB.')
       return
     }
     const extension = selected.name.split('.').pop()?.toLowerCase()
     if (!extension || !FORMATS.includes(extension)) {
       setFile(null)
+      setSamplingRate('')
       setError('Choose a WAV, FLAC, MP3, or OGG file.')
       return
     }
     setAudioFormat(extension)
     setFile(selected)
+    setSamplingRate(extension === 'wav' ? (await wavSampleRate(selected)) || '' : '')
   }
 
   const handleTranscribe = async () => {
-    if (!file) return
+    if (!file || !samplingRate) return
     setLoading(true)
     setError(null)
     setResult(null)
@@ -108,7 +130,7 @@ export const STTView: React.FC<STTViewProps> = ({ languages, providers }) => {
             type="file"
             accept=".wav,.flac,.mp3,.ogg,audio/*"
             className="sr-only"
-            onChange={(event) => handleFile(event.target.files?.[0])}
+            onChange={(event) => void handleFile(event.target.files?.[0])}
           />
         </label>
 
@@ -149,12 +171,13 @@ export const STTView: React.FC<STTViewProps> = ({ languages, providers }) => {
           <label className="text-xs font-medium text-slate-400">
             Sample rate (Hz)
             <input type="number" min={1} step={1} value={samplingRate}
-              onChange={(event) => setSamplingRate(Number(event.target.value))}
+              onChange={(event) => setSamplingRate(event.target.value ? Number(event.target.value) : '')}
+              placeholder="Enter the file's sample rate"
               className="block w-full mt-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100" />
           </label>
         </div>
-        <p className="text-xs text-slate-500">Enter the file's actual sample rate. The server does not convert audio.</p>
-        <button type="button" disabled={!file || loading || samplingRate <= 0}
+        <p className="text-xs text-slate-500">WAV sample rate is read from the file. For other formats, enter the actual rate. The server does not convert audio.</p>
+        <button type="button" disabled={!file || loading || !samplingRate || samplingRate <= 0}
           onClick={() => void handleTranscribe()}
           className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium text-white transition">
           {loading && <Loader2 className="w-4 h-4 animate-spin" />}
