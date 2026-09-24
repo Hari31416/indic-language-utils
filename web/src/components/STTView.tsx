@@ -24,7 +24,12 @@ const FORMATS = ['wav', 'flac', 'mp3', 'ogg']
 
 const STT_MODEL_PRESETS: Record<string, string[]> = {
   sarvam: ['saarika:v1', 'saarika:v2', 'saarika:flash'],
-  bhashini: ['ai4bharat/conformer-hi-gpu--t4', 'ai4bharat/whisper-medium-en--gpu--t4'],
+  bhashini: [
+    'ai4bharat/conformer-hi-gpu--t4',
+    'bhashini/bodhan/asr-transcribe-flex',
+    'bhashini/bodhan/asr-transcribe-core',
+    'ai4bharat/whisper-medium-en--gpu--t4',
+  ],
   faster_whisper: ['base', 'tiny', 'small', 'medium', 'large-v3'],
 }
 

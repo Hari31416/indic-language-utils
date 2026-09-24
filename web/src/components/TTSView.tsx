@@ -53,8 +53,12 @@ const TTS_SAMPLE_TEXTS = [
 ]
 
 const TTS_MODEL_PRESETS: Record<string, string[]> = {
-  sarvam: ['bulbul:v1', 'bulbul:v2'],
-  bhashini: ['ai4bharat/indic-tts-coqui-indo_aryan-gpu--t4'],
+  sarvam: ['bulbul:v3', 'bulbul:v4-flash', 'bulbul:v3-beta', 'bulbul:v2'],
+  bhashini: [
+    'ai4bharat/indic-tts-coqui-indo_aryan-gpu--t4',
+    'ai4bharat/indic-tts-coqui-dravidian-gpu--t4',
+    'ai4bharat/indic-tts-coqui-misc-gpu--t4',
+  ],
   edge_tts: [
     'hi-IN-SwaraNeural',
     'hi-IN-MadhurNeural',
@@ -293,11 +297,10 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
                       key={preset}
                       type="button"
                       onClick={() => setModelId(preset)}
-                      className={`px-2 py-0.5 rounded text-[11px] font-mono transition ${
-                        modelId === preset
+                      className={`px-2 py-0.5 rounded text-[11px] font-mono transition ${modelId === preset
                           ? 'bg-violet-600 text-white'
                           : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                      }`}
+                        }`}
                     >
                       {preset}
                     </button>
@@ -311,7 +314,7 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
               onChange={(e) => setModelId(e.target.value)}
               placeholder={
                 provider === 'sarvam'
-                  ? 'Default: bulbul:v1 (or bulbul:v2)'
+                  ? 'Default: bulbul:v3 (or bulbul:v3-beta, bulbul:v2, bulbul:v1)'
                   : provider === 'bhashini'
                     ? 'Default: configured Bhashini TTS model'
                     : provider === 'edge_tts'
@@ -383,12 +386,73 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
                       onChange={(event) => updateField('speaker', event.target.value)}
                       className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100"
                     >
-                      <option value="shubh">shubh (Male)</option>
-                      <option value="arvind">arvind (Male)</option>
-                      <option value="amartya">amartya (Male)</option>
-                      <option value="priya">priya (Female)</option>
-                      <option value="meera">meera (Female)</option>
-                      <option value="pavithra">pavithra (Female)</option>
+                      <optgroup label="Bulbul v3 Verified Voices (37 Speakers)">
+                        <option value="aditya">aditya (Male)</option>
+                        <option value="ritu">ritu (Female)</option>
+                        <option value="ashutosh">ashutosh (Male)</option>
+                        <option value="priya">priya (Female)</option>
+                        <option value="neha">neha (Female)</option>
+                        <option value="rahul">rahul (Male)</option>
+                        <option value="pooja">pooja (Female)</option>
+                        <option value="rohan">rohan (Male)</option>
+                        <option value="simran">simran (Female)</option>
+                        <option value="kavya">kavya (Female)</option>
+                        <option value="amit">amit (Male)</option>
+                        <option value="dev">dev (Male)</option>
+                        <option value="ishita">ishita (Female)</option>
+                        <option value="shreya">shreya (Female)</option>
+                        <option value="ratan">ratan (Male)</option>
+                        <option value="varun">varun (Male)</option>
+                        <option value="manan">manan (Male)</option>
+                        <option value="sumit">sumit (Male)</option>
+                        <option value="roopa">roopa (Female)</option>
+                        <option value="kabir">kabir (Male)</option>
+                        <option value="aayan">aayan (Male)</option>
+                        <option value="shubh">shubh (Male)</option>
+                        <option value="advait">advait (Male)</option>
+                        <option value="anand">anand (Male)</option>
+                        <option value="tanya">tanya (Female)</option>
+                        <option value="tarun">tarun (Male)</option>
+                        <option value="sunny">sunny (Male)</option>
+                        <option value="mani">mani (Male)</option>
+                        <option value="gokul">gokul (Male)</option>
+                        <option value="vijay">vijay (Male)</option>
+                        <option value="shruti">shruti (Female)</option>
+                        <option value="suhani">suhani (Female)</option>
+                        <option value="mohit">mohit (Male)</option>
+                        <option value="kavitha">kavitha (Female)</option>
+                        <option value="rehan">rehan (Male)</option>
+                        <option value="soham">soham (Male)</option>
+                        <option value="rupali">rupali (Female)</option>
+                      </optgroup>
+                      <optgroup label="Bulbul v2 Legacy Voices">
+                        <option value="shubh">shubh (Male)</option>
+                        <option value="arvind">arvind (Male)</option>
+                        <option value="amartya">amartya (Male)</option>
+                        <option value="priya">priya (Female)</option>
+                        <option value="meera">meera (Female)</option>
+                        <option value="pavithra">pavithra (Female)</option>
+                      </optgroup>
+                      <optgroup label="Bulbul v4-flash Conversational / Specialized">
+                        <option value="aayan_hi_conversational">aayan_hi_conversational (Hindi)</option>
+                        <option value="amit_hi_conversational">amit_hi_conversational (Hindi)</option>
+                        <option value="kavya_hi_conversational">kavya_hi_conversational (Hindi)</option>
+                        <option value="rahul_hi_conversational">rahul_hi_conversational (Hindi)</option>
+                        <option value="simran_hi_conversation">simran_hi_conversation (Hindi)</option>
+                        <option value="shubh_hi_customer">shubh_hi_customer (Hindi)</option>
+                        <option value="sanchita_hi_assistant">sanchita_hi_assistant (Hindi)</option>
+                        <option value="dev_en_conversational">dev_en_conversational (English)</option>
+                        <option value="simran_en_conversation">simran_en_conversation (English)</option>
+                        <option value="ishita_enhi_companion">ishita_enhi_companion (Hinglish)</option>
+                        <option value="shubh_enhi_companion">shubh_enhi_companion (Hinglish)</option>
+                        <option value="bappa_bn_conversation">bappa_bn_conversation (Bengali)</option>
+                        <option value="pooja_gu_conversational">pooja_gu_conversational (Gujarati)</option>
+                        <option value="chaitra_kn_conversation">chaitra_kn_conversation (Kannada)</option>
+                        <option value="mrunal_mr_narration">mrunal_mr_narration (Marathi)</option>
+                        <option value="anand_pa_conversation">anand_pa_conversation (Punjabi)</option>
+                        <option value="gokul_ta_narration">gokul_ta_narration (Tamil)</option>
+                        <option value="kavitha_te_conversation">kavitha_te_conversation (Telugu)</option>
+                      </optgroup>
                     </select>
                   </div>
                   <div className="space-y-1">
