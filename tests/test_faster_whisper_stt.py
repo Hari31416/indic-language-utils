@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import threading
 from typing import Any
 
 import pytest
@@ -9,6 +11,7 @@ from indic_language_utils.errors import (
     ConfigurationError,
     InvalidInputError,
     MissingOptionalDependencyError,
+    ProviderTimeoutError,
     TransientProviderError,
 )
 from indic_language_utils.languages import LanguageTag
@@ -117,6 +120,14 @@ def test_faster_whisper_missing_dependency(monkeypatch: pytest.MonkeyPatch) -> N
     assert "faster-whisper" in str(exc_info.value)
 
 
+def test_faster_whisper_invalid_factory_config_is_reported() -> None:
+    with pytest.raises(ConfigurationError, match="Faster-Whisper configuration is invalid"):
+        get_stt_client(
+            Settings._from_mapping({"routes": {"speech_to_text": ["faster_whisper"]}}),
+            env={"FASTER_WHISPER_TIMEOUT_SECONDS": "bad"},
+        )
+
+
 @pytest.mark.asyncio
 async def test_faster_whisper_transcribe_batch_success() -> None:
     mock_model = MockWhisperModel(segments=("भारत", "एक", "महान", "देश", "है"), detected_lang="hi")
@@ -196,6 +207,56 @@ async def test_faster_whisper_transient_error() -> None:
             sampling_rate=16000,
             request_id="req-w5",
         )
+
+
+@pytest.mark.asyncio
+async def test_faster_whisper_model_load_times_out_without_retry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import indic_language_utils.stt.whisper as w_module
+
+    started = threading.Event()
+    release = threading.Event()
+    loads = 0
+
+    class SlowModel(MockWhisperModel):
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            nonlocal loads
+            loads += 1
+            started.set()
+            release.wait(timeout=2)
+            super().__init__()
+
+    monkeypatch.setattr(w_module, "HAVE_FASTER_WHISPER", True)
+    monkeypatch.setattr(w_module, "WhisperModel", SlowModel)
+    provider = FasterWhisperSTTProvider(
+        FasterWhisperSTTConfig(timeout_seconds=0.05, max_concurrency=1)
+    )
+    try:
+        with pytest.raises(ProviderTimeoutError):
+            await asyncio.wait_for(
+                provider.transcribe_batch(
+                    (b"audio",),
+                    language=None,
+                    audio_format="wav",
+                    sampling_rate=16000,
+                    request_id="req-timeout",
+                ),
+                timeout=1,
+            )
+        assert started.is_set()
+        assert loads == 1
+        with pytest.raises(ProviderTimeoutError):
+            await provider.transcribe_batch(
+                (b"second clip",),
+                language=None,
+                audio_format="wav",
+                sampling_rate=16000,
+                request_id="req-after-timeout",
+            )
+        assert loads == 1
+    finally:
+        release.set()
 
 
 @pytest.mark.asyncio

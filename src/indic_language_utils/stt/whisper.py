@@ -6,6 +6,7 @@ import asyncio
 import io
 import logging
 import os
+import threading
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
@@ -16,6 +17,7 @@ from ..errors import (
     ConfigurationError,
     InvalidInputError,
     MissingOptionalDependencyError,
+    ProviderTimeoutError,
     TransientProviderError,
 )
 from ..languages import DEFAULT_LANGUAGE_REGISTRY, LanguageTag
@@ -34,6 +36,16 @@ except ImportError:
     HAVE_FASTER_WHISPER = False
 
 logger = logging.getLogger(__name__)
+
+
+class _WhisperWaitTimeout(Exception):
+    """Stop retries while a timed-out worker finishes in the background."""
+
+
+def _observe_background_result(task: asyncio.Task[Any]) -> None:
+    if not task.cancelled():
+        task.exception()
+
 
 # Known Whisper Indic languages by ISO 639-1 code
 _WHISPER_INDIC_CODES: frozenset[str] = frozenset(
@@ -207,6 +219,7 @@ class FasterWhisperSTTProvider(STTProvider):
             )
         self.config = config or FasterWhisperSTTConfig()
         self._model = model
+        self._model_lock = threading.Lock()
         self._limiter = ConcurrencyLimiter(self.config.max_concurrency)
         self.capabilities = (
             CapabilityDeclaration(
@@ -223,16 +236,18 @@ class FasterWhisperSTTProvider(STTProvider):
                 "Install it with: pip install 'indic-language-utils[stt-whisper]'",
                 provider="faster_whisper",
             )
-        kwargs: dict[str, Any] = {
-            "device": self.config.device,
-            "compute_type": self.config.compute_type,
-            "cpu_threads": self.config.cpu_threads,
-            "num_workers": self.config.num_workers,
-        }
-        if self.config.download_root:
-            kwargs["download_root"] = self.config.download_root
-        self._model = WhisperModel(self.config.model_size_or_path, **kwargs)
-        return self._model
+        with self._model_lock:
+            if self._model is None:
+                kwargs: dict[str, Any] = {
+                    "device": self.config.device,
+                    "compute_type": self.config.compute_type,
+                    "cpu_threads": self.config.cpu_threads,
+                    "num_workers": self.config.num_workers,
+                }
+                if self.config.download_root:
+                    kwargs["download_root"] = self.config.download_root
+                self._model = WhisperModel(self.config.model_size_or_path, **kwargs)
+            return self._model
 
     async def transcribe_batch(
         self,
@@ -252,10 +267,10 @@ class FasterWhisperSTTProvider(STTProvider):
             )
 
         lang_code = whisper_language_code(language)
-        model = self._get_model()
 
         def _transcribe_one(clip: bytes) -> tuple[str, LanguageTag | None]:
             try:
+                model = self._get_model()
                 audio_stream = io.BytesIO(clip)
                 segments, info = model.transcribe(
                     audio_stream,
@@ -292,9 +307,28 @@ class FasterWhisperSTTProvider(STTProvider):
 
         async def _transcribe_clip(clip_data: bytes) -> tuple[str, LanguageTag | None]:
             async def _execute() -> tuple[str, LanguageTag | None]:
-                return await _run_clip(clip_data)
+                task = asyncio.create_task(_run_clip(clip_data))
+                try:
+                    return await asyncio.wait_for(
+                        asyncio.shield(task), timeout=self.config.timeout_seconds
+                    )
+                except TimeoutError as exc:
+                    # The worker cannot be stopped safely. Keep its slot until it finishes.
+                    task.add_done_callback(_observe_background_result)
+                    raise _WhisperWaitTimeout from exc
+                except asyncio.CancelledError:
+                    task.add_done_callback(_observe_background_result)
+                    raise
 
-            return await retry(_execute, self.config.retry_policy)
+            try:
+                return await retry(_execute, self.config.retry_policy)
+            except _WhisperWaitTimeout as exc:
+                raise ProviderTimeoutError(
+                    "Faster-Whisper STT timed out",
+                    provider="faster_whisper",
+                    capability=CapabilityId.SPEECH_TO_TEXT.value,
+                    request_id=request_id,
+                ) from exc
 
         results: list[ProviderSTTResult] = []
         for clip in audio:

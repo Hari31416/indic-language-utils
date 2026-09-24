@@ -89,10 +89,12 @@ print(result.text)
 ```
 
 The adapter automatically maps language tags to Google BCP-47 codes such as `hi-IN`, `ta-IN`, `te-IN`, `bn-IN`, `mr-IN`, `pa-guru-IN`, and `en-IN`. Because this uses an unofficial API, it is intended for PoCs and local testing rather than high-throughput production workloads.
+The extra installs PyAV to decode compressed audio such as MP3, FLAC, and OGG. Raw PCM must be mono, signed 16-bit audio; provide its actual sample rate. Set `GOOGLE_FREE_STT_DEFAULT_LANGUAGE` to choose the language used when a request omits one.
 
 ## Faster-Whisper
 
 The Faster-Whisper adapter (`faster_whisper`) provides local, offline speech recognition powered by `faster-whisper` and CTranslate2.
+Its timeout covers model loading and each transcription attempt. A timed-out call stops waiting, but an already running model operation may finish in the background; its concurrency slot remains occupied until then.
 
 Install the optional extra:
 
