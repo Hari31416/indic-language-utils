@@ -12,7 +12,9 @@ Before starting a release, verify:
 
 ## 1. Version Bumping
 
-Determine the target version adhering to Semantic Versioning (`MAJOR.MINOR.PATCH`).
+Determine the target version. For a beta release, use a PEP 440 version such as
+`0.6.0b1` and tag it `v0.6.0b1`. Keep the same version in the package, lockfile,
+workbench, and changelog.
 
 Update the version number across the following files:
 
@@ -88,6 +90,17 @@ Validate that source distributions and wheels build cleanly:
 uv build
 ```
 
+Inspect the source archive before publishing. It must not contain local installed
+dependencies, generated web assets, bytecode, or credentials:
+
+```bash
+tar -tzf dist/indic_language_utils-X.Y.Z.tar.gz | rg 'node_modules|web/dist|\.pyc$|/\.env$'
+```
+
+The command should print no matches. Run `uv audit --locked` and review every
+finding, including optional extras. Resolve known vulnerabilities or record why
+an affected extra will not ship in this release.
+
 ### Automated Tag and Changelog Match Check
 
 Validate that the release check script used in `.github/workflows/publish.yml` succeeds:
@@ -113,11 +126,7 @@ Once all verification steps pass:
 
 ### Stage and Commit
 
-Stage only release metadata and documentation files:
-
-```bash
-git add pyproject.toml web/package.json web/src/App.tsx uv.lock CHANGELOG.md
-```
+Stage only the reviewed release changes with `git add` and their explicit paths.
 
 Commit using conventional commit format:
 

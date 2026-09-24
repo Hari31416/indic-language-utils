@@ -9,7 +9,7 @@ Provider-neutral foundations for Indian language operations in Python.
 - Provider Neutrality: Code against high-level capability interfaces. Swap, configure, or chain providers without changing text processing or domain code.
 - Text Translation: Translate plain text or complex Markdown documents across 22 scheduled Indian languages and English.
 - Text Language Detection: Identify languages using offline FastText classification (`lid.176.ftz`) or cloud inference pipelines via Bhashini.
-- Transliteration: Convert between Roman script and native Indic scripts via Bhashini or AI4Bharat IndicXlit.
+- Transliteration: Convert between Roman script and native Indic scripts via Bhashini or Aksharamukha.
 - Speech to text: Transcribe audio with Bhashini, Sarvam, local Faster-Whisper, or keyless Google Speech.
 - Text to speech: Generate audio with Bhashini, Sarvam, or Edge TTS and pass model-specific voice settings.
 - Script Identification: Fast, zero-dependency Unicode script identification across 12+ Indic scripts and Latin.
@@ -33,7 +33,6 @@ Bhashini configuration, and the first detection and translation calls.
 | **Aksharamukha**     | Transliteration (120+ scripts)          | Offline / Local    | `[local-transliteration]` extra |
 | **Bhashini**         | Translation, Detection, Transliteration, STT, TTS | Cloud API          | API key, Endpoint, Service ID |
 | **Sarvam AI**        | Translation, Detection, STT, TTS        | Cloud API          | API key (`SARVAM_API_KEY`)    |
-| **AI4Bharat IndicXlit** | Transliteration                      | Offline / Local    | `[neural-transliteration]` extra |
 | **FastText**         | Text Language Detection                 | Offline / Local    | `[local-tld]` extra           |
 | **Faster-Whisper**   | Speech to text                          | Offline / Local    | `[stt-whisper]` extra         |
 | **Google Free STT**  | Speech to text                          | Cloud (unofficial) | `[stt-google-free]` extra     |
@@ -76,7 +75,7 @@ max_concurrency = 8
 [routes]
 translation = ["sarvam", "bhashini", "googletrans"]
 text_language_detection = ["sarvam", "bhashini", "fasttext"]
-transliteration = ["bhashini", "indicxlit"]
+transliteration = ["bhashini", "aksharamukha"]
 speech_to_text = ["bhashini", "sarvam", "google_free", "faster_whisper"]
 text_to_speech = ["bhashini", "sarvam", "edge_tts"]
 ```

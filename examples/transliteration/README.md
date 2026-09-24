@@ -6,7 +6,7 @@ This directory provides runnable examples of script transliteration using `indic
 
 - [aksharamukha_demo.py](aksharamukha_demo.py) - Lightweight, pure-Python script-to-script and Romanization conversion using Aksharamukha.
 - [bhashini_demo.py](bhashini_demo.py) - Cloud-based transliteration using the Government of India Bhashini ecosystem.
-- [indicxlit_demo.py](indicxlit_demo.py) - Offline, local transliteration using AI4Bharat IndicXlit.
+- [indicxlit_demo.py](indicxlit_demo.py) - Offline AI4Bharat IndicXlit example for an existing, separately managed installation. The beta omits its install extra because upstream dependencies have known vulnerabilities.
 - [multi_service_demo.py](multi_service_demo.py) - Resilient multi-provider routing with automatic failover, single-flight deduplication, and caching.
 
 ## Prerequisites
@@ -38,7 +38,7 @@ Run the Bhashini cloud transliteration demo (uses mock fallback if credentials a
 uv run --env-file .env python examples/transliteration/bhashini_demo.py
 ```
 
-Run the IndicXlit local transliteration demo:
+If you already manage an IndicXlit installation separately, run its local demo:
 
 ```bash
 uv run python examples/transliteration/indicxlit_demo.py

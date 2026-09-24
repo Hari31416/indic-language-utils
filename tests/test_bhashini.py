@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -10,13 +11,16 @@ from indic_language_utils.config import Secret, Settings
 from indic_language_utils.errors import (
     AuthenticationError,
     ConfigurationError,
+    InvalidInputError,
     MalformedProviderResponseError,
     UnsupportedLanguagePairError,
 )
 from indic_language_utils.languages import DEFAULT_LANGUAGE_REGISTRY
+from indic_language_utils.providers.base import CapabilityId
 from indic_language_utils.providers.bhashini import (
     BhashiniConfig,
     JsonResponse,
+    _raise_bhashini_status,
     bhashini_language_code,
 )
 from indic_language_utils.retry import RetryPolicy
@@ -72,6 +76,16 @@ def config() -> BhashiniConfig:
         "configured-service",
         retry_policy=RetryPolicy(max_attempts=2, base_delay=0, max_delay=0, jitter=0),
     )
+
+
+def test_bhashini_error_log_omits_provider_response(caplog: pytest.LogCaptureFixture) -> None:
+    response = JsonResponse(400, {"message": "invalid service", "input": "private source text"})
+    with (
+        caplog.at_level(logging.WARNING),
+        pytest.raises(InvalidInputError, match="invalid service"),
+    ):
+        _raise_bhashini_status("bhashini", CapabilityId.TRANSLATION, response, "request")
+    assert "private source text" not in caplog.text
 
 
 @pytest.mark.asyncio

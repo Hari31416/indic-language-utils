@@ -9,7 +9,7 @@ Choose an adapter by capability, dependency, and credential. A configured route 
 | `googletrans`    | Yes         | No        | No              | No  | No  | `[googletrans]` extra; unofficial online adapter     |
 | `fasttext`       | No          | Yes       | No              | No  | No  | `[local-tld]` extra; local model                     |
 | `aksharamukha`   | No          | No        | Yes             | No  | No  | `[local-transliteration]` extra                      |
-| `indicxlit`      | No          | No        | Yes             | No  | No  | `[neural-transliteration]` extra; local model        |
+| `indicxlit`      | No          | No        | Yes             | No  | No  | Adapter retained; install extra omitted from beta   |
 | `google_free`    | No          | No        | No              | Yes | No  | `[stt-google-free]` extra; unofficial online adapter |
 | `faster_whisper` | No          | No        | No              | Yes | No  | `[stt-whisper]` extra; local model                   |
 | `edge_tts`       | No          | No        | No              | No  | Yes | `[tts-edge]` extra; unofficial online adapter        |

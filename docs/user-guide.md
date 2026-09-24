@@ -16,7 +16,7 @@ The system decouples application code from concrete provider APIs through four c
 The library currently supports the following capabilities:
 
 - Text Translation: Translates plain text or structured Markdown across 22 scheduled Indian languages and English, with support for batching, best-effort recovery, and localization catalogs.
-- Text Transliteration: Converts phonetic or Romanized text to native Indic scripts and native scripts to Romanized forms across 22+ languages using Bhashini and IndicXlit.
+- Text Transliteration: Converts phonetic or Romanized text to native Indic scripts and native scripts to Romanized forms using Bhashini and Aksharamukha.
 - Text Language Detection: Identifies languages across short and long texts using local FastText models or cloud inference pipelines.
 - Script Identification: Analyzes Unicode code points to detect 12+ Indic scripts and Latin without external dependencies.
 - Multi-Provider Routing: Routes requests sequentially across an ordered list of providers, falling back when primary services fail.
@@ -36,7 +36,7 @@ The system provides built-in adapters for multiple local and cloud providers:
 
 - Bhashini: Official Government of India ecosystem providing neural translation (IndicTrans2), text language detection, and transliteration via pipeline inference endpoints. Requires an API key and service identifiers.
 - Aksharamukha: Lightweight, offline, pure-Python transliteration engine supporting 120+ scripts, cross-Indic script conversions, and standardized Romanization schemes.
-- IndicXlit: Offline neural transliteration engine powered by AI4Bharat's IndicXlit model family for Roman-to-Indic and Indic-to-Roman script conversions.
+- IndicXlit: The adapter remains in the codebase, but its install extra is omitted from this beta because upstream dependencies have known vulnerabilities.
 - FastText: Offline, high-speed language detection using Facebook's compressed language identification model (`lid.176.ftz`). Requires no network access or credentials.
 - Google Translate: Unofficial translation adapter powered by `googletrans`, useful for local development and testing without credentials.
 
@@ -182,7 +182,7 @@ Routers evaluate provider candidates in configured order. When a primary provide
 ```toml
 [routes]
 translation = ["bhashini", "googletrans"]
-transliteration = ["bhashini", "indicxlit"]
+transliteration = ["bhashini", "aksharamukha"]
 text_language_detection = ["bhashini", "fasttext"]
 ```
 

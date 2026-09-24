@@ -9,7 +9,7 @@ In Indian digital communication, text is frequently written phonetically using t
 The library supports two transliteration adapters:
 
 - **Bhashini**: Cloud transliteration via Government of India ULCA pipeline endpoints (`taskType="transliteration"`).
-- **AI4Bharat IndicXlit**: Local offline model inference for 21 scheduled Indic languages, available through the `[neural-transliteration]` extra.
+- **AI4Bharat IndicXlit**: The adapter remains in the codebase, but this beta omits its install extra because upstream dependencies have known vulnerabilities.
 
 ## Quick Start
 
@@ -176,11 +176,10 @@ asyncio.run(run_aksharamukha())
 
 ### AI4Bharat IndicXlit (Neural Model)
 
-For neural transformer-based transliteration, install the `neural-transliteration` extra:
-
-```bash
-pip install 'indic-language-utils[neural-transliteration]'
-```
+The beta does not include an install extra for this adapter. The following example
+requires an existing, separately managed AI4Bharat IndicXlit installation. Its
+dependency stack has known vulnerabilities and is not part of this beta's tested
+install paths.
 
 ```python
 import asyncio

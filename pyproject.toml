@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "indic-language-utils"
-version = "0.5.0"
+version = "0.6.0b1"
 description = "Provider-neutral foundations for Indian language applications"
 readme = "README.md"
 requires-python = ">=3.11,<3.13"
@@ -12,7 +12,7 @@ license = { file = "LICENSE" }
 authors = [{ name = "indic-language-utils contributors" }]
 keywords = ["indic", "language", "translation", "speech"]
 classifiers = [
-  "Development Status :: 2 - Pre-Alpha",
+  "Development Status :: 4 - Beta",
   "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.11",
@@ -25,7 +25,6 @@ dependencies = ["httpx>=0.28,<1"]
 googletrans = ["googletrans>=4.0.2"]
 local-tld = ["fasttext-langdetect>=1.1.1"]
 local-transliteration = ["aksharamukha>=2.0.0"]
-neural-transliteration = ["ai4bharat-transliteration>=0.1.0"]
 server = ["fastapi>=0.115.0", "uvicorn[standard]>=0.34.0"]
 stt = ["SpeechRecognition>=3.10.0", "faster-whisper>=1.0.0", "av>=12"]
 stt-google-free = ["SpeechRecognition>=3.10.0", "av>=12"]
@@ -62,6 +61,20 @@ docs = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/indic_language_utils"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/src/indic_language_utils",
+  "/tests",
+  "/docs",
+  "/examples",
+  "/README.md",
+  "/CHANGELOG.md",
+  "/RELEASING.md",
+  "/LICENSE",
+  "/mkdocs.yml",
+  "/pyproject.toml",
+]
 
 [tool.pytest.ini_options]
 addopts = "-ra --strict-markers --strict-config"

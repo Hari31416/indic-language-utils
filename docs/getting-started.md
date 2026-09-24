@@ -30,9 +30,6 @@ extras required by your application:
 # Offline pure-Python Aksharamukha transliteration
 pip install "indic-language-utils[local-transliteration]"
 
-# Offline neural AI4Bharat IndicXlit transliteration
-pip install "indic-language-utils[neural-transliteration]"
-
 # Unofficial Google Translate adapter
 pip install "indic-language-utils[googletrans]"
 

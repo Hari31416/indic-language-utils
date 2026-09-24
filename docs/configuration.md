@@ -75,7 +75,7 @@ max_concurrency = 8
 [routes]
 translation = ["sarvam", "bhashini", "googletrans"]
 text_language_detection = ["sarvam", "bhashini", "fasttext"]
-transliteration = ["bhashini", "indicxlit"]
+transliteration = ["bhashini", "aksharamukha"]
 speech_to_text = ["bhashini", "sarvam"]
 text_to_speech = ["bhashini", "sarvam"]
 ```

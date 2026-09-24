@@ -40,10 +40,24 @@ jobs:
           fi
 
       - name: Run Tests
-        run: uv run pytest
+        run: |
+          uv sync --locked --dev
+          uv audit --locked
+          uv run ruff format --check .
+          uv run ruff check .
+          uv run mypy
+          uv run pytest
 
       - name: Build Package
         run: uv build
+
+      - name: Test the built wheel
+        run: |
+          wheel_venv="$(mktemp -d)/venv"
+          uv venv "$wheel_venv"
+          uv pip install --python "$wheel_venv/bin/python" dist/indic_language_utils-*.whl
+          cd /tmp
+          EXPECTED_VERSION="${GITHUB_REF_NAME#v}" "$wheel_venv/bin/python" -c 'import os; import indic_language_utils; assert indic_language_utils.__version__ == os.environ["EXPECTED_VERSION"]'
 
       - name: Extract Changelog Section
         id: extract_changelog
@@ -54,28 +68,26 @@ jobs:
           from pathlib import Path
 
           changelog = Path("CHANGELOG.md").read_text(encoding="utf-8")
-          tag = "${{ github.ref_name }}".lstrip("v")
+          tag = os.environ["GITHUB_REF_NAME"].removeprefix("v")
           pattern = rf"##\s+\[{re.escape(tag)}\][\s\S]*?(?=\n##\s+\[|\Z)"
           match = re.search(pattern, changelog)
-          if match:
-              content = match.group(0).strip()
-              content_lines = content.split("\n")[1:]
-              body = "\n".join(content_lines).strip()
-              with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
-                  f.write("body<<EOF\n")
-                  f.write(body + "\n")
-                  f.write("EOF\n")
-          else:
-              with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
-                  f.write("body=No changelog entry found for this version.\n")
+          if match is None:
+              raise SystemExit(f"Missing changelog entry for {tag}")
+          body = "\n".join(match.group(0).strip().split("\n")[1:]).strip()
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
+              f.write("body<<EOF\n")
+              f.write(body + "\n")
+              f.write("EOF\n")
           '
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             dist/*.whl
             dist/*.tar.gz
+          fail_on_unmatched_files: true
+          prerelease: ${{ contains(github.ref_name, 'a') || contains(github.ref_name, 'b') || contains(github.ref_name, 'rc') }}
           body: ${{ steps.extract_changelog.outputs.body }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

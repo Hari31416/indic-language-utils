@@ -5,6 +5,27 @@ All notable changes to the `indic-language-utils` project will be documented in 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0b1] - 2026-09-24
+
+### Added
+- Per-request model and service ID overrides for translation, transliteration, detection, STT, and TTS in the demo API.
+- Workbench settings for provider API keys and endpoints, plus model presets, voice controls, audio input, searchable language listings, and recent runs.
+- A model and voice reference covering Bhashini service IDs, Sarvam speaker presets, and Edge TTS voices.
+
+### Changed
+- Refreshed the workbench layout and provider controls, including Bhashini Bodhan ASR and Sarvam Bulbul voice presets.
+- Omit the `neural-transliteration` install extra from this beta while its upstream dependency stack has known vulnerabilities. The adapter remains available to existing installations with separately managed dependencies.
+
+### Fixed
+- Google Free STT now decodes compressed audio before transcription, rejects invalid audio instead of treating it as PCM, and uses the configured default language.
+- Faster-Whisper loads models outside the event loop and enforces timeouts without starting overlapping retries.
+- STT client setup now reports missing optional dependencies and invalid provider settings instead of silently skipping them.
+- Bhashini errors now include useful upstream details even when the response is plain text.
+- Bhashini failure logs no longer print entire provider response bodies, which may contain request data.
+- GitHub releases attach only wheel and source archives.
+- Exclude local web dependencies and generated files from the Python source distribution.
+- Fail tagged releases when the changelog entry is missing, and run dependency audit, format, lint, type, test, and wheel checks before publishing.
+
 ## [0.5.0] - 2026-09-24
 
 ### Added

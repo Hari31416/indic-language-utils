@@ -314,9 +314,7 @@ def _raise_bhashini_status(
 ) -> None:
     if response.status_code < 400:
         return
-    logger.warning(
-        "Bhashini request failed with status %d: %s", response.status_code, response.data
-    )
+    logger.warning("Bhashini request failed with status %d", response.status_code)
     detail = _extract_bhashini_error_message(response.data, response.status_code)
     fallback_tag = f"HTTP {response.status_code}"
     if response.status_code == 401:
