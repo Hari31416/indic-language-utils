@@ -25,6 +25,7 @@ Explore the comprehensive documentation guides:
 
 - [Installation and quick start](getting-started.md): Provider setup and first calls.
 - [Provider reference](provider-reference.md): Capability matrix, setup requirements, routing, and fallback behavior.
+- [Models and voices](models-and-voices.md): Catalog of models, service IDs, voice identifiers, and parameters.
 - [User Guide](user-guide.md): Architecture overview, core capabilities, provider matrix, and usage levels.
 - [Translation](translation.md): Synchronous and asynchronous translation, batching, Markdown preservation, and catalogs.
 - [Detection](detection.md): Local FastText and cloud Bhashini language detection, script analysis, and candidate scoring.

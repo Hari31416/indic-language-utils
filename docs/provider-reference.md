@@ -2,17 +2,17 @@
 
 Choose an adapter by capability, dependency, and credential. A configured route tries providers in order. Each provider still has its own language and model limits, so consult its guide before depending on a fallback.
 
-| Provider ID | Translation | Detection | Transliteration | STT | TTS | Setup |
-| --- | --- | --- | --- | --- | --- | --- |
-| `bhashini` | Yes | Yes | Yes | Yes | Yes | API key, endpoint, capability service IDs |
-| `sarvam` | Yes | Yes | No | Yes | Yes | `SARVAM_API_KEY`; STT/TTS model IDs |
-| `googletrans` | Yes | No | No | No | No | `[googletrans]` extra; unofficial online adapter |
-| `fasttext` | No | Yes | No | No | No | `[local-tld]` extra; local model |
-| `aksharamukha` | No | No | Yes | No | No | `[local-transliteration]` extra |
-| `indicxlit` | No | No | Yes | No | No | `[neural-transliteration]` extra; local model |
-| `google_free` | No | No | No | Yes | No | `[stt-google-free]` extra; unofficial online adapter |
-| `faster_whisper` | No | No | No | Yes | No | `[stt-whisper]` extra; local model |
-| `edge_tts` | No | No | No | No | Yes | `[tts-edge]` extra; unofficial online adapter |
+| Provider ID      | Translation | Detection | Transliteration | STT | TTS | Setup                                                |
+| ---------------- | ----------- | --------- | --------------- | --- | --- | ---------------------------------------------------- |
+| `bhashini`       | Yes         | Yes       | Yes             | Yes | Yes | API key, endpoint, capability service IDs            |
+| `sarvam`         | Yes         | Yes       | No              | Yes | Yes | `SARVAM_API_KEY`; STT/TTS model IDs                  |
+| `googletrans`    | Yes         | No        | No              | No  | No  | `[googletrans]` extra; unofficial online adapter     |
+| `fasttext`       | No          | Yes       | No              | No  | No  | `[local-tld]` extra; local model                     |
+| `aksharamukha`   | No          | No        | Yes             | No  | No  | `[local-transliteration]` extra                      |
+| `indicxlit`      | No          | No        | Yes             | No  | No  | `[neural-transliteration]` extra; local model        |
+| `google_free`    | No          | No        | No              | Yes | No  | `[stt-google-free]` extra; unofficial online adapter |
+| `faster_whisper` | No          | No        | No              | Yes | No  | `[stt-whisper]` extra; local model                   |
+| `edge_tts`       | No          | No        | No              | No  | Yes | `[tts-edge]` extra; unofficial online adapter        |
 
 ## Routing and errors
 
@@ -30,7 +30,7 @@ TTS options are provider-specific. `TTSOptions.parameters` applies to the first 
 ## Before integrating
 
 - Install only the extras your route needs. Local model adapters may download or load model files on first use.
-- Verify a provider's supported languages and its model version. The registry normalizes language tags, but it does not make every model support every language.
+- Verify a provider's supported languages and its model version. See the [Models and voices reference](models-and-voices.md) for a catalog of model IDs, service IDs, neural voices, and parameters.
 - Use `async with get_translation_client()`, `get_stt_client()`, or the matching client factory when making repeated calls. This closes network resources after use.
 - Inspect `result.provider`, `model_id`, and `fallback_count` where available to see which engine produced the result.
 - The demo workbench's web assets are built from a source checkout. They are not part of the Python wheel.
