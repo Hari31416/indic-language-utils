@@ -17,12 +17,18 @@ from indic_language_utils import (
     get_transliteration_client,
     get_tts_client,
 )
+from indic_language_utils.cache import MemoryCache
 from indic_language_utils.errors import ConfigurationError
 from indic_language_utils.models import ProviderIdentity
+from indic_language_utils.translation import (
+    DefaultTranslationStructureProcessor,
+    TranslationProcessorPipeline,
+    TranslationResult,
+)
 
 from .test_detection_client import FakeDetectionProvider
 from .test_transliteration_helpers import DummyTransliterationProvider
-from .translation_support import FakeTranslationProvider
+from .translation_support import FakeTranslationProvider, PrefixProcessor
 
 
 def test_translation_factory_combines_builtin_and_custom_in_configured_order() -> None:
@@ -95,3 +101,20 @@ def test_duplicate_additional_provider_name_is_rejected() -> None:
             providers=[FakeTranslationProvider("duplicate")],
             additional_providers=[FakeTranslationProvider("duplicate")],
         )
+
+
+@pytest.mark.asyncio
+async def test_factory_passes_custom_processors_and_cache() -> None:
+    provider = FakeTranslationProvider(transform=lambda text: text)
+    cache: MemoryCache[TranslationResult] = MemoryCache()
+    processors = TranslationProcessorPipeline(
+        DefaultTranslationStructureProcessor(), (PrefixProcessor(),)
+    )
+    async with get_translation_client(
+        providers=[provider], cache=cache, processors=processors, env={}
+    ) as client:
+        first = await client.translate("hello", "en", "hi")
+        second = await client.translate("hello", "en", "hi")
+    assert first.text == "hello"
+    assert second.cache.hit
+    assert provider.calls == [("X:hello",)]

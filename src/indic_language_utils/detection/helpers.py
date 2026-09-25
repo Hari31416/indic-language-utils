@@ -6,10 +6,12 @@ import asyncio
 import os
 from collections.abc import Mapping, Sequence
 
+from ..cache import AsyncCache, CacheKeyBuilder
 from ..config import Settings
 from ..providers import CapabilityId, ProviderRegistry
 from ..providers.factories import ProviderFactoryRegistry, configured_provider_factories
 from ..routing import OrderedRouter
+from ..telemetry import EventLogger, MetricHook, TraceHook
 from .cache import create_detection_cache
 from .client import DetectionClient
 from .models import DetectionOptions, DetectionResult
@@ -24,6 +26,11 @@ def get_detection_client(
     additional_providers: Sequence[DetectionProvider] = (),
     provider_factories: ProviderFactoryRegistry | None = None,
     env: Mapping[str, str] | None = None,
+    cache: AsyncCache[DetectionResult] | None = None,
+    cache_keys: CacheKeyBuilder | None = None,
+    logger: EventLogger | None = None,
+    metrics: MetricHook | None = None,
+    tracing: TraceHook | None = None,
 ) -> DetectionClient:
     """Build and configure a DetectionClient with providers, routes, and cache."""
     use_configured_routes = providers is None or settings is not None
@@ -66,8 +73,15 @@ def get_detection_client(
             routes[CapabilityId.TEXT_LANGUAGE_DETECTION] = detect_providers
 
     router = OrderedRouter(registry, routes)
-    cache = create_detection_cache(settings.cache)
-    return DetectionClient(router=router, cache=cache)
+    selected_cache = cache if cache is not None else create_detection_cache(settings.cache)
+    return DetectionClient(
+        router=router,
+        cache=selected_cache,
+        cache_keys=cache_keys,
+        logger=logger,
+        metrics=metrics,
+        tracing=tracing,
+    )
 
 
 def get_sync_detection_client(
@@ -77,6 +91,11 @@ def get_sync_detection_client(
     additional_providers: Sequence[DetectionProvider] = (),
     provider_factories: ProviderFactoryRegistry | None = None,
     env: Mapping[str, str] | None = None,
+    cache: AsyncCache[DetectionResult] | None = None,
+    cache_keys: CacheKeyBuilder | None = None,
+    logger: EventLogger | None = None,
+    metrics: MetricHook | None = None,
+    tracing: TraceHook | None = None,
 ) -> SyncDetectionClient:
     """Build and configure a synchronous DetectionClient facade."""
     return SyncDetectionClient(
@@ -86,6 +105,11 @@ def get_sync_detection_client(
             additional_providers=additional_providers,
             provider_factories=provider_factories,
             env=env,
+            cache=cache,
+            cache_keys=cache_keys,
+            logger=logger,
+            metrics=metrics,
+            tracing=tracing,
         )
     )
 

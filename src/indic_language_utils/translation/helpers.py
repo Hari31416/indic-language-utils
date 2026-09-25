@@ -6,15 +6,19 @@ import asyncio
 import os
 from collections.abc import Mapping, Sequence
 
+from ..cache import AsyncCache, CacheKeyBuilder
 from ..config import Settings
 from ..errors import InvalidInputError
 from ..languages import LanguageRegistry, LanguageTag
 from ..providers import CapabilityId, ProviderRegistry
 from ..providers.factories import ProviderFactoryRegistry, configured_provider_factories
 from ..routing import OrderedRouter
+from ..telemetry import EventLogger, MetricHook, TraceHook
 from .cache import create_translation_cache
+from .catalog import LocalizationCatalog
 from .client import TranslationClient
 from .models import TranslationOptions, TranslationResult
+from .processing import TranslationProcessorPipeline
 from .protocols import TranslationProvider
 from .sync import SyncTranslationClient
 
@@ -27,6 +31,13 @@ def get_translation_client(
     provider_factories: ProviderFactoryRegistry | None = None,
     env: Mapping[str, str] | None = None,
     language_registry: LanguageRegistry | None = None,
+    cache: AsyncCache[TranslationResult] | None = None,
+    cache_keys: CacheKeyBuilder | None = None,
+    catalog: LocalizationCatalog | None = None,
+    logger: EventLogger | None = None,
+    metrics: MetricHook | None = None,
+    tracing: TraceHook | None = None,
+    processors: TranslationProcessorPipeline | None = None,
 ) -> TranslationClient:
     """Build and configure a TranslationClient with providers, routes, and cache.
 
@@ -88,8 +99,22 @@ def get_translation_client(
             routes[CapabilityId.TRANSLATION] = trans_providers
 
     router = OrderedRouter(registry, routes)
-    cache = create_translation_cache(settings.cache, language_registry=language_registry)
-    return TranslationClient(router=router, cache=cache, language_registry=language_registry)
+    selected_cache = (
+        cache
+        if cache is not None
+        else create_translation_cache(settings.cache, language_registry=language_registry)
+    )
+    return TranslationClient(
+        router=router,
+        cache=selected_cache,
+        cache_keys=cache_keys,
+        catalog=catalog,
+        logger=logger,
+        metrics=metrics,
+        tracing=tracing,
+        processors=processors,
+        language_registry=language_registry,
+    )
 
 
 def get_sync_translation_client(
@@ -100,6 +125,13 @@ def get_sync_translation_client(
     provider_factories: ProviderFactoryRegistry | None = None,
     env: Mapping[str, str] | None = None,
     language_registry: LanguageRegistry | None = None,
+    cache: AsyncCache[TranslationResult] | None = None,
+    cache_keys: CacheKeyBuilder | None = None,
+    catalog: LocalizationCatalog | None = None,
+    logger: EventLogger | None = None,
+    metrics: MetricHook | None = None,
+    tracing: TraceHook | None = None,
+    processors: TranslationProcessorPipeline | None = None,
 ) -> SyncTranslationClient:
     """Build and configure a synchronous TranslationClient facade."""
     return SyncTranslationClient(
@@ -110,6 +142,13 @@ def get_sync_translation_client(
             provider_factories=provider_factories,
             env=env,
             language_registry=language_registry,
+            cache=cache,
+            cache_keys=cache_keys,
+            catalog=catalog,
+            logger=logger,
+            metrics=metrics,
+            tracing=tracing,
+            processors=processors,
         )
     )
 
