@@ -8,7 +8,7 @@ from collections.abc import Mapping, Sequence
 
 from ..config import Settings
 from ..errors import InvalidInputError
-from ..languages import LanguageTag
+from ..languages import LanguageRegistry, LanguageTag
 from ..providers import CapabilityId, ProviderRegistry
 from ..providers.factories import ProviderFactoryRegistry, configured_provider_factories
 from ..routing import OrderedRouter
@@ -26,6 +26,7 @@ def get_translation_client(
     additional_providers: Sequence[TranslationProvider] = (),
     provider_factories: ProviderFactoryRegistry | None = None,
     env: Mapping[str, str] | None = None,
+    language_registry: LanguageRegistry | None = None,
 ) -> TranslationClient:
     """Build and configure a TranslationClient with providers, routes, and cache.
 
@@ -87,8 +88,8 @@ def get_translation_client(
             routes[CapabilityId.TRANSLATION] = trans_providers
 
     router = OrderedRouter(registry, routes)
-    cache = create_translation_cache(settings.cache)
-    return TranslationClient(router=router, cache=cache)
+    cache = create_translation_cache(settings.cache, language_registry=language_registry)
+    return TranslationClient(router=router, cache=cache, language_registry=language_registry)
 
 
 def get_sync_translation_client(
@@ -98,6 +99,7 @@ def get_sync_translation_client(
     additional_providers: Sequence[TranslationProvider] = (),
     provider_factories: ProviderFactoryRegistry | None = None,
     env: Mapping[str, str] | None = None,
+    language_registry: LanguageRegistry | None = None,
 ) -> SyncTranslationClient:
     """Build and configure a synchronous TranslationClient facade."""
     return SyncTranslationClient(
@@ -107,6 +109,7 @@ def get_sync_translation_client(
             additional_providers=additional_providers,
             provider_factories=provider_factories,
             env=env,
+            language_registry=language_registry,
         )
     )
 

@@ -7,7 +7,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
 
-from ..languages import DEFAULT_LANGUAGE_REGISTRY, LanguageTag
+from ..languages import DEFAULT_LANGUAGE_REGISTRY, LanguageRegistry, LanguageTag
 from ..models import OperationContext
 
 _RESERVED_PARAMETERS = {"serviceId", "language"}
@@ -62,12 +62,18 @@ class TTSRequest:
         language: LanguageTag | str | None = None,
         options: TTSOptions | None = None,
         context: OperationContext | None = None,
+        *,
+        language_registry: LanguageRegistry | None = None,
     ) -> None:
         if not isinstance(text, str) or not text.strip():
             raise ValueError("TTS text cannot be empty")
         object.__setattr__(self, "text", text)
         object.__setattr__(
-            self, "language", DEFAULT_LANGUAGE_REGISTRY.normalize(language) if language else None
+            self,
+            "language",
+            (language_registry or DEFAULT_LANGUAGE_REGISTRY).normalize(language)
+            if language
+            else None,
         )
         object.__setattr__(self, "options", options or TTSOptions())
         object.__setattr__(self, "context", context or OperationContext())

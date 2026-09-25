@@ -6,6 +6,7 @@ import os
 from collections.abc import Mapping, Sequence
 
 from ..config import Settings
+from ..languages import LanguageRegistry
 from ..providers import CapabilityId, ProviderRegistry
 from ..providers.factories import ProviderFactoryRegistry, configured_provider_factories
 from ..routing import OrderedRouter
@@ -20,6 +21,7 @@ def get_stt_client(
     additional_providers: Sequence[STTProvider] = (),
     provider_factories: ProviderFactoryRegistry | None = None,
     env: Mapping[str, str] | None = None,
+    language_registry: LanguageRegistry | None = None,
 ) -> STTClient:
     use_configured_routes = providers is None or settings is not None
     settings = settings or Settings.load(env=env)
@@ -45,4 +47,4 @@ def get_stt_client(
     )
     route = tuple(name for name in configured_route if name in default_route)
     router = OrderedRouter(registry, {CapabilityId.SPEECH_TO_TEXT: route})
-    return STTClient(router)
+    return STTClient(router, language_registry=language_registry)

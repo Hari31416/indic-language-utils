@@ -14,7 +14,7 @@ from ..errors import (
     TransientProviderError,
     UnsupportedLanguageError,
 )
-from ..languages import DEFAULT_LANGUAGE_REGISTRY, LanguageTag
+from ..languages import DEFAULT_LANGUAGE_REGISTRY, LanguageRegistry, LanguageTag
 from ..models import OperationContext
 from ..providers import AsyncLifecycle, CapabilityId, ResourceManager
 from ..routing import OrderedRouter, RouteRequirement
@@ -32,8 +32,11 @@ _FALLBACK_ERRORS = (
 
 
 class TTSClient:
-    def __init__(self, router: OrderedRouter) -> None:
+    def __init__(
+        self, router: OrderedRouter, *, language_registry: LanguageRegistry | None = None
+    ) -> None:
         self._router = router
+        self._language_registry = language_registry or DEFAULT_LANGUAGE_REGISTRY
         self._resources: ResourceManager | None = None
 
     @property
@@ -72,7 +75,7 @@ class TTSClient:
         model_id: str | None = None,
     ) -> AsyncIterator[TTSStream]:
         """Open a live text-input, audio-output session."""
-        tag = DEFAULT_LANGUAGE_REGISTRY.normalize(language)
+        tag = self._language_registry.normalize(language)
         candidates = self._router.candidates(
             RouteRequirement(CapabilityId.TEXT_TO_SPEECH, source=tag)
         )
@@ -103,7 +106,11 @@ class TTSClient:
         language: LanguageTag | str | None = None,
         options: TTSOptions | None = None,
     ) -> TTSResult:
-        request = text if isinstance(text, TTSRequest) else TTSRequest(text, language, options)
+        request = (
+            text
+            if isinstance(text, TTSRequest)
+            else TTSRequest(text, language, options, language_registry=self._language_registry)
+        )
         return (await self.synthesize_batch((request,)))[0]
 
     async def synthesize_batch(self, requests: Sequence[TTSRequest]) -> tuple[TTSResult, ...]:

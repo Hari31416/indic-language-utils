@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import StrEnum
 
-from ..languages import DEFAULT_LANGUAGE_REGISTRY, LanguageTag
+from ..languages import DEFAULT_LANGUAGE_REGISTRY, LanguageRegistry, LanguageTag
 from ..models import CacheMetadata, OperationContext, WarningInfo
 
 
@@ -44,15 +44,14 @@ class TranslationRequest:
         options: TranslationOptions | None = None,
         context: OperationContext | None = None,
         message_id: str | None = None,
+        *,
+        language_registry: LanguageRegistry | None = None,
     ) -> None:
         if not text:
             raise ValueError("Translation text cannot be empty")
-        norm_source = (
-            DEFAULT_LANGUAGE_REGISTRY.normalize(source) if isinstance(source, str) else source
-        )
-        norm_target = (
-            DEFAULT_LANGUAGE_REGISTRY.normalize(target) if isinstance(target, str) else target
-        )
+        registry = language_registry or DEFAULT_LANGUAGE_REGISTRY
+        norm_source = registry.normalize(source) if isinstance(source, str) else source
+        norm_target = registry.normalize(target) if isinstance(target, str) else target
         object.__setattr__(self, "text", text)
         object.__setattr__(self, "source", norm_source)
         object.__setattr__(self, "target", norm_target)

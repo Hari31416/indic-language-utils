@@ -16,7 +16,7 @@ from ..errors import (
     RateLimitError,
     TransientProviderError,
 )
-from ..languages import LanguageTag
+from ..languages import DEFAULT_LANGUAGE_REGISTRY, LanguageRegistry, LanguageTag
 from ..models import CacheMetadata, OperationContext, WarningInfo
 from ..providers import AsyncLifecycle, CapabilityId, ResourceManager
 from ..routing import OrderedRouter, RouteRequirement
@@ -48,8 +48,10 @@ class TransliterationClient:
         logger: EventLogger | None = None,
         metrics: MetricHook | None = None,
         tracing: TraceHook | None = None,
+        language_registry: LanguageRegistry | None = None,
     ) -> None:
         self._router = router
+        self._language_registry = language_registry or DEFAULT_LANGUAGE_REGISTRY
         self._cache = cache or NullCache()
         self._cache_keys = cache_keys or CacheKeyBuilder("indic-language-utils")
         self._logger = logger
@@ -114,7 +116,12 @@ class TransliterationClient:
             if source is None or target is None:
                 raise ValueError("source and target are required when providing text as string")
             request = TransliterationRequest(
-                request_or_text, source=source, target=target, options=options, context=context
+                request_or_text,
+                source=source,
+                target=target,
+                options=options,
+                context=context,
+                language_registry=self._language_registry,
             )
         return (await self.transliterate_batch((request,)))[0]
 
@@ -158,7 +165,12 @@ class TransliterationClient:
                 raise ValueError("source and target are required when providing texts as strings")
             requests = tuple(
                 TransliterationRequest(
-                    text, source=source, target=target, options=options, context=context
+                    text,
+                    source=source,
+                    target=target,
+                    options=options,
+                    context=context,
+                    language_registry=self._language_registry,
                 )
                 for text in cast(Sequence[str], requests_or_texts)
             )

@@ -13,7 +13,7 @@ from ..errors import (
     RateLimitError,
     TransientProviderError,
 )
-from ..languages import DEFAULT_LANGUAGE_REGISTRY, LanguageTag
+from ..languages import DEFAULT_LANGUAGE_REGISTRY, LanguageRegistry, LanguageTag
 from ..models import OperationContext
 from ..providers import AsyncLifecycle, CapabilityId, ResourceManager
 from ..routing import OrderedRouter, RouteRequirement
@@ -31,8 +31,11 @@ _FALLBACK_ERRORS = (
 
 
 class STTClient:
-    def __init__(self, router: OrderedRouter) -> None:
+    def __init__(
+        self, router: OrderedRouter, *, language_registry: LanguageRegistry | None = None
+    ) -> None:
         self._router = router
+        self._language_registry = language_registry or DEFAULT_LANGUAGE_REGISTRY
         self._resources: ResourceManager | None = None
 
     @property
@@ -73,7 +76,7 @@ class STTClient:
         """Open one live PCM session; the chosen provider stays fixed for its lifetime."""
         if sampling_rate <= 0:
             raise ValueError("Sampling rate must be positive")
-        tag = DEFAULT_LANGUAGE_REGISTRY.normalize(language) if language else None
+        tag = self._language_registry.normalize(language) if language else None
         candidates = self._router.candidates(
             RouteRequirement(CapabilityId.SPEECH_TO_TEXT, source=tag)
         )
@@ -105,7 +108,13 @@ class STTClient:
         if isinstance(audio, STTRequest):
             request = audio
         else:
-            request = STTRequest(audio, language, audio_format, sampling_rate)
+            request = STTRequest(
+                audio,
+                language,
+                audio_format,
+                sampling_rate,
+                language_registry=self._language_registry,
+            )
         return (await self.transcribe_batch((request,)))[0]
 
     async def transcribe_batch(self, requests: Sequence[STTRequest]) -> tuple[STTResult, ...]:
@@ -115,7 +124,7 @@ class STTClient:
         results: list[STTResult] = []
         for request in requests:
             language = (
-                DEFAULT_LANGUAGE_REGISTRY.normalize(request.language)
+                self._language_registry.normalize(request.language)
                 if request.language is not None
                 else None
             )

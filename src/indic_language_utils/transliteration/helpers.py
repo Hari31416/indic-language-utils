@@ -7,7 +7,7 @@ import os
 from collections.abc import Mapping, Sequence
 
 from ..config import Settings
-from ..languages import LanguageTag
+from ..languages import LanguageRegistry, LanguageTag
 from ..providers import CapabilityId, ProviderRegistry
 from ..providers.factories import ProviderFactoryRegistry, configured_provider_factories
 from ..routing import OrderedRouter
@@ -25,6 +25,7 @@ def get_transliteration_client(
     additional_providers: Sequence[TransliterationProvider] = (),
     provider_factories: ProviderFactoryRegistry | None = None,
     env: Mapping[str, str] | None = None,
+    language_registry: LanguageRegistry | None = None,
 ) -> TransliterationClient:
     """Build and configure a TransliterationClient with providers, routes, and cache."""
     use_configured_routes = providers is None or settings is not None
@@ -71,7 +72,7 @@ def get_transliteration_client(
 
     router = OrderedRouter(registry, routes)
     cache = create_transliteration_cache(settings.cache)
-    return TransliterationClient(router=router, cache=cache)
+    return TransliterationClient(router=router, cache=cache, language_registry=language_registry)
 
 
 def get_sync_transliteration_client(
@@ -81,6 +82,7 @@ def get_sync_transliteration_client(
     additional_providers: Sequence[TransliterationProvider] = (),
     provider_factories: ProviderFactoryRegistry | None = None,
     env: Mapping[str, str] | None = None,
+    language_registry: LanguageRegistry | None = None,
 ) -> SyncTransliterationClient:
     """Build and configure a synchronous TransliterationClient facade."""
     return SyncTransliterationClient(
@@ -90,6 +92,7 @@ def get_sync_transliteration_client(
             additional_providers=additional_providers,
             provider_factories=provider_factories,
             env=env,
+            language_registry=language_registry,
         )
     )
 

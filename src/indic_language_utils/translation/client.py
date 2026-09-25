@@ -16,7 +16,7 @@ from ..errors import (
     RateLimitError,
     TransientProviderError,
 )
-from ..languages import LanguageTag
+from ..languages import DEFAULT_LANGUAGE_REGISTRY, LanguageRegistry, LanguageTag
 from ..models import CacheMetadata, OperationContext, WarningInfo
 from ..providers import AsyncLifecycle, CapabilityId, ResourceManager
 from ..routing import OrderedRouter, RouteRequirement
@@ -58,8 +58,10 @@ class TranslationClient:
         metrics: MetricHook | None = None,
         tracing: TraceHook | None = None,
         processors: TranslationProcessorPipeline | None = None,
+        language_registry: LanguageRegistry | None = None,
     ) -> None:
         self._router = router
+        self._language_registry = language_registry or DEFAULT_LANGUAGE_REGISTRY
         self._cache = cache or NullCache()
         self._cache_keys = cache_keys or CacheKeyBuilder("indic-language-utils")
         self._catalog = catalog or LocalizationCatalog()
@@ -134,6 +136,7 @@ class TranslationClient:
                 options=options,
                 context=context,
                 message_id=message_id,
+                language_registry=self._language_registry,
             )
         return (await self.translate_batch((request,)))[0]
 
@@ -182,6 +185,7 @@ class TranslationClient:
                     target,
                     options=options,
                     context=context,
+                    language_registry=self._language_registry,
                 )
                 for text in cast(Sequence[str], requests_or_texts)
             )

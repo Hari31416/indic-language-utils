@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from ..languages import DEFAULT_LANGUAGE_REGISTRY, LanguageTag
+from ..languages import DEFAULT_LANGUAGE_REGISTRY, LanguageRegistry, LanguageTag
 from ..models import OperationContext
 
 
@@ -23,6 +23,8 @@ class STTRequest:
         audio_format: str = "wav",
         sampling_rate: int = 16000,
         context: OperationContext | None = None,
+        *,
+        language_registry: LanguageRegistry | None = None,
     ) -> None:
         if not isinstance(audio, bytes) or not audio:
             raise ValueError("Audio must be non-empty bytes")
@@ -32,7 +34,11 @@ class STTRequest:
             raise ValueError("Sampling rate must be positive")
         object.__setattr__(self, "audio", audio)
         object.__setattr__(
-            self, "language", DEFAULT_LANGUAGE_REGISTRY.normalize(language) if language else None
+            self,
+            "language",
+            (language_registry or DEFAULT_LANGUAGE_REGISTRY).normalize(language)
+            if language
+            else None,
         )
         object.__setattr__(self, "audio_format", audio_format)
         object.__setattr__(self, "sampling_rate", sampling_rate)

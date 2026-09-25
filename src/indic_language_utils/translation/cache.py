@@ -9,7 +9,7 @@ from typing import Any
 
 from ..cache import AsyncCache, CacheCodec, MemoryCache, NullCache, SQLiteCache
 from ..config import CacheSettings
-from ..languages import DEFAULT_LANGUAGE_REGISTRY
+from ..languages import DEFAULT_LANGUAGE_REGISTRY, LanguageRegistry
 from ..models import CacheMetadata, WarningInfo
 from .models import TranslationProviderMetadata, TranslationResult
 
@@ -18,6 +18,9 @@ class TranslationResultCodec(CacheCodec[TranslationResult]):
     """Versioned JSON encoding for persistent translation results."""
 
     schema_version = 1
+
+    def __init__(self, language_registry: LanguageRegistry | None = None) -> None:
+        self._language_registry = language_registry or DEFAULT_LANGUAGE_REGISTRY
 
     def encode(self, value: TranslationResult) -> bytes:
         payload = {
@@ -58,8 +61,8 @@ class TranslationResultCodec(CacheCodec[TranslationResult]):
         warning_values = _list(payload["warnings"])
         return TranslationResult(
             text=_string(payload["text"]),
-            source=DEFAULT_LANGUAGE_REGISTRY.normalize(_string(payload["source"])),
-            target=DEFAULT_LANGUAGE_REGISTRY.normalize(_string(payload["target"])),
+            source=self._language_registry.normalize(_string(payload["source"])),
+            target=self._language_registry.normalize(_string(payload["target"])),
             provider=TranslationProviderMetadata(
                 provider=_string(provider["provider"]),
                 service_id=_optional_string(provider.get("service_id")),
@@ -83,7 +86,9 @@ class TranslationResultCodec(CacheCodec[TranslationResult]):
         )
 
 
-def create_translation_cache(settings: CacheSettings) -> AsyncCache[TranslationResult]:
+def create_translation_cache(
+    settings: CacheSettings, *, language_registry: LanguageRegistry | None = None
+) -> AsyncCache[TranslationResult]:
     """Build a configured translation cache without changing the opt-in default."""
     if not settings.enabled or settings.backend == "null":
         return NullCache()
@@ -92,7 +97,7 @@ def create_translation_cache(settings: CacheSettings) -> AsyncCache[TranslationR
     if settings.backend == "sqlite":
         return SQLiteCache(
             Path(settings.path),
-            TranslationResultCodec(),
+            TranslationResultCodec(language_registry),
             namespace=settings.namespace,
             max_entries=settings.max_entries,
             default_ttl=settings.ttl_seconds,

@@ -7,6 +7,7 @@ import os
 from collections.abc import Mapping, Sequence
 
 from ..config import Settings
+from ..languages import LanguageRegistry
 from ..providers import CapabilityId, ProviderRegistry
 from ..providers.factories import ProviderFactoryRegistry, configured_provider_factories
 from ..routing import OrderedRouter
@@ -23,6 +24,7 @@ def get_tts_client(
     additional_providers: Sequence[TTSProvider] = (),
     provider_factories: ProviderFactoryRegistry | None = None,
     env: Mapping[str, str] | None = None,
+    language_registry: LanguageRegistry | None = None,
 ) -> TTSClient:
     use_configured_routes = providers is None or settings is not None
     settings = settings or Settings.load(env=env)
@@ -55,4 +57,4 @@ def get_tts_client(
     route = tuple(resolved_route) or default_route
 
     router = OrderedRouter(registry, {CapabilityId.TEXT_TO_SPEECH: route})
-    return TTSClient(router)
+    return TTSClient(router, language_registry=language_registry)

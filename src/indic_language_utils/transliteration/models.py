@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from ..languages import DEFAULT_LANGUAGE_REGISTRY, LanguageTag
+from ..languages import DEFAULT_LANGUAGE_REGISTRY, LanguageRegistry, LanguageTag
 from ..models import CacheMetadata, OperationContext, WarningInfo
 
 
@@ -34,6 +34,8 @@ class TransliterationRequest:
         target: LanguageTag | str,
         options: TransliterationOptions | None = None,
         context: OperationContext | None = None,
+        *,
+        language_registry: LanguageRegistry | None = None,
     ) -> None:
         if not text:
             raise ValueError("Transliteration text cannot be empty")
@@ -41,8 +43,9 @@ class TransliterationRequest:
         def _resolve_tag(val: LanguageTag | str) -> LanguageTag:
             if isinstance(val, LanguageTag):
                 return val
-            if val in DEFAULT_LANGUAGE_REGISTRY:
-                return DEFAULT_LANGUAGE_REGISTRY.normalize(val)
+            registry = language_registry or DEFAULT_LANGUAGE_REGISTRY
+            if val in registry:
+                return registry.normalize(val)
             try:
                 return LanguageTag.parse(val)
             except Exception:
