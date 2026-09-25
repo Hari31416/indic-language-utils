@@ -24,8 +24,10 @@ def get_tts_client(
     settings: Settings | None = None,
     *,
     providers: Sequence[TTSProvider] | None = None,
+    additional_providers: Sequence[TTSProvider] = (),
     env: Mapping[str, str] | None = None,
 ) -> TTSClient:
+    use_configured_routes = providers is None or settings is not None
     settings = settings or Settings.load(env=env)
     registry = ProviderRegistry()
     if providers is not None:
@@ -53,20 +55,22 @@ def get_tts_client(
                     raise
                 logger.warning("Edge TTS is unavailable: %s", exc)
 
-    if providers is not None:
-        route = tuple(provider.identity.provider for provider in registry.all())
-    else:
-        default_route = tuple(provider.identity.provider for provider in registry.all())
-        registered_names = {p.identity.provider for p in registry.all()}
-        configured_route = settings.routes.get(CapabilityId.TEXT_TO_SPEECH.value, default_route)
-        resolved_route: list[str] = []
-        for name in configured_route:
-            resolved_name = (
-                "edge_tts" if name == "edge" and "edge_tts" in registered_names else name
-            )
-            if resolved_name in registered_names and resolved_name not in resolved_route:
-                resolved_route.append(resolved_name)
-        route = tuple(resolved_route) or default_route
+    for provider in additional_providers:
+        registry.register(provider)
+
+    default_route = tuple(provider.identity.provider for provider in registry.all())
+    registered_names = set(default_route)
+    configured_route = (
+        settings.routes.get(CapabilityId.TEXT_TO_SPEECH.value, default_route)
+        if use_configured_routes
+        else default_route
+    )
+    resolved_route: list[str] = []
+    for name in configured_route:
+        resolved_name = "edge_tts" if name == "edge" and "edge_tts" in registered_names else name
+        if resolved_name in registered_names and resolved_name not in resolved_route:
+            resolved_route.append(resolved_name)
+    route = tuple(resolved_route) or default_route
 
     router = OrderedRouter(registry, {CapabilityId.TEXT_TO_SPEECH: route})
     return TTSClient(router)

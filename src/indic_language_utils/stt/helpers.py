@@ -20,8 +20,10 @@ def get_stt_client(
     settings: Settings | None = None,
     *,
     providers: Sequence[STTProvider] | None = None,
+    additional_providers: Sequence[STTProvider] = (),
     env: Mapping[str, str] | None = None,
 ) -> STTClient:
+    use_configured_routes = providers is None or settings is not None
     settings = settings or Settings.load(env=env)
     registry = ProviderRegistry()
     if providers is not None:
@@ -60,14 +62,15 @@ def get_stt_client(
             whisper_config = FasterWhisperSTTConfig.from_settings(settings, env=values)
             registry.register(FasterWhisperSTTProvider(whisper_config))
 
-    if providers is not None:
-        route = tuple(provider.identity.provider for provider in registry.all())
-    else:
-        default_route = tuple(provider.identity.provider for provider in registry.all())
-        route = tuple(
-            name
-            for name in settings.routes.get(CapabilityId.SPEECH_TO_TEXT.value, default_route)
-            if name in default_route
-        )
+    for provider in additional_providers:
+        registry.register(provider)
+
+    default_route = tuple(provider.identity.provider for provider in registry.all())
+    configured_route = (
+        settings.routes.get(CapabilityId.SPEECH_TO_TEXT.value, default_route)
+        if use_configured_routes
+        else default_route
+    )
+    route = tuple(name for name in configured_route if name in default_route)
     router = OrderedRouter(registry, {CapabilityId.SPEECH_TO_TEXT: route})
     return STTClient(router)

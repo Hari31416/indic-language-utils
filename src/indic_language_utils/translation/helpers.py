@@ -22,6 +22,7 @@ def get_translation_client(
     settings: Settings | None = None,
     *,
     providers: Sequence[TranslationProvider] | None = None,
+    additional_providers: Sequence[TranslationProvider] = (),
     env: Mapping[str, str] | None = None,
 ) -> TranslationClient:
     """Build and configure a TranslationClient with providers, routes, and cache.
@@ -30,6 +31,7 @@ def get_translation_client(
     and the environment. If providers are not provided, built-in providers (such as
     Bhashini) are registered if configured or if their credentials exist in the environment.
     """
+    use_configured_routes = providers is None or settings is not None
     if settings is None:
         settings = Settings.load(env=env)
 
@@ -80,26 +82,21 @@ def get_translation_client(
             except (ConfigurationError, MissingOptionalDependencyError):
                 pass
 
+    for provider in additional_providers:
+        registry.register(provider)
+
     registered_names = {p.identity.provider for p in registry.all()}
     routes: dict[CapabilityId, tuple[str, ...]] = {}
-    if providers is not None:
-        trans_providers = tuple(
-            p.identity.provider
-            for p in registry.all()
-            if registry.declaration(p.identity.provider, CapabilityId.TRANSLATION) is not None
-        )
-        if trans_providers:
-            routes[CapabilityId.TRANSLATION] = trans_providers
-    else:
-        for cap_str, provider_names in settings.routes.items():
-            try:
-                cap_id = CapabilityId(cap_str)
-                valid_names = tuple(name for name in provider_names if name in registered_names)
-                if valid_names:
-                    routes[cap_id] = valid_names
-            except ValueError:
-                pass
+    for cap_str, provider_names in settings.routes.items() if use_configured_routes else ():
+        try:
+            cap_id = CapabilityId(cap_str)
+            valid_names = tuple(name for name in provider_names if name in registered_names)
+            if valid_names:
+                routes[cap_id] = valid_names
+        except ValueError:
+            pass
 
+    if providers is None:
         env_map = os.environ if env is None else env
         active_service = env_map.get("TRANSLATION_SERVICE_PROVIDER")
         if active_service in registered_names and CapabilityId.TRANSLATION in routes:
@@ -109,19 +106,19 @@ def get_translation_client(
                 *(p for p in current_route if p != active_service),
             )
 
-        if CapabilityId.TRANSLATION not in routes or not routes[CapabilityId.TRANSLATION]:
-            trans_providers = tuple(
-                p.identity.provider
-                for p in registry.all()
-                if registry.declaration(p.identity.provider, CapabilityId.TRANSLATION) is not None
+    if CapabilityId.TRANSLATION not in routes or not routes[CapabilityId.TRANSLATION]:
+        trans_providers = tuple(
+            p.identity.provider
+            for p in registry.all()
+            if registry.declaration(p.identity.provider, CapabilityId.TRANSLATION) is not None
+        )
+        if providers is None and active_service in registered_names and trans_providers:
+            trans_providers = (
+                active_service,
+                *(p for p in trans_providers if p != active_service),
             )
-            if active_service in registered_names and trans_providers:
-                trans_providers = (
-                    active_service,
-                    *(p for p in trans_providers if p != active_service),
-                )
-            if trans_providers:
-                routes[CapabilityId.TRANSLATION] = trans_providers
+        if trans_providers:
+            routes[CapabilityId.TRANSLATION] = trans_providers
 
     router = OrderedRouter(registry, routes)
     cache = create_translation_cache(settings.cache)
@@ -132,11 +129,17 @@ def get_sync_translation_client(
     settings: Settings | None = None,
     *,
     providers: Sequence[TranslationProvider] | None = None,
+    additional_providers: Sequence[TranslationProvider] = (),
     env: Mapping[str, str] | None = None,
 ) -> SyncTranslationClient:
     """Build and configure a synchronous TranslationClient facade."""
     return SyncTranslationClient(
-        get_translation_client(settings=settings, providers=providers, env=env)
+        get_translation_client(
+            settings=settings,
+            providers=providers,
+            additional_providers=additional_providers,
+            env=env,
+        )
     )
 
 

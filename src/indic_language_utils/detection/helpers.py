@@ -21,9 +21,11 @@ def get_detection_client(
     settings: Settings | None = None,
     *,
     providers: Sequence[DetectionProvider] | None = None,
+    additional_providers: Sequence[DetectionProvider] = (),
     env: Mapping[str, str] | None = None,
 ) -> DetectionClient:
     """Build and configure a DetectionClient with providers, routes, and cache."""
+    use_configured_routes = providers is None or settings is not None
     if settings is None:
         settings = Settings.load(env=env)
 
@@ -73,9 +75,21 @@ def get_detection_client(
         except (ConfigurationError, MissingOptionalDependencyError):
             pass
 
+    for provider in additional_providers:
+        registry.register(provider)
+
     registered_names = {p.identity.provider for p in registry.all()}
     routes: dict[CapabilityId, tuple[str, ...]] = {}
-    if providers is not None:
+    for cap_str, provider_names in settings.routes.items() if use_configured_routes else ():
+        try:
+            cap_id = CapabilityId(cap_str)
+            valid_names = tuple(name for name in provider_names if name in registered_names)
+            if valid_names:
+                routes[cap_id] = valid_names
+        except ValueError:
+            pass
+
+    if CapabilityId.TEXT_LANGUAGE_DETECTION not in routes:
         detect_providers = tuple(
             p.identity.provider
             for p in registry.all()
@@ -84,28 +98,6 @@ def get_detection_client(
         )
         if detect_providers:
             routes[CapabilityId.TEXT_LANGUAGE_DETECTION] = detect_providers
-    else:
-        for cap_str, provider_names in settings.routes.items():
-            try:
-                cap_id = CapabilityId(cap_str)
-                valid_names = tuple(name for name in provider_names if name in registered_names)
-                if valid_names:
-                    routes[cap_id] = valid_names
-            except ValueError:
-                pass
-
-        if (
-            CapabilityId.TEXT_LANGUAGE_DETECTION not in routes
-            or not routes[CapabilityId.TEXT_LANGUAGE_DETECTION]
-        ):
-            detect_providers = tuple(
-                p.identity.provider
-                for p in registry.all()
-                if registry.declaration(p.identity.provider, CapabilityId.TEXT_LANGUAGE_DETECTION)
-                is not None
-            )
-            if detect_providers:
-                routes[CapabilityId.TEXT_LANGUAGE_DETECTION] = detect_providers
 
     router = OrderedRouter(registry, routes)
     cache = create_detection_cache(settings.cache)
@@ -116,11 +108,17 @@ def get_sync_detection_client(
     settings: Settings | None = None,
     *,
     providers: Sequence[DetectionProvider] | None = None,
+    additional_providers: Sequence[DetectionProvider] = (),
     env: Mapping[str, str] | None = None,
 ) -> SyncDetectionClient:
     """Build and configure a synchronous DetectionClient facade."""
     return SyncDetectionClient(
-        get_detection_client(settings=settings, providers=providers, env=env)
+        get_detection_client(
+            settings=settings,
+            providers=providers,
+            additional_providers=additional_providers,
+            env=env,
+        )
     )
 
 

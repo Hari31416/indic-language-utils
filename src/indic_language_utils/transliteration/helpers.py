@@ -22,9 +22,11 @@ def get_transliteration_client(
     settings: Settings | None = None,
     *,
     providers: Sequence[TransliterationProvider] | None = None,
+    additional_providers: Sequence[TransliterationProvider] = (),
     env: Mapping[str, str] | None = None,
 ) -> TransliterationClient:
     """Build and configure a TransliterationClient with providers, routes, and cache."""
+    use_configured_routes = providers is None or settings is not None
     if settings is None:
         settings = Settings.load(env=env)
 
@@ -81,37 +83,32 @@ def get_transliteration_client(
         except (ConfigurationError, MissingOptionalDependencyError):
             pass
 
+    for provider in additional_providers:
+        registry.register(provider)
+
     registered_names = {p.identity.provider for p in registry.all()}
     routes: dict[CapabilityId, tuple[str, ...]] = {}
-    if providers is not None:
-        translit_providers = tuple(
-            p.identity.provider
-            for p in registry.all()
-            if registry.declaration(p.identity.provider, CapabilityId.TRANSLITERATION) is not None
-        )
-        if translit_providers:
-            routes[CapabilityId.TRANSLITERATION] = translit_providers
-    else:
-        for cap_str, provider_names in settings.routes.items():
-            try:
-                cap_id = CapabilityId(cap_str)
-                valid_names = tuple(name for name in provider_names if name in registered_names)
-                if valid_names:
-                    routes[cap_id] = valid_names
-            except ValueError:
-                pass
+    for cap_str, provider_names in settings.routes.items() if use_configured_routes else ():
+        try:
+            cap_id = CapabilityId(cap_str)
+            valid_names = tuple(name for name in provider_names if name in registered_names)
+            if valid_names:
+                routes[cap_id] = valid_names
+        except ValueError:
+            pass
 
-        if CapabilityId.TRANSLITERATION not in routes or not routes[CapabilityId.TRANSLITERATION]:
-            priority = ("bhashini", "aksharamukha", "indicxlit")
-            ordered = [name for name in priority if name in registered_names]
-            for name in registered_names:
-                if (
-                    name not in ordered
-                    and registry.declaration(name, CapabilityId.TRANSLITERATION) is not None
-                ):
-                    ordered.append(name)
-            if ordered:
-                routes[CapabilityId.TRANSLITERATION] = tuple(ordered)
+    if CapabilityId.TRANSLITERATION not in routes:
+        priority = ("bhashini", "aksharamukha", "indicxlit")
+        ordered = [name for name in priority if name in registered_names]
+        for registered_provider in registry.all():
+            name = registered_provider.identity.provider
+            if (
+                name not in ordered
+                and registry.declaration(name, CapabilityId.TRANSLITERATION) is not None
+            ):
+                ordered.append(name)
+        if ordered:
+            routes[CapabilityId.TRANSLITERATION] = tuple(ordered)
 
     router = OrderedRouter(registry, routes)
     cache = create_transliteration_cache(settings.cache)
@@ -122,11 +119,17 @@ def get_sync_transliteration_client(
     settings: Settings | None = None,
     *,
     providers: Sequence[TransliterationProvider] | None = None,
+    additional_providers: Sequence[TransliterationProvider] = (),
     env: Mapping[str, str] | None = None,
 ) -> SyncTransliterationClient:
     """Build and configure a synchronous TransliterationClient facade."""
     return SyncTransliterationClient(
-        get_transliteration_client(settings=settings, providers=providers, env=env)
+        get_transliteration_client(
+            settings=settings,
+            providers=providers,
+            additional_providers=additional_providers,
+            env=env,
+        )
     )
 
 
