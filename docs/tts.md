@@ -94,6 +94,8 @@ async with get_tts_client() as client:
 
 `flush()` tells Sarvam to synthesize the remaining buffered text; the `done` event follows its final audio chunk. Audio defaults to MP3. Set `TTSOptions({"audio_format": "linear16"})` for PCM output. The [Sarvam WebSocket guide](https://docs.sarvam.ai/api/api-guides-tutorials/text-to-speech/streaming-api/web-socket) describes its text buffering and completion event. Each stream stays on its selected provider until it closes.
 
+The web app offers **Live playback** on the Text to Speech page. Its server bridge is `WS /api/tts/stream`. Send `{"type":"start","provider":"sarvam","language":"hi","parameters":{"audio_format":"linear16","speaker":"shubh"}}`, wait for `{"type":"ready"}`, then send one or more `{"type":"text","text":"..."}` messages and `{"type":"flush"}`. The server sends JSON `event` messages with the standard `TTSStreamEvent` fields; audio bytes are base64 encoded in `audio_base64`. A stream ends with an event whose `kind` is `done`, followed by `{"type":"done"}`. Errors use `{"type":"error","message":"..."}`. The server reads `SARVAM_API_KEY` from its environment or `.env`; the start message can include `api_key` and `endpoint` overrides.
+
 ## Microsoft Edge TTS
 
 Microsoft Edge TTS provides high-quality neural voice synthesis for Indian languages without requiring an API key. Install the optional dependency:

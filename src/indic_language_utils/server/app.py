@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .. import __version__
 from .routes import router
+from .streaming import router as streaming_router
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +53,7 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(router)
+    app.include_router(streaming_router)
 
     static_dir = _find_static_dir()
     if static_dir is not None:

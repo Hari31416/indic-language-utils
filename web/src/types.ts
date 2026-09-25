@@ -77,6 +77,29 @@ export interface STTResponse {
   cache_backend: string
 }
 
+export interface STTStreamMessage {
+  type: 'ready' | 'event' | 'done' | 'error'
+  kind?: 'speech_start' | 'speech_end' | 'partial' | 'final'
+  text?: string | null
+  language?: string | null
+  provider?: string
+  model_id?: string
+  request_id?: string
+  message?: string
+}
+
+export interface TTSStreamMessage {
+  type: 'ready' | 'event' | 'done' | 'error'
+  kind?: 'audio' | 'done'
+  audio_base64?: string | null
+  audio_format?: string
+  language?: string
+  provider?: string
+  model_id?: string
+  request_id?: string
+  message?: string
+}
+
 export interface TranslateRequest {
   text: string
   source: string

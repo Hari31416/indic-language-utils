@@ -1,16 +1,19 @@
-import React, { useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import {
   ChevronDown,
   Download,
   Loader2,
+  Radio,
   Sliders,
   Sparkles,
+  Square,
   Volume2,
   Zap,
 } from 'lucide-react'
 import { synthesizeSpeech } from '../api'
 import { useLocalHistory } from '../history'
-import type { LanguageItem, ProviderInfo, TTSResponse } from '../types'
+import { decodeBase64, pcmChunksToWav, PcmPlayer, sarvamConnectionSettings, speechSocket } from '../streaming'
+import type { LanguageItem, ProviderInfo, TTSResponse, TTSStreamMessage } from '../types'
 import {
   EmptyState,
   ErrorBox,
@@ -105,6 +108,7 @@ interface Hist {
 }
 
 export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
+  const [mode, setMode] = useState<'file' | 'live'>('file')
   const [text, setText] = useState('नमस्ते! भारतीय भाषा यूटिलिटीज वर्कबेंच में आपका स्वागत है।')
   const [language, setLanguage] = useState('hi')
   const [provider, setProvider] = useState('auto')
@@ -116,7 +120,114 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
   const [result, setResult] = useState<TTSResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [liveState, setLiveState] = useState<'idle' | 'connecting' | 'streaming' | 'complete'>('idle')
+  const [liveChunks, setLiveChunks] = useState(0)
+  const [liveModel, setLiveModel] = useState('')
+  const [liveAudioUrl, setLiveAudioUrl] = useState<string | null>(null)
+  const socketRef = useRef<WebSocket | null>(null)
+  const playerRef = useRef<PcmPlayer | null>(null)
+  const audioChunksRef = useRef<Uint8Array[]>([])
+  const liveAudioUrlRef = useRef<string | null>(null)
+  const completeRef = useRef(false)
   const { items: history, push, clear } = useLocalHistory<Hist>('ilu-hist-tts')
+
+  useEffect(() => () => {
+    socketRef.current?.close()
+    if (playerRef.current) void playerRef.current.close()
+    if (liveAudioUrlRef.current) URL.revokeObjectURL(liveAudioUrlRef.current)
+  }, [])
+
+  const stopLive = () => {
+    completeRef.current = true
+    socketRef.current?.close()
+    socketRef.current = null
+    if (playerRef.current) void playerRef.current.close()
+    playerRef.current = null
+    setLiveState('idle')
+  }
+
+  const startLive = async () => {
+    if (!text.trim()) return
+    if (!language) { setError('Choose a language for live speech.'); return }
+    if (text.length > 2500) { setError('Live speech accepts up to 2,500 characters.'); return }
+    setError(null)
+    setResult(null)
+    setLiveChunks(0)
+    setLiveModel('')
+    audioChunksRef.current = []
+    if (liveAudioUrlRef.current) URL.revokeObjectURL(liveAudioUrlRef.current)
+    liveAudioUrlRef.current = null
+    setLiveAudioUrl(null)
+    if (playerRef.current) void playerRef.current.close()
+    playerRef.current = null
+    completeRef.current = false
+    try {
+      const extra = parseObject(advanced, 'Extra options')
+      const pace = Number(fields.sarvam.pace)
+      if (!Number.isFinite(pace) || pace < 0.5 || pace > 2) throw new Error('Pace must be between 0.5 and 2.0')
+      const parameters = {
+        speaker: fields.sarvam.speaker,
+        pace,
+        ...extra,
+        audio_format: 'linear16',
+      }
+      const player = new PcmPlayer()
+      playerRef.current = player
+      await player.resume()
+      const socket = speechSocket('/api/tts/stream')
+      socketRef.current = socket
+      setLiveState('connecting')
+      socket.onopen = () => socket.send(JSON.stringify({
+        type: 'start', provider: 'sarvam', language, parameters,
+        model_id: ['bulbul:v2', 'bulbul:v3'].includes(modelId.trim()) ? modelId.trim() : null,
+        ...sarvamConnectionSettings(),
+      }))
+      socket.onmessage = (message) => {
+        let data: TTSStreamMessage
+        try { data = JSON.parse(message.data as string) as TTSStreamMessage } catch { return }
+        if (data.type === 'ready') {
+          socket.send(JSON.stringify({ type: 'text', text }))
+          socket.send(JSON.stringify({ type: 'flush' }))
+          setLiveState('streaming')
+        } else if (data.type === 'event' && data.kind === 'audio' && data.audio_base64) {
+          const bytes = decodeBase64(data.audio_base64)
+          audioChunksRef.current.push(bytes)
+          player.play(bytes)
+          setLiveChunks((count) => count + 1)
+          if (data.model_id) setLiveModel(data.model_id)
+        } else if (data.type === 'event' && data.kind === 'done') {
+          if (audioChunksRef.current.length > 0) {
+            const url = URL.createObjectURL(pcmChunksToWav(audioChunksRef.current))
+            liveAudioUrlRef.current = url
+            setLiveAudioUrl(url)
+          }
+          setLiveState('complete')
+        } else if (data.type === 'done') {
+          completeRef.current = true
+          socket.close()
+        } else if (data.type === 'error') {
+          setError(data.message ?? 'Live speech failed')
+          stopLive()
+        }
+      }
+      socket.onerror = () => setError('Live speech connection failed')
+      socket.onclose = () => {
+        if (socketRef.current !== socket) return
+        socketRef.current = null
+        if (!completeRef.current) {
+          setError((current) => current ?? 'Live speech disconnected')
+          if (playerRef.current === player) {
+            playerRef.current = null
+            void player.close()
+          }
+          setLiveState('idle')
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not start live speech')
+      stopLive()
+    }
+  }
 
   const updateField = (key: string, value: string) => {
     setFields((current) => ({
@@ -187,8 +298,9 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
     ? `data:${AUDIO_MIME[format] ?? 'application/octet-stream'};base64,${result.audio_base64}`
     : null
 
-  const activeModelPresets = TTS_MODEL_PRESETS[provider] ?? []
+  const activeModelPresets = mode === 'live' ? ['bulbul:v3', 'bulbul:v2'] : TTS_MODEL_PRESETS[provider] ?? []
   const charCount = text.length
+  const sarvamReady = providers.some((item) => item.id === 'sarvam' && item.available)
 
   return (
     <div className="space-y-5">
@@ -196,12 +308,19 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
         icon={<Volume2 className="h-4 w-4" />}
         tileClass="border-rosewood-500/30 bg-rosewood-500/10 text-rosewood-300"
         title="Text to Speech"
-        blurb="Synthesize natural Indian speech with Edge neural voices, Sarvam Bulbul, or Bhashini Indic-TTS."
+        blurb="Generate a file or hear Sarvam Bulbul as each audio chunk arrives."
         glyph="उ"
       />
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
         <div className="panel space-y-5 p-5 sm:p-6 lg:col-span-7">
+          <div className="flex gap-1 rounded-xl border border-ink-700 bg-ink-900/70 p-1 text-xs">
+            <button type="button" onClick={() => { setMode('file'); stopLive() }}
+              className={`flex-1 rounded-lg px-3 py-2 font-semibold transition ${mode === 'file' ? 'bg-ink-700 text-parchment-100' : 'text-parchment-500 hover:text-parchment-200'}`}>Audio file</button>
+            <button type="button" disabled={!sarvamReady}
+              onClick={() => { setMode('live'); setProvider('sarvam'); setModelId('') }}
+              className={`flex-1 rounded-lg px-3 py-2 font-semibold transition ${mode === 'live' ? 'bg-ink-700 text-parchment-100' : 'text-parchment-500 hover:text-parchment-200'}`}>Live playback</button>
+          </div>
           <div className="flex items-center justify-between">
             <label className="eyebrow">Text to synthesize</label>
             <span className="font-mono text-[11px] text-parchment-500">{charCount} chars</span>
@@ -266,7 +385,7 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
                 </button>
               }
             >
-              <div className="relative">
+              {mode === 'live' ? <div className="field !py-2.5 text-xs">Sarvam AI Bulbul</div> : <div className="relative">
                 <select
                   value={provider}
                   onChange={(event) => {
@@ -284,7 +403,7 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
                   ))}
                 </select>
                 <ChevronDown className="pointer-events-none absolute right-3 top-3 h-3.5 w-3.5 text-parchment-500" />
-              </div>
+              </div>}
             </Field>
           </div>
 
@@ -523,7 +642,15 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
             )}
           </div>
 
-          <button
+          {mode === 'live' ? <button type="button" className="btn-primary w-full !py-3"
+            disabled={!text.trim() || liveState === 'connecting'}
+            onClick={() => liveState === 'streaming' ? stopLive() : void startLive()}>
+            {liveState === 'streaming'
+              ? <><Square className="h-4 w-4" /> Stop playback</>
+              : liveState === 'connecting'
+                ? <><Loader2 className="h-4 w-4 animate-spin" /> Connecting…</>
+                : <><Radio className="h-4 w-4" /> {liveState === 'complete' ? 'Generate again' : 'Play live speech'}</>}
+          </button> : <button
             type="button"
             disabled={!text.trim() || loading}
             onClick={() => void handleSynthesize()}
@@ -539,6 +666,7 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
               </>
             )}
           </button>
+          }
 
           {error && <ErrorBox message={error} />}
 
@@ -559,14 +687,29 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
           <ResultPanel
             title="Generated audio"
             badge={
-              result ? (
+              mode === 'live' ? (
+                <span className="rounded bg-ink-700/70 px-1.5 py-0.5 font-mono text-[10px] uppercase text-parchment-300">PCM</span>
+              ) : result ? (
                 <span className="rounded bg-ink-700/70 px-1.5 py-0.5 font-mono text-[10px] uppercase text-parchment-300">
                   {format}
                 </span>
               ) : undefined
             }
           >
-            {result && audioUrl ? (
+            {mode === 'live' ? (
+              liveChunks > 0 ? <div className="panel-sunken flex min-h-[180px] flex-col items-center justify-center gap-3 p-5 text-center">
+                <Volume2 className={`h-7 w-7 text-rosewood-300 ${liveState === 'streaming' ? 'animate-pulse' : ''}`} />
+                <p className="font-display text-lg text-parchment-100">{liveState === 'complete' ? 'Speech ready' : 'Playing as audio arrives'}</p>
+                <p className="font-mono text-xs text-parchment-500">{liveChunks} audio chunks received</p>
+                {liveAudioUrl && <div className="mt-2 w-full space-y-3">
+                  <audio controls src={liveAudioUrl} className="w-full" aria-label="Replay live speech" />
+                  <a href={liveAudioUrl} download="sarvam-live-speech.wav" className="btn-ghost w-full justify-center !py-2.5 !text-[13px]">
+                    <Download className="h-4 w-4 text-marigold-300" /> Download WAV
+                  </a>
+                </div>}
+              </div> : <EmptyState icon={<Volume2 className="h-8 w-8 opacity-60" />}
+                title="Live playback is ready" hint="Press Play live speech to hear chunks as they arrive" />
+            ) : result && audioUrl ? (
               <div className="space-y-4">
                 <div className="panel-sunken p-4">
                   <audio controls src={audioUrl} className="w-full" aria-label="Generated speech" />
@@ -586,7 +729,7 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
                 hint="Enter text and press Generate speech"
               />
             )}
-            {result && (
+            {mode === 'file' && result && (
               <MetaTable
                 rows={[
                   ['Provider', result.provider],
@@ -596,6 +739,9 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
                 ]}
               />
             )}
+            {mode === 'live' && liveModel && <MetaTable rows={[
+              ['Provider', 'Sarvam AI'], ['Language', language], ['Model ID', liveModel],
+            ]} />}
           </ResultPanel>
         </div>
       </div>

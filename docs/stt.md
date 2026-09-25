@@ -79,6 +79,8 @@ async with get_stt_client() as client:
 
 `finish()` ends the Sarvam session after the last audio chunk. The adapter uses `saaras:v3-realtime` by default, or `saaras:v4` when that model is configured. Pass `model_id="saaras:v4"` to `client.stream()` to choose it explicitly. Sarvam's [Realtime API guide](https://docs.sarvam.ai/api/api-guides-tutorials/speech-to-text/realtime-streaming) describes the underlying partial and final events. A stream selects one provider when it opens; it does not switch providers after audio has been sent.
 
+The web app offers **Live microphone** on the Speech to Text page. Its server bridge is `WS /api/stt/stream`. Send a JSON start message such as `{"type":"start","provider":"sarvam","language":"hi","sampling_rate":16000}`, then binary mono signed 16-bit PCM chunks. The server replies with `{"type":"ready"}` and JSON `event` messages using the standard `STTStreamEvent` fields. Send `{"type":"finish"}` after the last audio chunk; the server sends final events and `{"type":"done"}`. Errors arrive as `{"type":"error","message":"..."}`. The server reads `SARVAM_API_KEY` from its environment or `.env`; the start message can also include `api_key` and `endpoint` overrides.
+
 ## Google Free STT
 
 The Google Free STT adapter (`google_free`) provides keyless, zero-setup transcription using the unofficial Google Web Speech API backed by `SpeechRecognition`.
