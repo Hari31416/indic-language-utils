@@ -8,7 +8,7 @@ from collections.abc import Mapping, Sequence
 
 from ..config import Settings
 from ..providers import CapabilityId, ProviderRegistry
-from ..providers.factories import default_provider_factories
+from ..providers.factories import ProviderFactoryRegistry, configured_provider_factories
 from ..routing import OrderedRouter
 from .client import TTSClient
 from .protocols import TTSProvider
@@ -21,6 +21,7 @@ def get_tts_client(
     *,
     providers: Sequence[TTSProvider] | None = None,
     additional_providers: Sequence[TTSProvider] = (),
+    provider_factories: ProviderFactoryRegistry | None = None,
     env: Mapping[str, str] | None = None,
 ) -> TTSClient:
     use_configured_routes = providers is None or settings is not None
@@ -31,9 +32,9 @@ def get_tts_client(
             registry.register(provider)
     else:
         values = os.environ if env is None else env
-        for built_provider in default_provider_factories().build(
-            CapabilityId.TEXT_TO_SPEECH, settings, values
-        ):
+        for built_provider in configured_provider_factories(
+            CapabilityId.TEXT_TO_SPEECH, settings, provider_factories
+        ).build(CapabilityId.TEXT_TO_SPEECH, settings, values):
             registry.register(built_provider)
 
     for provider in additional_providers:

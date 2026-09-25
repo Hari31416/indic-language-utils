@@ -9,7 +9,7 @@ from collections.abc import Mapping, Sequence
 from ..config import Settings
 from ..languages import LanguageTag
 from ..providers import CapabilityId, ProviderRegistry
-from ..providers.factories import default_provider_factories
+from ..providers.factories import ProviderFactoryRegistry, configured_provider_factories
 from ..routing import OrderedRouter
 from .cache import create_transliteration_cache
 from .client import TransliterationClient
@@ -23,6 +23,7 @@ def get_transliteration_client(
     *,
     providers: Sequence[TransliterationProvider] | None = None,
     additional_providers: Sequence[TransliterationProvider] = (),
+    provider_factories: ProviderFactoryRegistry | None = None,
     env: Mapping[str, str] | None = None,
 ) -> TransliterationClient:
     """Build and configure a TransliterationClient with providers, routes, and cache."""
@@ -36,9 +37,9 @@ def get_transliteration_client(
             registry.register(provider)
     else:
         values = os.environ if env is None else env
-        for built_provider in default_provider_factories().build(
-            CapabilityId.TRANSLITERATION, settings, values
-        ):
+        for built_provider in configured_provider_factories(
+            CapabilityId.TRANSLITERATION, settings, provider_factories
+        ).build(CapabilityId.TRANSLITERATION, settings, values):
             registry.register(built_provider)
 
     for provider in additional_providers:
@@ -78,6 +79,7 @@ def get_sync_transliteration_client(
     *,
     providers: Sequence[TransliterationProvider] | None = None,
     additional_providers: Sequence[TransliterationProvider] = (),
+    provider_factories: ProviderFactoryRegistry | None = None,
     env: Mapping[str, str] | None = None,
 ) -> SyncTransliterationClient:
     """Build and configure a synchronous TransliterationClient facade."""
@@ -86,6 +88,7 @@ def get_sync_transliteration_client(
             settings=settings,
             providers=providers,
             additional_providers=additional_providers,
+            provider_factories=provider_factories,
             env=env,
         )
     )

@@ -5,7 +5,8 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Literal
+from importlib import metadata
+from typing import Literal, cast
 
 from ..config import Settings
 from ..errors import ConfigurationError, MissingOptionalDependencyError
@@ -15,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 ProviderBuilder = Callable[[Settings, Mapping[str, str]], Provider | None]
 FailurePolicy = Literal["raise", "skip", "skip_if_registered"]
+ENTRY_POINT_GROUP_PREFIX = "indic_language_utils.providers."
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,6 +25,7 @@ class ProviderFactory:
     provider_id: str
     build: ProviderBuilder
     failure_policy: FailurePolicy = "raise"
+    plugin: bool = False
 
 
 class ProviderFactoryRegistry:
@@ -38,11 +41,19 @@ class ProviderFactoryRegistry:
         builder: ProviderBuilder,
         *,
         failure_policy: FailurePolicy = "raise",
+        plugin: bool = False,
     ) -> None:
         key = (capability, provider_id)
         if not provider_id or key in self._factories:
             raise ConfigurationError(f"Provider factory registration is invalid: {provider_id!r}")
-        self._factories[key] = ProviderFactory(capability, provider_id, builder, failure_policy)
+        self._factories[key] = ProviderFactory(
+            capability, provider_id, builder, failure_policy, plugin
+        )
+
+    def copy(self) -> ProviderFactoryRegistry:
+        copied = ProviderFactoryRegistry()
+        copied._factories.update(self._factories)
+        return copied
 
     def get(self, capability: CapabilityId, provider_id: str) -> ProviderFactory | None:
         return self._factories.get((capability, provider_id))
@@ -62,6 +73,10 @@ class ProviderFactoryRegistry:
             try:
                 provider = factory.build(settings, env)
             except (ConfigurationError, MissingOptionalDependencyError) as exc:
+                if factory.plugin:
+                    raise ConfigurationError(
+                        f"Provider plugin could not be built: {factory.provider_id}"
+                    ) from exc
                 if factory.failure_policy == "raise" or (
                     factory.failure_policy == "skip_if_registered" and not providers
                 ):
@@ -69,7 +84,17 @@ class ProviderFactoryRegistry:
                 if factory.failure_policy == "skip_if_registered":
                     logger.warning("Provider %s is unavailable: %s", factory.provider_id, exc)
                 continue
+            except Exception as exc:
+                if not factory.plugin:
+                    raise
+                raise ConfigurationError(
+                    f"Provider plugin could not be built: {factory.provider_id}"
+                ) from exc
             if provider is None:
+                if factory.plugin:
+                    raise ConfigurationError(
+                        f"Provider plugin returned no adapter: {factory.provider_id}"
+                    )
                 continue
             if provider.identity.provider != factory.provider_id or not any(
                 item.capability == capability for item in provider.capabilities
@@ -79,6 +104,34 @@ class ProviderFactoryRegistry:
                 )
             providers.append(provider)
         return tuple(providers)
+
+
+def configured_provider_factories(
+    capability: CapabilityId,
+    settings: Settings,
+    factories: ProviderFactoryRegistry | None = None,
+) -> ProviderFactoryRegistry:
+    """Add only explicitly configured entry point builders to a fresh registry."""
+    result = factories.copy() if factories is not None else default_provider_factories()
+    selected = set(settings.providers) | set(settings.routes.get(capability.value, ()))
+    if not selected:
+        return result
+    group = ENTRY_POINT_GROUP_PREFIX + capability.value
+    for entry_point in metadata.entry_points(group=group):
+        if entry_point.name not in selected:
+            continue
+        try:
+            loaded = entry_point.load()
+        except Exception as exc:
+            raise ConfigurationError(
+                f"Provider plugin could not be loaded: {entry_point.name}"
+            ) from exc
+        if not callable(loaded):
+            raise ConfigurationError(
+                f"Provider plugin entry point is not callable: {entry_point.name}"
+            )
+        result.register(capability, entry_point.name, cast(ProviderBuilder, loaded), plugin=True)
+    return result
 
 
 def default_provider_factories() -> ProviderFactoryRegistry:

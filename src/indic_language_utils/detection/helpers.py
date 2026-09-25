@@ -8,7 +8,7 @@ from collections.abc import Mapping, Sequence
 
 from ..config import Settings
 from ..providers import CapabilityId, ProviderRegistry
-from ..providers.factories import default_provider_factories
+from ..providers.factories import ProviderFactoryRegistry, configured_provider_factories
 from ..routing import OrderedRouter
 from .cache import create_detection_cache
 from .client import DetectionClient
@@ -22,6 +22,7 @@ def get_detection_client(
     *,
     providers: Sequence[DetectionProvider] | None = None,
     additional_providers: Sequence[DetectionProvider] = (),
+    provider_factories: ProviderFactoryRegistry | None = None,
     env: Mapping[str, str] | None = None,
 ) -> DetectionClient:
     """Build and configure a DetectionClient with providers, routes, and cache."""
@@ -35,9 +36,9 @@ def get_detection_client(
             registry.register(provider)
     else:
         values = os.environ if env is None else env
-        for built_provider in default_provider_factories().build(
-            CapabilityId.TEXT_LANGUAGE_DETECTION, settings, values
-        ):
+        for built_provider in configured_provider_factories(
+            CapabilityId.TEXT_LANGUAGE_DETECTION, settings, provider_factories
+        ).build(CapabilityId.TEXT_LANGUAGE_DETECTION, settings, values):
             registry.register(built_provider)
 
     for provider in additional_providers:
@@ -74,6 +75,7 @@ def get_sync_detection_client(
     *,
     providers: Sequence[DetectionProvider] | None = None,
     additional_providers: Sequence[DetectionProvider] = (),
+    provider_factories: ProviderFactoryRegistry | None = None,
     env: Mapping[str, str] | None = None,
 ) -> SyncDetectionClient:
     """Build and configure a synchronous DetectionClient facade."""
@@ -82,6 +84,7 @@ def get_sync_detection_client(
             settings=settings,
             providers=providers,
             additional_providers=additional_providers,
+            provider_factories=provider_factories,
             env=env,
         )
     )

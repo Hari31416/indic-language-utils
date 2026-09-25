@@ -53,6 +53,42 @@ async def example() -> None:
 
 `additional_providers` registers adapters alongside configured built-ins. `providers` supplies an explicit replacement list. When you pass `Settings` explicitly, its route order applies to either list. If you pass only `providers`, their order is used; this keeps application tests independent of a discovered project configuration. A configured route names the providers eligible for that capability, so include your new ID in the route when one exists. Duplicate provider IDs raise `ConfigurationError`.
 
+## Register a builder
+
+If your application constructs the adapter from settings, register a builder. Builders receive the loaded `Settings` and the environment mapping, and return an adapter or `None` when the adapter is not configured:
+
+```python
+from collections.abc import Mapping
+
+from indic_language_utils import CapabilityId, Settings, get_translation_client
+from indic_language_utils.providers import default_provider_factories
+
+
+def build_prefix_provider(settings: Settings, env: Mapping[str, str]) -> PrefixTranslationProvider:
+    return PrefixTranslationProvider()
+
+
+factories = default_provider_factories()
+factories.register(CapabilityId.TRANSLATION, "prefix", build_prefix_provider)
+client = get_translation_client(
+    Settings(routes={"translation": ("prefix",)}),
+    provider_factories=factories,
+)
+```
+
+The example reuses `PrefixTranslationProvider` from above. A builder has the signature `(settings, env) -> provider | None`. The client copies the registry before use, so the caller's registry remains available for other clients. A builder must return an adapter whose identity matches its registered ID and whose capability declaration includes the registered capability.
+
+An installed third-party package can advertise a builder through an entry point in its `pyproject.toml`:
+
+```toml
+[project.entry-points."indic_language_utils.providers.translation"]
+prefix = "my_package.indic_provider:build_prefix_provider"
+```
+
+Use the same group suffix as the capability ID: `translation`, `text_language_detection`, `transliteration`, `speech_to_text`, or `text_to_speech`. The entry point name must equal the provider identity. The library loads the entry point only when that name appears in `[providers.<id>]` or the matching `[routes]` list. A selected plugin that cannot load, returns `None`, or builds an adapter with the wrong identity raises `ConfigurationError` naming the provider. `providers=` skips all builder and entry point loading.
+
+For a plugin-specific option, place values under `[providers.prefix.options]`, validate them in the builder, and read credentials from `env` or another caller-supplied secret source. Do not store credentials in TOML. Set an explicit route when you need the plugin before or after built-in adapters.
+
 Declare only the capabilities you implement. `CapabilityDeclaration` can restrict languages, language pairs, or features; an empty language set means unrestricted routing. Use the normalized `LanguageTag` values received by the method. Return one output per input and preserve their order. Include the upstream request ID and model or service ID when available.
 
 ## Turn the example into a network adapter

@@ -55,6 +55,7 @@ from .providers import (
     BhashiniConfig,
     CapabilityDeclaration,
     CapabilityId,
+    ProviderFactoryRegistry,
     ProviderRegistry,
     SarvamConfig,
 )
@@ -203,6 +204,7 @@ __all__ = [
     "ProcessorIdentity",
     "ProtectedContentProcessor",
     "ProviderDetectionResult",
+    "ProviderFactoryRegistry",
     "ProviderIdentity",
     "ProviderRegistry",
     "ProviderSTTResult",

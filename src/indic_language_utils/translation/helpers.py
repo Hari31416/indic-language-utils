@@ -10,7 +10,7 @@ from ..config import Settings
 from ..errors import InvalidInputError
 from ..languages import LanguageTag
 from ..providers import CapabilityId, ProviderRegistry
-from ..providers.factories import default_provider_factories
+from ..providers.factories import ProviderFactoryRegistry, configured_provider_factories
 from ..routing import OrderedRouter
 from .cache import create_translation_cache
 from .client import TranslationClient
@@ -24,6 +24,7 @@ def get_translation_client(
     *,
     providers: Sequence[TranslationProvider] | None = None,
     additional_providers: Sequence[TranslationProvider] = (),
+    provider_factories: ProviderFactoryRegistry | None = None,
     env: Mapping[str, str] | None = None,
 ) -> TranslationClient:
     """Build and configure a TranslationClient with providers, routes, and cache.
@@ -42,9 +43,9 @@ def get_translation_client(
             registry.register(provider)
     else:
         values = os.environ if env is None else env
-        for built_provider in default_provider_factories().build(
-            CapabilityId.TRANSLATION, settings, values
-        ):
+        for built_provider in configured_provider_factories(
+            CapabilityId.TRANSLATION, settings, provider_factories
+        ).build(CapabilityId.TRANSLATION, settings, values):
             registry.register(built_provider)
 
     for provider in additional_providers:
@@ -95,6 +96,7 @@ def get_sync_translation_client(
     *,
     providers: Sequence[TranslationProvider] | None = None,
     additional_providers: Sequence[TranslationProvider] = (),
+    provider_factories: ProviderFactoryRegistry | None = None,
     env: Mapping[str, str] | None = None,
 ) -> SyncTranslationClient:
     """Build and configure a synchronous TranslationClient facade."""
@@ -103,6 +105,7 @@ def get_sync_translation_client(
             settings=settings,
             providers=providers,
             additional_providers=additional_providers,
+            provider_factories=provider_factories,
             env=env,
         )
     )

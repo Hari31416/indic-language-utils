@@ -7,7 +7,7 @@ from collections.abc import Mapping, Sequence
 
 from ..config import Settings
 from ..providers import CapabilityId, ProviderRegistry
-from ..providers.factories import default_provider_factories
+from ..providers.factories import ProviderFactoryRegistry, configured_provider_factories
 from ..routing import OrderedRouter
 from .client import STTClient
 from .protocols import STTProvider
@@ -18,6 +18,7 @@ def get_stt_client(
     *,
     providers: Sequence[STTProvider] | None = None,
     additional_providers: Sequence[STTProvider] = (),
+    provider_factories: ProviderFactoryRegistry | None = None,
     env: Mapping[str, str] | None = None,
 ) -> STTClient:
     use_configured_routes = providers is None or settings is not None
@@ -28,9 +29,9 @@ def get_stt_client(
             registry.register(provider)
     else:
         values = os.environ if env is None else env
-        for built_provider in default_provider_factories().build(
-            CapabilityId.SPEECH_TO_TEXT, settings, values
-        ):
+        for built_provider in configured_provider_factories(
+            CapabilityId.SPEECH_TO_TEXT, settings, provider_factories
+        ).build(CapabilityId.SPEECH_TO_TEXT, settings, values):
             registry.register(built_provider)
 
     for provider in additional_providers:
