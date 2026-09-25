@@ -32,6 +32,28 @@ class RouteSelector(Protocol):
     ) -> tuple[RouteCandidate, ...]: ...
 
 
+def resolve_route_names(
+    capability: CapabilityId,
+    configured: tuple[str, ...],
+    registered: set[str],
+    known: set[str],
+) -> tuple[str, ...]:
+    """Validate an explicit route while allowing unavailable known fallbacks."""
+    unknown = next((name for name in configured if name not in known), None)
+    if unknown is not None:
+        raise ConfigurationError(
+            f"Unknown provider in {capability.value} route: {unknown}",
+            capability=capability.value,
+        )
+    resolved = tuple(name for name in configured if name in registered)
+    if not resolved:
+        raise ConfigurationError(
+            f"No configured provider is available for {capability.value}",
+            capability=capability.value,
+        )
+    return resolved
+
+
 class OrderedRouter:
     def __init__(
         self,

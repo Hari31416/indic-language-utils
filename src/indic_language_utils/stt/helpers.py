@@ -8,8 +8,12 @@ from collections.abc import Mapping, Sequence
 from ..config import Settings
 from ..languages import LanguageRegistry
 from ..providers import CapabilityId, ProviderRegistry
-from ..providers.factories import ProviderFactoryRegistry, configured_provider_factories
-from ..routing import OrderedRouter, RouteSelector
+from ..providers.factories import (
+    ProviderFactoryRegistry,
+    configured_provider_factories,
+    default_provider_factories,
+)
+from ..routing import OrderedRouter, RouteSelector, resolve_route_names
 from .client import STTClient
 from .protocols import STTProvider
 
@@ -46,6 +50,17 @@ def get_stt_client(
         if use_configured_routes
         else default_route
     )
-    route = tuple(name for name in configured_route if name in default_route)
+    if use_configured_routes and CapabilityId.SPEECH_TO_TEXT.value in settings.routes:
+        known = set(default_route)
+        if providers is None:
+            factories = provider_factories or default_provider_factories()
+            known.update(
+                item.provider_id for item in factories.for_capability(CapabilityId.SPEECH_TO_TEXT)
+            )
+        route = resolve_route_names(
+            CapabilityId.SPEECH_TO_TEXT, configured_route, set(default_route), known
+        )
+    else:
+        route = default_route
     router = OrderedRouter(registry, {CapabilityId.SPEECH_TO_TEXT: route}, selector=route_selector)
     return STTClient(router, language_registry=language_registry)

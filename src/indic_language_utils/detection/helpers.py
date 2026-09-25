@@ -9,8 +9,12 @@ from collections.abc import Mapping, Sequence
 from ..cache import AsyncCache, CacheKeyBuilder
 from ..config import Settings
 from ..providers import CapabilityId, ProviderRegistry
-from ..providers.factories import ProviderFactoryRegistry, configured_provider_factories
-from ..routing import OrderedRouter, RouteSelector
+from ..providers.factories import (
+    ProviderFactoryRegistry,
+    configured_provider_factories,
+    default_provider_factories,
+)
+from ..routing import OrderedRouter, RouteSelector, resolve_route_names
 from ..telemetry import EventLogger, MetricHook, TraceHook
 from .cache import create_detection_cache
 from .client import DetectionClient
@@ -54,14 +58,22 @@ def get_detection_client(
 
     registered_names = {p.identity.provider for p in registry.all()}
     routes: dict[CapabilityId, tuple[str, ...]] = {}
-    for cap_str, provider_names in settings.routes.items() if use_configured_routes else ():
-        try:
-            cap_id = CapabilityId(cap_str)
-            valid_names = tuple(name for name in provider_names if name in registered_names)
-            if valid_names:
-                routes[cap_id] = valid_names
-        except ValueError:
-            pass
+    configured = (
+        settings.routes.get(CapabilityId.TEXT_LANGUAGE_DETECTION.value)
+        if use_configured_routes
+        else None
+    )
+    if configured is not None:
+        known = set(registered_names)
+        if providers is None:
+            factories = provider_factories or default_provider_factories()
+            known.update(
+                item.provider_id
+                for item in factories.for_capability(CapabilityId.TEXT_LANGUAGE_DETECTION)
+            )
+        routes[CapabilityId.TEXT_LANGUAGE_DETECTION] = resolve_route_names(
+            CapabilityId.TEXT_LANGUAGE_DETECTION, configured, registered_names, known
+        )
 
     if CapabilityId.TEXT_LANGUAGE_DETECTION not in routes:
         detect_providers = tuple(

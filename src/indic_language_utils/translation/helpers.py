@@ -11,8 +11,12 @@ from ..config import Settings
 from ..errors import InvalidInputError
 from ..languages import LanguageRegistry, LanguageTag
 from ..providers import CapabilityId, ProviderRegistry
-from ..providers.factories import ProviderFactoryRegistry, configured_provider_factories
-from ..routing import OrderedRouter, RouteSelector
+from ..providers.factories import (
+    ProviderFactoryRegistry,
+    configured_provider_factories,
+    default_provider_factories,
+)
+from ..routing import OrderedRouter, RouteSelector, resolve_route_names
 from ..telemetry import EventLogger, MetricHook, TraceHook
 from .cache import create_translation_cache
 from .catalog import LocalizationCatalog
@@ -66,14 +70,19 @@ def get_translation_client(
 
     registered_names = {p.identity.provider for p in registry.all()}
     routes: dict[CapabilityId, tuple[str, ...]] = {}
-    for cap_str, provider_names in settings.routes.items() if use_configured_routes else ():
-        try:
-            cap_id = CapabilityId(cap_str)
-            valid_names = tuple(name for name in provider_names if name in registered_names)
-            if valid_names:
-                routes[cap_id] = valid_names
-        except ValueError:
-            pass
+    configured = (
+        settings.routes.get(CapabilityId.TRANSLATION.value) if use_configured_routes else None
+    )
+    if configured is not None:
+        known = set(registered_names)
+        if providers is None:
+            factories = provider_factories or default_provider_factories()
+            known.update(
+                item.provider_id for item in factories.for_capability(CapabilityId.TRANSLATION)
+            )
+        routes[CapabilityId.TRANSLATION] = resolve_route_names(
+            CapabilityId.TRANSLATION, configured, registered_names, known
+        )
 
     if providers is None:
         env_map = os.environ if env is None else env

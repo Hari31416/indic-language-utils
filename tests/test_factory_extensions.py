@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import pytest
 
 from indic_language_utils import (
@@ -101,6 +103,41 @@ def test_duplicate_additional_provider_name_is_rejected() -> None:
             providers=[FakeTranslationProvider("duplicate")],
             additional_providers=[FakeTranslationProvider("duplicate")],
         )
+
+
+@pytest.mark.parametrize(
+    ("capability", "factory"),
+    [
+        ("translation", get_translation_client),
+        ("text_language_detection", get_detection_client),
+        ("transliteration", get_transliteration_client),
+        ("speech_to_text", get_stt_client),
+        ("text_to_speech", get_tts_client),
+    ],
+)
+def test_factories_reject_unknown_route_names(
+    capability: str, factory: Callable[..., object]
+) -> None:
+    with pytest.raises(ConfigurationError, match="Unknown provider"):
+        factory(Settings(routes={capability: ("misspelled",)}), env={})
+
+
+def test_tts_rejects_configured_route_with_no_available_provider() -> None:
+    with pytest.raises(ConfigurationError, match="No configured provider is available"):
+        get_tts_client(Settings(routes={"text_to_speech": ("bhashini",)}), env={})
+
+
+def test_known_unavailable_provider_does_not_hide_later_adapter() -> None:
+    custom = FakeTranslationProvider("custom")
+    client = get_translation_client(
+        Settings(routes={"translation": ("bhashini", "custom")}),
+        additional_providers=[custom],
+        env={},
+    )
+    assert [
+        item.provider.identity.provider
+        for item in client.router.candidates(RouteRequirement(CapabilityId.TRANSLATION))
+    ] == ["custom"]
 
 
 @pytest.mark.asyncio

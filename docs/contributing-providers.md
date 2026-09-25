@@ -53,6 +53,8 @@ async def example() -> None:
 
 `additional_providers` registers adapters alongside configured built-ins. `providers` supplies an explicit replacement list. When you pass `Settings` explicitly, its route order applies to either list. If you pass only `providers`, their order is used; this keeps application tests independent of a discovered project configuration. A configured route names the providers eligible for that capability, so include your new ID in the route when one exists. Duplicate provider IDs raise `ConfigurationError`.
 
+Client factories reject unknown provider IDs in an explicit route and reject a route with no available provider. A known built-in that lacks credentials or an optional dependency may be skipped when a later provider is available.
+
 For request-specific order, pass `route_selector` to a client factory. The callable receives the `RouteRequirement` and the already eligible candidates, and returns an ordered subset. It cannot add a provider or repeat one. An empty result raises `UnsupportedCapabilityError`.
 
 ```python

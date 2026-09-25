@@ -9,8 +9,12 @@ from collections.abc import Mapping, Sequence
 from ..config import Settings
 from ..languages import LanguageRegistry
 from ..providers import CapabilityId, ProviderRegistry
-from ..providers.factories import ProviderFactoryRegistry, configured_provider_factories
-from ..routing import OrderedRouter, RouteSelector
+from ..providers.factories import (
+    ProviderFactoryRegistry,
+    configured_provider_factories,
+    default_provider_factories,
+)
+from ..routing import OrderedRouter, RouteSelector, resolve_route_names
 from .client import TTSClient
 from .protocols import TTSProvider
 
@@ -50,12 +54,22 @@ def get_tts_client(
         if use_configured_routes
         else default_route
     )
-    resolved_route: list[str] = []
-    for name in configured_route:
-        resolved_name = "edge_tts" if name == "edge" and "edge_tts" in registered_names else name
-        if resolved_name in registered_names and resolved_name not in resolved_route:
-            resolved_route.append(resolved_name)
-    route = tuple(resolved_route) or default_route
+    normalized_route = tuple(
+        "edge_tts" if name == "edge" and "edge_tts" in registered_names else name
+        for name in configured_route
+    )
+    if use_configured_routes and CapabilityId.TEXT_TO_SPEECH.value in settings.routes:
+        known = set(registered_names)
+        if providers is None:
+            factories = provider_factories or default_provider_factories()
+            known.update(
+                item.provider_id for item in factories.for_capability(CapabilityId.TEXT_TO_SPEECH)
+            )
+        route = resolve_route_names(
+            CapabilityId.TEXT_TO_SPEECH, normalized_route, registered_names, known
+        )
+    else:
+        route = default_route
 
     router = OrderedRouter(registry, {CapabilityId.TEXT_TO_SPEECH: route}, selector=route_selector)
     return TTSClient(router, language_registry=language_registry)
