@@ -57,7 +57,7 @@ Declare only the capabilities you implement. `CapabilityDeclaration` can restric
 
 ## Turn the example into a network adapter
 
-- Give the adapter an immutable config type for its endpoint, timeout, model, and concurrency limit. Read credentials from the environment or a caller-supplied secret; `Secret` redacts its value in logs.
+- Give the adapter an immutable config type for its endpoint, timeout, model, and concurrency limit. Read adapter-specific values from `[providers.<id>.options]` and validate their names, types, and ranges in the adapter config. The settings loader checks that options contain TOML-compatible values and no secret-like keys. Read credentials from the environment or a caller-supplied `Secret`, which redacts its value in logs. See the [configuration guide](configuration.md#provider-specific-options).
 - Accept an injectable transport or client so tests can provide deterministic responses. If the adapter owns a network client, implement async `start()` and `close()`; the capability client calls them when used as an async context manager.
 - Translate upstream errors into the library's exceptions in `indic_language_utils.errors`. Rate limits, timeouts, transient failures, malformed responses, and output validation failures can trigger the next routed provider. Authentication, invalid input, and unsupported language errors stop the request. Do not catch `asyncio.CancelledError`.
 - Use `ConcurrencyLimiter` and `retry()` if the upstream service needs the same bounds and retry behavior as the existing cloud adapters. Validate response shape before returning a provider result.

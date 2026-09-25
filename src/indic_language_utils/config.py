@@ -70,6 +70,7 @@ class ProviderSettings:
     stt_model_ids: Mapping[str, str] = field(default_factory=dict)
     tts_model_id: str | None = None
     tts_model_ids: Mapping[str, str] = field(default_factory=dict)
+    options: Mapping[str, object] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -247,6 +248,10 @@ def _reject_secrets(data: Mapping[str, object], prefix: str = "") -> None:
             raise ConfigurationError("Secrets are not allowed in TOML configuration")
         if isinstance(value, Mapping):
             _reject_secrets(value, f"{prefix}.{key}" if prefix else key)
+        elif isinstance(value, (list, tuple)):
+            for item in value:
+                if isinstance(item, Mapping):
+                    _reject_secrets(item, f"{prefix}.{key}" if prefix else key)
 
 
 def _deep_merge(target: dict[str, Any], source: Mapping[str, object]) -> None:
@@ -310,6 +315,7 @@ def _providers(data: Mapping[str, object]) -> dict[str, ProviderSettings]:
         "stt_model_ids",
         "tts_model_id",
         "tts_model_ids",
+        "options",
     }
     for name, raw in data.items():
         values = _mapping(raw, f"providers.{name}")
@@ -340,8 +346,32 @@ def _providers(data: Mapping[str, object]) -> dict[str, ProviderSettings]:
             tts_model_ids=_string_mapping(
                 values.get("tts_model_ids", {}), f"providers.{name}.tts_model_ids"
             ),
+            options=_provider_options(values.get("options", {}), name),
         )
     return result
+
+
+def _provider_options(value: object, provider: str) -> dict[str, object]:
+    options = _mapping(value, f"providers.{provider}.options")
+    if not all(isinstance(key, str) and key for key in options):
+        raise ConfigurationError(f"Provider options must have non-empty string keys: {provider}")
+    _reject_secrets(options)
+    return {key: _provider_option(item, provider) for key, item in options.items()}
+
+
+def _provider_option(value: object, provider: str) -> object:
+    if isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, (list, tuple)):
+        return [_provider_option(item, provider) for item in value]
+    if isinstance(value, Mapping):
+        if not all(isinstance(key, str) and key for key in value):
+            raise ConfigurationError(
+                f"Provider options must have non-empty string keys: {provider}"
+            )
+        _reject_secrets(value)
+        return {key: _provider_option(item, provider) for key, item in value.items()}
+    raise ConfigurationError(f"Provider options must contain TOML-compatible values: {provider}")
 
 
 def _routes(data: Mapping[str, object]) -> dict[str, tuple[str, ...]]:

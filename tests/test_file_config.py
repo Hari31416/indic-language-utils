@@ -100,6 +100,53 @@ def test_environment_can_select_an_explicit_config_file(tmp_path: Path) -> None:
     assert settings.retry.max_attempts == 7
 
 
+def test_provider_options_merge_and_preserve_nested_values(tmp_path: Path) -> None:
+    config = write(
+        tmp_path / "provider.toml",
+        """
+        [providers.example.options]
+        region = "south"
+        enabled = true
+        models = ["small", "large"]
+
+        [providers.example.options.request]
+        beam_width = 4
+        """,
+    )
+
+    settings = Settings.load(
+        config,
+        env={"XDG_CONFIG_HOME": str(tmp_path / "no-user-config")},
+        overrides={"providers": {"example": {"options": {"region": "north"}}}},
+        start_dir=tmp_path,
+    )
+
+    assert settings.providers["example"].options == {
+        "region": "north",
+        "enabled": True,
+        "models": ["small", "large"],
+        "request": {"beam_width": 4},
+    }
+
+
+@pytest.mark.parametrize(
+    "options",
+    [
+        {"api_key": "secret"},
+        {"request": {"token": "secret"}},
+        {"nested": [{"password": "secret"}]},
+        {"invalid": object()},
+        {"": "empty key"},
+    ],
+)
+def test_provider_options_reject_secrets_and_invalid_shapes(options: object) -> None:
+    with pytest.raises(ConfigurationError):
+        Settings.load(
+            env={},
+            overrides={"providers": {"example": {"options": options}}},
+        )
+
+
 def test_missing_explicit_file_and_invalid_environment_fail(tmp_path: Path) -> None:
     env = {"XDG_CONFIG_HOME": str(tmp_path / "empty-xdg")}
     start_dir = tmp_path / "empty-project"

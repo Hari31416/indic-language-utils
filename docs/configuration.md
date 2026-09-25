@@ -72,6 +72,10 @@ tts_model_id = "bulbul:v3"
 timeout_seconds = 20.0
 max_concurrency = 8
 
+[providers.my_adapter.options]
+region = "south"
+batch_limit = 12
+
 [routes]
 translation = ["sarvam", "bhashini", "googletrans"]
 text_language_detection = ["sarvam", "bhashini", "fasttext"]
@@ -81,6 +85,23 @@ text_to_speech = ["bhashini", "sarvam"]
 ```
 
 Relative cache paths resolve relative to the current working directory of the process. In production containers or multi-directory environments, specify an absolute path.
+
+### Provider-specific options
+
+An adapter can read settings under `[providers.<id>.options]`. Options support TOML scalar values, arrays, and nested tables. The loader validates their shape and rejects secret-like keys, including in nested options. It merges these values across configuration files and programmatic overrides using the normal precedence rules. Each adapter must validate the option names and value types it uses:
+
+```python
+from indic_language_utils import Settings
+from indic_language_utils.errors import ConfigurationError
+
+settings = Settings.load()
+options = settings.providers["my_adapter"].options
+batch_limit = options.get("batch_limit", 12)
+if not isinstance(batch_limit, int) or isinstance(batch_limit, bool) or batch_limit < 1:
+    raise ConfigurationError("my_adapter.options.batch_limit must be a positive integer")
+```
+
+Keep credentials in environment variables or pass a `Secret` directly to the adapter. An `options` section cannot contain keys such as `api_key`, `token`, or `password`.
 
 ## Secrets and Environment Variables
 
