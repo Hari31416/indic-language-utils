@@ -17,8 +17,12 @@ from indic_language_utils.providers import (
     ResourceManager,
 )
 from indic_language_utils.routing import OrderedRouter, RouteRequirement
+from indic_language_utils.testing import (
+    assert_cancellation,
+    assert_lifecycle,
+    assert_valid_declaration,
+)
 
-from .provider_contract import assert_cancellation, assert_lifecycle, assert_valid_declaration
 from .support import FakeProvider
 
 

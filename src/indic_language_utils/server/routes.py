@@ -692,6 +692,15 @@ async def transliterate_text(
 
     try:
         base_client = get_transliteration_client(env=env)
+    except ConfigurationError as exc:
+        if body.provider and body.provider != "auto":
+            raise HTTPException(
+                status_code=400,
+                detail=f"Provider '{body.provider}' is not available or registered.",
+            ) from exc
+        raise HTTPException(
+            status_code=503, detail="Transliteration provider is not configured"
+        ) from exc
     except Exception as exc:
         logger.error("Failed to initialize transliteration client: %s", exc, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Transliteration setup error: {exc}") from exc

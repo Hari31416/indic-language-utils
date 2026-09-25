@@ -123,7 +123,24 @@ For a concrete network implementation, compare `translation/bhashini_translate.p
 
 ## Test the contract
 
-Start with an offline test using an injected fake transport. Cover a successful batch, wrong output count, authentication failure, rate limiting or timeout, cancellation, and lifecycle cleanup. Check route order and fallback through a capability client, not only the adapter method. `tests/provider_contract.py` contains declaration, lifecycle, and cancellation checks; `tests/translation_support.py` has a small fake translation provider and router.
+Start with an offline test using an injected fake transport. Cover a successful batch, wrong output count, authentication failure, rate limiting or timeout, cancellation, and lifecycle cleanup. Check route order and fallback through a capability client, not only the adapter method. Import reusable checks from `indic_language_utils.testing`; `tests/translation_support.py` has a small fake translation provider and router.
+
+```python
+from indic_language_utils import CapabilityId
+from indic_language_utils.testing import assert_batch_output, assert_valid_declaration
+
+assert_valid_declaration(provider, CapabilityId.TRANSLATION)
+result = await provider.translate_batch(
+    ("hello", "thanks"),
+    source=source,
+    target=target,
+    options=TranslationOptions(),
+    request_id="contract-test",
+)
+assert_batch_output(result.translations, 2, valid_item=lambda text: isinstance(text, str))
+```
+
+Use `assert_declared_support` to check advertised language coverage and `assert_lifecycle(provider, is_started, is_closed)` for adapters with `start()` and `close()`. For cancellation, pass a fake transport that blocks on an `asyncio.Event`, then call `assert_cancellation(operation, started=ready_event)`. Test fallback through `get_translation_client(..., providers=[failing, working])` and call `assert_fallback_result(result, provider_id="working")`. The contract checks are plain Python and do not require pytest in an installed application.
 
 Run the same checks as CI before opening a pull request:
 
