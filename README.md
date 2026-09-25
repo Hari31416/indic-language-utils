@@ -93,6 +93,7 @@ Comprehensive guides are available in the documentation site:
 
 - [Installation and Quick Start](docs/getting-started.md): Provider setup and first calls.
 - [Provider Reference](docs/provider-reference.md): Capability matrix, setup requirements, and fallback behavior.
+- [Contributing a provider](docs/contributing-providers.md): Adapter contract, registration, tests, and review checklist.
 - [User Guide](docs/user-guide.md): Architecture overview, core capabilities, and usage styles.
 - [Translation Guide](docs/translation.md): Synchronous and asynchronous translation, Markdown preservation, and catalogs.
 - [Detection Guide](docs/detection.md): Local FastText and cloud Bhashini detection, script analysis, and candidate scoring.

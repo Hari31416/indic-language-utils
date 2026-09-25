@@ -31,6 +31,7 @@ nav:
   - Overview: index.md
   - Installation and quick start: getting-started.md
   - Provider reference: provider-reference.md
+  - Contributing a provider: contributing-providers.md
   - User Guide: user-guide.md
   - Translation: translation.md
   - Detection: detection.md
