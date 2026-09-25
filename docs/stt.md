@@ -52,6 +52,33 @@ speech_to_text = ["sarvam", "bhashini"]
 
 Sarvam accepts an optional `language_code`. Omit the language for automatic detection; the result uses Sarvam's detected language when it provides one. Its synchronous REST endpoint accepts clips up to 30 seconds; longer recordings need Sarvam's batch API, which this adapter does not provide. The model ID can also come from `SARVAM_STT_MODEL_ID`.
 
+### Live ASR
+
+Install `indic-language-utils[streaming]` to use Sarvam's Realtime WebSocket. The streaming client accepts **mono signed 16-bit PCM bytes**, at 8 or 16 kHz. It does not resample microphone audio. Each stream yields the same `STTStreamEvent` shape regardless of provider: `kind` is `speech_start`, `speech_end`, `partial`, or `final`; `text` is present for transcript events; all events include language, provider, model ID, and request ID.
+
+```python
+import asyncio
+
+from indic_language_utils import get_stt_client
+
+async with get_stt_client() as client:
+    async with client.stream(language="hi", sampling_rate=16000) as stream:
+
+        async def send_audio():
+            async for pcm_chunk in microphone_pcm_chunks():
+                await stream.send_audio(pcm_chunk)
+            await stream.finish()
+
+        async def receive_events():
+            async for event in stream.events():
+                if event.kind in {"partial", "final"}:
+                    print(event.kind, event.text)
+
+        await asyncio.gather(send_audio(), receive_events())
+```
+
+`finish()` ends the Sarvam session after the last audio chunk. The adapter uses `saaras:v3-realtime` by default, or `saaras:v4` when that model is configured. Pass `model_id="saaras:v4"` to `client.stream()` to choose it explicitly. Sarvam's [Realtime API guide](https://docs.sarvam.ai/api/api-guides-tutorials/speech-to-text/realtime-streaming) describes the underlying partial and final events. A stream selects one provider when it opens; it does not switch providers after audio has been sent.
+
 ## Google Free STT
 
 The Google Free STT adapter (`google_free`) provides keyless, zero-setup transcription using the unofficial Google Web Speech API backed by `SpeechRecognition`.

@@ -760,6 +760,9 @@ server = [
     { name = "fastapi" },
     { name = "uvicorn", extra = ["standard"] },
 ]
+streaming = [
+    { name = "websockets" },
+]
 stt = [
     { name = "av" },
     { name = "faster-whisper" },
@@ -791,6 +794,7 @@ dev = [
     { name = "ruff" },
     { name = "speechrecognition" },
     { name = "uvicorn", extra = ["standard"] },
+    { name = "websockets" },
 ]
 docs = [
     { name = "mkdocs" },
@@ -812,8 +816,9 @@ requires-dist = [
     { name = "speechrecognition", marker = "extra == 'stt'", specifier = ">=3.10.0" },
     { name = "speechrecognition", marker = "extra == 'stt-google-free'", specifier = ">=3.10.0" },
     { name = "uvicorn", extras = ["standard"], marker = "extra == 'server'", specifier = ">=0.34.0" },
+    { name = "websockets", marker = "extra == 'streaming'", specifier = ">=14,<18" },
 ]
-provides-extras = ["googletrans", "local-tld", "local-transliteration", "server", "stt", "stt-google-free", "stt-whisper", "tts-edge"]
+provides-extras = ["googletrans", "local-tld", "local-transliteration", "server", "stt", "stt-google-free", "stt-whisper", "tts-edge", "streaming"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -830,6 +835,7 @@ dev = [
     { name = "ruff", specifier = ">=0.11" },
     { name = "speechrecognition", specifier = ">=3.10.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.34.0" },
+    { name = "websockets", specifier = ">=14,<18" },
 ]
 docs = [
     { name = "mkdocs", specifier = ">=1.6.1" },

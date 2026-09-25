@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import AsyncIterator, Sequence
+from contextlib import asynccontextmanager
 
 from ..errors import (
+    ConfigurationError,
     MalformedProviderResponseError,
     OutputValidationError,
     ProviderTimeoutError,
@@ -12,10 +14,12 @@ from ..errors import (
     TransientProviderError,
 )
 from ..languages import DEFAULT_LANGUAGE_REGISTRY, LanguageTag
+from ..models import OperationContext
 from ..providers import AsyncLifecycle, CapabilityId, ResourceManager
 from ..routing import OrderedRouter, RouteRequirement
 from .models import STTRequest, STTResult
-from .protocols import STTProvider
+from .protocols import StreamingSTTProvider, STTProvider
+from .streaming import STTStream
 
 _FALLBACK_ERRORS = (
     RateLimitError,
@@ -56,6 +60,39 @@ class STTClient:
 
     async def __aexit__(self, *_: object) -> None:
         await self.close()
+
+    @asynccontextmanager
+    async def stream(
+        self,
+        *,
+        language: LanguageTag | str | None = None,
+        sampling_rate: int = 16000,
+        provider: str | None = None,
+        model_id: str | None = None,
+    ) -> AsyncIterator[STTStream]:
+        """Open one live PCM session; the chosen provider stays fixed for its lifetime."""
+        if sampling_rate <= 0:
+            raise ValueError("Sampling rate must be positive")
+        tag = DEFAULT_LANGUAGE_REGISTRY.normalize(language) if language else None
+        candidates = self._router.candidates(
+            RouteRequirement(CapabilityId.SPEECH_TO_TEXT, source=tag)
+        )
+        for candidate in candidates:
+            selected = candidate.provider
+            if provider is not None and selected.identity.provider != provider:
+                continue
+            if not isinstance(selected, StreamingSTTProvider):
+                continue
+            request_id = OperationContext().request_id
+            async with selected.open_stream(
+                language=tag,
+                sampling_rate=sampling_rate,
+                request_id=request_id,
+                model_id=model_id,
+            ) as session:
+                yield session
+            return
+        raise ConfigurationError("No configured STT provider supports streaming")
 
     async def transcribe(
         self,

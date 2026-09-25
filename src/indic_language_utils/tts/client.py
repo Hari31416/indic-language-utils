@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import AsyncIterator, Sequence
+from contextlib import asynccontextmanager
 
 from ..errors import (
+    ConfigurationError,
     MalformedProviderResponseError,
     OutputValidationError,
     ProviderTimeoutError,
@@ -12,11 +14,13 @@ from ..errors import (
     TransientProviderError,
     UnsupportedLanguageError,
 )
-from ..languages import LanguageTag
+from ..languages import DEFAULT_LANGUAGE_REGISTRY, LanguageTag
+from ..models import OperationContext
 from ..providers import AsyncLifecycle, CapabilityId, ResourceManager
 from ..routing import OrderedRouter, RouteRequirement
 from .models import TTSOptions, TTSRequest, TTSResult
-from .protocols import TTSProvider
+from .protocols import StreamingTTSProvider, TTSProvider
+from .streaming import TTSStream
 
 _FALLBACK_ERRORS = (
     RateLimitError,
@@ -57,6 +61,40 @@ class TTSClient:
 
     async def __aexit__(self, *_: object) -> None:
         await self.close()
+
+    @asynccontextmanager
+    async def stream(
+        self,
+        *,
+        language: LanguageTag | str,
+        options: TTSOptions | None = None,
+        provider: str | None = None,
+        model_id: str | None = None,
+    ) -> AsyncIterator[TTSStream]:
+        """Open a live text-input, audio-output session."""
+        tag = DEFAULT_LANGUAGE_REGISTRY.normalize(language)
+        candidates = self._router.candidates(
+            RouteRequirement(CapabilityId.TEXT_TO_SPEECH, source=tag)
+        )
+        for candidate in candidates:
+            selected = candidate.provider
+            if provider is not None and selected.identity.provider != provider:
+                continue
+            if not isinstance(selected, StreamingTTSProvider):
+                continue
+            request_id = OperationContext().request_id
+            provider_options = (options or TTSOptions()).for_provider(
+                selected.identity.provider, primary=True
+            )
+            async with selected.open_stream(
+                language=tag,
+                options=provider_options,
+                request_id=request_id,
+                model_id=model_id,
+            ) as session:
+                yield session
+            return
+        raise ConfigurationError("No configured TTS provider supports streaming")
 
     async def synthesize(
         self,

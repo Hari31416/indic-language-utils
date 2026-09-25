@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import AsyncIterator, Mapping
+from contextlib import asynccontextmanager
 
 import httpx
 
@@ -21,6 +22,7 @@ from ..providers.bhashini import JsonResponse, _header
 from ..providers.sarvam import SarvamConfig, _raise_sarvam_status, sarvam_language_code
 from ..retry import retry
 from .models import ProviderSTTResult
+from .sarvam_stream import SarvamSTTStream, open_sarvam_stt_stream
 
 
 class SarvamSTTProvider:
@@ -61,6 +63,27 @@ class SarvamSTTProvider:
                 details={"language": tag or "unspecified"},
             )
         return model_id
+
+    @asynccontextmanager
+    async def open_stream(
+        self,
+        *,
+        language: LanguageTag | None,
+        sampling_rate: int,
+        request_id: str,
+        model_id: str | None = None,
+    ) -> AsyncIterator[SarvamSTTStream]:
+        configured = self.model_id_for(language)
+        selected = model_id or (configured if configured == "saaras:v4" else "saaras:v3-realtime")
+        async with self._limiter.slot("sarvam", CapabilityId.SPEECH_TO_TEXT):
+            async with open_sarvam_stt_stream(
+                self.config,
+                language=language,
+                sampling_rate=sampling_rate,
+                model_id=selected,
+                request_id=request_id,
+            ) as stream:
+                yield stream
 
     async def transcribe_batch(
         self,

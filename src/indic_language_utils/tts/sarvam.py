@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import base64
 import binascii
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from ..concurrency import ConcurrencyLimiter
 from ..errors import InvalidInputError, MalformedProviderResponseError, UnsupportedLanguageError
@@ -20,6 +22,7 @@ from ..providers.sarvam import (
 from ..retry import retry
 from .bhashini import _audio_format
 from .models import ProviderTTSResult, TTSOptions
+from .sarvam_stream import SarvamTTSStream, open_sarvam_tts_stream
 
 _TTS_LANGUAGES = frozenset({"bn", "en", "gu", "hi", "kn", "ml", "mr", "or", "pa", "ta", "te"})
 _RESERVED = {"text", "language_code", "model"}
@@ -68,6 +71,26 @@ class SarvamTTSProvider:
                 details={"language": tag or "unspecified"},
             )
         return model_id
+
+    @asynccontextmanager
+    async def open_stream(
+        self,
+        *,
+        language: LanguageTag,
+        options: TTSOptions,
+        request_id: str,
+        model_id: str | None = None,
+    ) -> AsyncIterator[SarvamTTSStream]:
+        selected = model_id or self.model_id_for(language)
+        async with self._limiter.slot("sarvam", CapabilityId.TEXT_TO_SPEECH):
+            async with open_sarvam_tts_stream(
+                self.config,
+                language=language,
+                options=options,
+                model_id=selected,
+                request_id=request_id,
+            ) as stream:
+                yield stream
 
     async def synthesize_batch(
         self,

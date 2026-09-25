@@ -30,6 +30,7 @@ stt = ["SpeechRecognition>=3.10.0", "faster-whisper>=1.0.0", "av>=12"]
 stt-google-free = ["SpeechRecognition>=3.10.0", "av>=12"]
 stt-whisper = ["faster-whisper>=1.0.0"]
 tts-edge = ["edge-tts>=6.1.12"]
+streaming = ["websockets>=14,<18"]
 
 [project.scripts]
 indic-server = "indic_language_utils.server.app:run_server"
@@ -53,6 +54,7 @@ dev = [
   "ruff>=0.11",
   "SpeechRecognition>=3.10.0",
   "uvicorn[standard]>=0.34.0",
+  "websockets>=14,<18",
 ]
 docs = [
     "mkdocs>=1.6.1",

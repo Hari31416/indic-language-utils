@@ -67,6 +67,33 @@ text_to_speech = ["sarvam", "bhashini"]
 
 Sarvam TTS requires a language. Use `TTSOptions({"speaker": "shubh", "pace": 1.0})` with Bulbul v3. Bulbul v2 also supports `pitch` and `loudness`; v3 does not. Sarvam returns base64 audio, which the provider decodes into `TTSResult.audio`. Its model ID can also come from `SARVAM_TTS_MODEL_ID`.
 
+### Live TTS
+
+Install `indic-language-utils[streaming]` to stream text into Sarvam's Bulbul WebSocket and receive audio as it arrives. The standard `TTSStreamEvent` has `kind` (`audio` or `done`), audio bytes for audio events, audio format, language, provider, model ID, and request ID.
+
+```python
+import asyncio
+
+from indic_language_utils import TTSOptions, get_tts_client
+
+async with get_tts_client() as client:
+    async with client.stream(language="hi", options=TTSOptions({"speaker": "shubh"})) as stream:
+
+        async def send_text():
+            async for text_chunk in response_text_chunks():
+                await stream.send_text(text_chunk)
+            await stream.flush()
+
+        async def receive_audio():
+            async for event in stream.events():
+                if event.kind == "audio":
+                    player.write(event.audio)
+
+        await asyncio.gather(send_text(), receive_audio())
+```
+
+`flush()` tells Sarvam to synthesize the remaining buffered text; the `done` event follows its final audio chunk. Audio defaults to MP3. Set `TTSOptions({"audio_format": "linear16"})` for PCM output. The [Sarvam WebSocket guide](https://docs.sarvam.ai/api/api-guides-tutorials/text-to-speech/streaming-api/web-socket) describes its text buffering and completion event. Each stream stays on its selected provider until it closes.
+
 ## Microsoft Edge TTS
 
 Microsoft Edge TTS provides high-quality neural voice synthesis for Indian languages without requiring an API key. Install the optional dependency:
