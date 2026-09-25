@@ -7,8 +7,8 @@ import os
 from collections.abc import Mapping, Sequence
 
 from ..config import Settings
-from ..errors import ConfigurationError, MissingOptionalDependencyError
 from ..providers import CapabilityId, ProviderRegistry
+from ..providers.factories import default_provider_factories
 from ..routing import OrderedRouter
 from .cache import create_detection_cache
 from .client import DetectionClient
@@ -34,46 +34,11 @@ def get_detection_client(
         for provider in providers:
             registry.register(provider)
     else:
-        env_map = os.environ if env is None else env
-
-        # Check Bhashini detection adapter
-        has_bhashini = (
-            "bhashini" in settings.providers
-            or "BHASHINI_API_KEY" in env_map
-            or "BHASHINI_DETECTION_SERVICE_ID" in env_map
-            or "BHASHINI_TLD_SERVICE_ID" in env_map
-        )
-        if has_bhashini:
-            try:
-                from ..providers.bhashini import BhashiniConfig
-                from .bhashini_detect import BhashiniDetectionProvider
-
-                bhashini_config = BhashiniConfig.from_settings(settings, env=env)
-                if bhashini_config.detection_service_id:
-                    registry.register(BhashiniDetectionProvider(bhashini_config))
-            except ConfigurationError:
-                pass
-
-        # Check Sarvam detection adapter
-        has_sarvam = "sarvam" in settings.providers or "SARVAM_API_KEY" in env_map
-        if has_sarvam:
-            try:
-                from ..providers.sarvam import SarvamConfig
-                from .sarvam_detect import SarvamDetectionProvider
-
-                sarvam_config = SarvamConfig.from_settings(settings, env=env)
-                registry.register(SarvamDetectionProvider(sarvam_config))
-            except ConfigurationError:
-                pass
-
-        # Default local detection adapter: FastText
-        try:
-            from .fasttext import HAVE_FASTTEXT, FastTextDetectionConfig, FastTextDetectionProvider
-
-            if HAVE_FASTTEXT:
-                registry.register(FastTextDetectionProvider(FastTextDetectionConfig()))
-        except (ConfigurationError, MissingOptionalDependencyError):
-            pass
+        values = os.environ if env is None else env
+        for built_provider in default_provider_factories().build(
+            CapabilityId.TEXT_LANGUAGE_DETECTION, settings, values
+        ):
+            registry.register(built_provider)
 
     for provider in additional_providers:
         registry.register(provider)

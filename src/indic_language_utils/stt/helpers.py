@@ -7,13 +7,10 @@ from collections.abc import Mapping, Sequence
 
 from ..config import Settings
 from ..providers import CapabilityId, ProviderRegistry
-from ..providers.bhashini import BhashiniConfig
-from ..providers.sarvam import SarvamConfig
+from ..providers.factories import default_provider_factories
 from ..routing import OrderedRouter
-from .bhashini import BhashiniSTTProvider
 from .client import STTClient
 from .protocols import STTProvider
-from .sarvam import SarvamSTTProvider
 
 
 def get_stt_client(
@@ -31,36 +28,10 @@ def get_stt_client(
             registry.register(provider)
     else:
         values = os.environ if env is None else env
-        if values.get("BHASHINI_API_KEY"):
-            config = BhashiniConfig.from_settings(settings, env=values)
-            if config.stt_model_id or config.stt_model_ids:
-                registry.register(BhashiniSTTProvider(config))
-        if values.get("SARVAM_API_KEY"):
-            sarvam = SarvamConfig.from_settings(settings, env=values)
-            if sarvam.stt_model_id or sarvam.stt_model_ids:
-                registry.register(SarvamSTTProvider(sarvam))
-
-        has_google_free = (
-            "google_free" in settings.providers
-            or any("google_free" in p_list for p_list in settings.routes.values())
-            or values.get("STT_SERVICE_PROVIDER") in {"google_free", "google", "speechrecognition"}
-        )
-        if has_google_free:
-            from .google_speech import GoogleFreeSTTConfig, GoogleFreeSTTProvider
-
-            gf_config = GoogleFreeSTTConfig.from_settings(settings, env=values)
-            registry.register(GoogleFreeSTTProvider(gf_config))
-
-        has_faster_whisper = (
-            "faster_whisper" in settings.providers
-            or any("faster_whisper" in p_list for p_list in settings.routes.values())
-            or values.get("STT_SERVICE_PROVIDER") in {"faster_whisper", "whisper"}
-        )
-        if has_faster_whisper:
-            from .whisper import FasterWhisperSTTConfig, FasterWhisperSTTProvider
-
-            whisper_config = FasterWhisperSTTConfig.from_settings(settings, env=values)
-            registry.register(FasterWhisperSTTProvider(whisper_config))
+        for built_provider in default_provider_factories().build(
+            CapabilityId.SPEECH_TO_TEXT, settings, values
+        ):
+            registry.register(built_provider)
 
     for provider in additional_providers:
         registry.register(provider)

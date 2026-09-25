@@ -7,9 +7,10 @@ import os
 from collections.abc import Mapping, Sequence
 
 from ..config import Settings
-from ..errors import ConfigurationError, InvalidInputError, MissingOptionalDependencyError
+from ..errors import InvalidInputError
 from ..languages import LanguageTag
 from ..providers import CapabilityId, ProviderRegistry
+from ..providers.factories import default_provider_factories
 from ..routing import OrderedRouter
 from .cache import create_translation_cache
 from .client import TranslationClient
@@ -40,47 +41,11 @@ def get_translation_client(
         for provider in providers:
             registry.register(provider)
     else:
-        env_map = os.environ if env is None else env
-        has_bhashini = "bhashini" in settings.providers or "BHASHINI_API_KEY" in env_map
-        if has_bhashini:
-            try:
-                from ..providers.bhashini import BhashiniConfig
-                from .bhashini_translate import BhashiniTranslationProvider
-
-                bhashini_config = BhashiniConfig.from_settings(settings, env=env)
-                registry.register(BhashiniTranslationProvider(bhashini_config))
-            except ConfigurationError:
-                pass
-
-        has_sarvam = "sarvam" in settings.providers or "SARVAM_API_KEY" in env_map
-        if has_sarvam:
-            try:
-                from ..providers.sarvam import SarvamConfig
-                from .sarvam_translate import SarvamTranslationProvider
-
-                sarvam_config = SarvamConfig.from_settings(settings, env=env)
-                registry.register(SarvamTranslationProvider(sarvam_config))
-            except ConfigurationError:
-                pass
-
-        has_googletrans = (
-            "googletrans" in settings.providers
-            or any("googletrans" in p_list for p_list in settings.routes.values())
-            or env_map.get("TRANSLATION_SERVICE_PROVIDER") in {"googletrans", "google"}
-        )
-        if has_googletrans:
-            try:
-                from .google_translate import (
-                    HAVE_GOOGLETRANS,
-                    GoogleTranslateConfig,
-                    GoogleTranslateProvider,
-                )
-
-                if HAVE_GOOGLETRANS:
-                    gt_config = GoogleTranslateConfig.from_settings(settings, env=env)
-                    registry.register(GoogleTranslateProvider(gt_config))
-            except (ConfigurationError, MissingOptionalDependencyError):
-                pass
+        values = os.environ if env is None else env
+        for built_provider in default_provider_factories().build(
+            CapabilityId.TRANSLATION, settings, values
+        ):
+            registry.register(built_provider)
 
     for provider in additional_providers:
         registry.register(provider)

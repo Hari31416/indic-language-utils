@@ -7,9 +7,9 @@ import os
 from collections.abc import Mapping, Sequence
 
 from ..config import Settings
-from ..errors import ConfigurationError, MissingOptionalDependencyError
 from ..languages import LanguageTag
 from ..providers import CapabilityId, ProviderRegistry
+from ..providers.factories import default_provider_factories
 from ..routing import OrderedRouter
 from .cache import create_transliteration_cache
 from .client import TransliterationClient
@@ -35,53 +35,11 @@ def get_transliteration_client(
         for provider in providers:
             registry.register(provider)
     else:
-        env_map = os.environ if env is None else env
-
-        # Check Bhashini transliteration adapter
-        has_bhashini = (
-            "bhashini" in settings.providers
-            or "BHASHINI_API_KEY" in env_map
-            or "BHASHINI_TRANSLITERATION_SERVICE_ID" in env_map
-        )
-        if has_bhashini:
-            try:
-                from ..providers.bhashini import BhashiniConfig
-                from .bhashini_transliterate import BhashiniTransliterationProvider
-
-                bhashini_config = BhashiniConfig.from_settings(settings, env=env)
-                if (
-                    bhashini_config.transliteration_service_id
-                    or bhashini_config.transliteration_service_ids
-                ):
-                    registry.register(BhashiniTransliterationProvider(bhashini_config))
-            except ConfigurationError:
-                pass
-
-        # Check Aksharamukha local adapter
-        try:
-            from .aksharamukha import (
-                HAVE_AKSHARAMUKHA,
-                AksharamukhaConfig,
-                AksharamukhaTransliterationProvider,
-            )
-
-            if HAVE_AKSHARAMUKHA:
-                registry.register(AksharamukhaTransliterationProvider(AksharamukhaConfig()))
-        except (ConfigurationError, MissingOptionalDependencyError):
-            pass
-
-        # Check IndicXlit local adapter
-        try:
-            from .indicxlit import (
-                HAVE_INDICXLIT,
-                IndicXlitConfig,
-                IndicXlitTransliterationProvider,
-            )
-
-            if HAVE_INDICXLIT:
-                registry.register(IndicXlitTransliterationProvider(IndicXlitConfig()))
-        except (ConfigurationError, MissingOptionalDependencyError):
-            pass
+        values = os.environ if env is None else env
+        for built_provider in default_provider_factories().build(
+            CapabilityId.TRANSLITERATION, settings, values
+        ):
+            registry.register(built_provider)
 
     for provider in additional_providers:
         registry.register(provider)
