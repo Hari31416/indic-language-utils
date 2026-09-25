@@ -9,7 +9,7 @@ from ..config import Settings
 from ..languages import LanguageRegistry
 from ..providers import CapabilityId, ProviderRegistry
 from ..providers.factories import ProviderFactoryRegistry, configured_provider_factories
-from ..routing import OrderedRouter
+from ..routing import OrderedRouter, RouteSelector
 from .client import STTClient
 from .protocols import STTProvider
 
@@ -22,6 +22,7 @@ def get_stt_client(
     provider_factories: ProviderFactoryRegistry | None = None,
     env: Mapping[str, str] | None = None,
     language_registry: LanguageRegistry | None = None,
+    route_selector: RouteSelector | None = None,
 ) -> STTClient:
     use_configured_routes = providers is None or settings is not None
     settings = settings or Settings.load(env=env)
@@ -46,5 +47,5 @@ def get_stt_client(
         else default_route
     )
     route = tuple(name for name in configured_route if name in default_route)
-    router = OrderedRouter(registry, {CapabilityId.SPEECH_TO_TEXT: route})
+    router = OrderedRouter(registry, {CapabilityId.SPEECH_TO_TEXT: route}, selector=route_selector)
     return STTClient(router, language_registry=language_registry)

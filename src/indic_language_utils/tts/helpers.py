@@ -10,7 +10,7 @@ from ..config import Settings
 from ..languages import LanguageRegistry
 from ..providers import CapabilityId, ProviderRegistry
 from ..providers.factories import ProviderFactoryRegistry, configured_provider_factories
-from ..routing import OrderedRouter
+from ..routing import OrderedRouter, RouteSelector
 from .client import TTSClient
 from .protocols import TTSProvider
 
@@ -25,6 +25,7 @@ def get_tts_client(
     provider_factories: ProviderFactoryRegistry | None = None,
     env: Mapping[str, str] | None = None,
     language_registry: LanguageRegistry | None = None,
+    route_selector: RouteSelector | None = None,
 ) -> TTSClient:
     use_configured_routes = providers is None or settings is not None
     settings = settings or Settings.load(env=env)
@@ -56,5 +57,5 @@ def get_tts_client(
             resolved_route.append(resolved_name)
     route = tuple(resolved_route) or default_route
 
-    router = OrderedRouter(registry, {CapabilityId.TEXT_TO_SPEECH: route})
+    router = OrderedRouter(registry, {CapabilityId.TEXT_TO_SPEECH: route}, selector=route_selector)
     return TTSClient(router, language_registry=language_registry)

@@ -59,7 +59,7 @@ from .providers import (
     ProviderRegistry,
     SarvamConfig,
 )
-from .routing import OrderedRouter, RouteCandidate, RouteRequirement
+from .routing import OrderedRouter, RouteCandidate, RouteRequirement, RouteSelector
 from .stt import (
     BhashiniSTTProvider,
     FasterWhisperSTTConfig,
@@ -214,6 +214,7 @@ __all__ = [
     "RetrySettings",
     "RouteCandidate",
     "RouteRequirement",
+    "RouteSelector",
     "SQLiteCache",
     "STTClient",
     "STTProvider",

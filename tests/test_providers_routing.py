@@ -4,7 +4,11 @@ import asyncio
 
 import pytest
 
-from indic_language_utils.errors import ConfigurationError, UnsupportedLanguageError
+from indic_language_utils.errors import (
+    ConfigurationError,
+    UnsupportedCapabilityError,
+    UnsupportedLanguageError,
+)
 from indic_language_utils.languages import DEFAULT_LANGUAGE_REGISTRY
 from indic_language_utils.providers import (
     CapabilityDeclaration,
@@ -46,6 +50,40 @@ def test_router_checks_features() -> None:
     router = OrderedRouter(registry, {CapabilityId.TRANSLATION: ("plain",)})
     with pytest.raises(UnsupportedLanguageError):
         router.select(RouteRequirement(CapabilityId.TRANSLATION, features=frozenset({"batch"})))
+
+
+def test_route_selector_can_order_eligible_providers_per_request() -> None:
+    registry = ProviderRegistry()
+    for name in ("first", "second"):
+        registry.register(FakeProvider(name, (CapabilityDeclaration(CapabilityId.TRANSLATION),)))
+    hi = DEFAULT_LANGUAGE_REGISTRY.normalize("hi")
+    router = OrderedRouter(
+        registry,
+        {CapabilityId.TRANSLATION: ("first", "second")},
+        selector=lambda requirement, candidates: (
+            tuple(reversed(candidates)) if requirement.target == hi else candidates
+        ),
+    )
+    assert router.select(
+        RouteRequirement(CapabilityId.TRANSLATION, target=hi)
+    ).provider is registry.get("second")
+    assert router.select(RouteRequirement(CapabilityId.TRANSLATION)).provider is registry.get(
+        "first"
+    )
+
+
+def test_route_selector_cannot_add_or_repeat_providers() -> None:
+    registry = ProviderRegistry()
+    registry.register(FakeProvider("first", (CapabilityDeclaration(CapabilityId.TRANSLATION),)))
+    routes: dict[CapabilityId, tuple[str, ...]] = {CapabilityId.TRANSLATION: ("first",)}
+    duplicate = OrderedRouter(
+        registry, routes, selector=lambda requirement, candidates: candidates * 2
+    )
+    with pytest.raises(ConfigurationError):
+        duplicate.candidates(RouteRequirement(CapabilityId.TRANSLATION))
+    empty = OrderedRouter(registry, routes, selector=lambda requirement, candidates: ())
+    with pytest.raises(UnsupportedCapabilityError):
+        empty.candidates(RouteRequirement(CapabilityId.TRANSLATION))
 
 
 def test_duplicate_registration_fails() -> None:

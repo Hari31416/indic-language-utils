@@ -12,7 +12,7 @@ from ..errors import InvalidInputError
 from ..languages import LanguageRegistry, LanguageTag
 from ..providers import CapabilityId, ProviderRegistry
 from ..providers.factories import ProviderFactoryRegistry, configured_provider_factories
-from ..routing import OrderedRouter
+from ..routing import OrderedRouter, RouteSelector
 from ..telemetry import EventLogger, MetricHook, TraceHook
 from .cache import create_translation_cache
 from .catalog import LocalizationCatalog
@@ -38,6 +38,7 @@ def get_translation_client(
     metrics: MetricHook | None = None,
     tracing: TraceHook | None = None,
     processors: TranslationProcessorPipeline | None = None,
+    route_selector: RouteSelector | None = None,
 ) -> TranslationClient:
     """Build and configure a TranslationClient with providers, routes, and cache.
 
@@ -98,7 +99,7 @@ def get_translation_client(
         if trans_providers:
             routes[CapabilityId.TRANSLATION] = trans_providers
 
-    router = OrderedRouter(registry, routes)
+    router = OrderedRouter(registry, routes, selector=route_selector)
     selected_cache = (
         cache
         if cache is not None
@@ -132,6 +133,7 @@ def get_sync_translation_client(
     metrics: MetricHook | None = None,
     tracing: TraceHook | None = None,
     processors: TranslationProcessorPipeline | None = None,
+    route_selector: RouteSelector | None = None,
 ) -> SyncTranslationClient:
     """Build and configure a synchronous TranslationClient facade."""
     return SyncTranslationClient(
@@ -149,6 +151,7 @@ def get_sync_translation_client(
             metrics=metrics,
             tracing=tracing,
             processors=processors,
+            route_selector=route_selector,
         )
     )
 

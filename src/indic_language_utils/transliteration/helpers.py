@@ -11,7 +11,7 @@ from ..config import Settings
 from ..languages import LanguageRegistry, LanguageTag
 from ..providers import CapabilityId, ProviderRegistry
 from ..providers.factories import ProviderFactoryRegistry, configured_provider_factories
-from ..routing import OrderedRouter
+from ..routing import OrderedRouter, RouteSelector
 from ..telemetry import EventLogger, MetricHook, TraceHook
 from .cache import create_transliteration_cache
 from .client import TransliterationClient
@@ -33,6 +33,7 @@ def get_transliteration_client(
     logger: EventLogger | None = None,
     metrics: MetricHook | None = None,
     tracing: TraceHook | None = None,
+    route_selector: RouteSelector | None = None,
 ) -> TransliterationClient:
     """Build and configure a TransliterationClient with providers, routes, and cache."""
     use_configured_routes = providers is None or settings is not None
@@ -77,7 +78,7 @@ def get_transliteration_client(
         if ordered:
             routes[CapabilityId.TRANSLITERATION] = tuple(ordered)
 
-    router = OrderedRouter(registry, routes)
+    router = OrderedRouter(registry, routes, selector=route_selector)
     selected_cache = cache if cache is not None else create_transliteration_cache(settings.cache)
     return TransliterationClient(
         router=router,
@@ -103,6 +104,7 @@ def get_sync_transliteration_client(
     logger: EventLogger | None = None,
     metrics: MetricHook | None = None,
     tracing: TraceHook | None = None,
+    route_selector: RouteSelector | None = None,
 ) -> SyncTransliterationClient:
     """Build and configure a synchronous TransliterationClient facade."""
     return SyncTransliterationClient(
@@ -118,6 +120,7 @@ def get_sync_transliteration_client(
             logger=logger,
             metrics=metrics,
             tracing=tracing,
+            route_selector=route_selector,
         )
     )
 
