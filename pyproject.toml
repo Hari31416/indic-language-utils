@@ -36,7 +36,7 @@ streaming = ["websockets>=14,<18"]
 indic-server = "indic_language_utils.server.app:run_server"
 
 [project.urls]
-Documentation = "https://github.com/hari31416/indic-language-utils"
+Documentation = "https://hari31416.github.io/indic-language-utils/"
 Source = "https://github.com/hari31416/indic-language-utils"
 
 [dependency-groups]
