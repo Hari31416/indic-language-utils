@@ -26,6 +26,22 @@ and local detection requires an optional extra. The
 [installation and quick start guide](docs/getting-started.md) covers a credential-free setup,
 Bhashini configuration, and the first detection and translation calls.
 
+### Quick start with a coding agent
+
+The [integration skill](https://raw.githubusercontent.com/Hari31416/indic-language-utils/main/skills/indic-language-utils/SKILL.md)
+gives a coding agent installation steps, first calls, and provider choices. Point your agent to
+the raw skill file when asking it to add an Indian-language feature to your project:
+
+```text
+Use https://raw.githubusercontent.com/Hari31416/indic-language-utils/main/skills/indic-language-utils/SKILL.md to add translation to this project.
+```
+
+You can also install the skill into your project with the [skills CLI](https://github.com/vercel-labs/skills):
+
+```bash
+npx skills add Hari31416/indic-language-utils --skill indic-language-utils
+```
+
 ## Supported Providers
 
 | Provider             | Capability                              | Mode               | Prerequisites                 |
