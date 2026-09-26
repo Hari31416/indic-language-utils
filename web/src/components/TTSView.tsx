@@ -66,6 +66,7 @@ const TTS_SAMPLE_TEXTS = [
 ]
 
 const TTS_MODEL_PRESETS: Record<string, string[]> = {
+  gnani: ['timbre-v2.5'],
   sarvam: ['bulbul:v3', 'bulbul:v4-flash', 'bulbul:v3-beta', 'bulbul:v2'],
   bhashini: [
     'ai4bharat/indic-tts-coqui-indo_aryan-gpu--t4',
@@ -100,6 +101,7 @@ type Fields = Record<string, string>
 type ProviderFields = Record<string, Fields>
 
 const initialFields: ProviderFields = {
+  gnani: { voice: 'Nalini', speed: '1.0', streaming_transport: 'websocket' },
   edge_tts: { gender: 'female', voice: '', rate: '', pitch: '', volume: '' },
   sarvam: { speaker: 'shubh', pace: '1.0' },
   bhashini: { gender: 'female', voiceId: '', samplingRate: '16000' },
@@ -176,7 +178,17 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
     try {
       const extra = parseObject(advanced, 'Extra options')
       let parameters: Record<string, unknown>
-      if (provider === 'navana') {
+      if (provider === 'gnani') {
+        const speed = Number(fields.gnani.speed || 1)
+        if (!Number.isFinite(speed) || speed <= 0) throw new Error('Speed must be positive')
+        parameters = {
+          voice: fields.gnani.voice.trim(),
+          speed,
+          streaming_transport: fields.gnani.streaming_transport,
+          audio_config: { sample_rate: 24000, num_channels: 1, sample_width: 2, encoding: 'linear_pcm', container: 'raw' },
+          ...extra,
+        }
+      } else if (provider === 'navana') {
         const steps = fields.navana.num_step ? Number(fields.navana.num_step) : undefined
         if (steps !== undefined && (!Number.isInteger(steps) || steps < 1 || steps > 100)) {
           throw new Error('Flow steps must be an integer between 1 and 100')
@@ -206,10 +218,10 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
       setLiveState('connecting')
       socket.onopen = () => socket.send(JSON.stringify({
         type: 'start', provider, language, parameters,
-        model_id: provider === 'navana'
+        model_id: provider === 'navana' || provider === 'gnani'
           ? modelId.trim() || null
           : ['bulbul:v2', 'bulbul:v3'].includes(modelId.trim()) ? modelId.trim() : null,
-        ...providerConnectionSettings(provider === 'navana' ? 'navana' : 'sarvam'),
+        ...providerConnectionSettings(provider === 'navana' ? 'navana' : provider === 'gnani' ? 'gnani' : 'sarvam'),
       }))
       socket.onmessage = (message) => {
         let data: TTSStreamMessage
@@ -267,8 +279,8 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
 
   const handleSynthesize = async () => {
     if (!text.trim()) return
-    if (provider === 'sarvam' && !language) {
-      setError('Sarvam TTS requires a language to be specified.')
+    if (['sarvam', 'gnani'].includes(provider) && !language) {
+      setError(`${provider === 'gnani' ? 'Gnani' : 'Sarvam'} TTS requires a language to be specified.`)
       return
     }
     setLoading(true)
@@ -318,6 +330,14 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
             parameters.num_step = steps
           }
         }
+        if (provider === 'gnani') {
+          if (!String(parameters.voice ?? '').trim()) throw new Error('Gnani TTS requires a voice')
+          if (parameters.speed !== undefined) {
+            const speed = Number(parameters.speed)
+            if (!Number.isFinite(speed) || speed <= 0) throw new Error('Speed must be positive')
+            parameters.speed = speed
+          }
+        }
         parameters = { ...parameters, ...extra }
       }
 
@@ -347,7 +367,7 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
     ? ['bulbul:v3', 'bulbul:v2']
     : TTS_MODEL_PRESETS[provider] ?? []
   const charCount = text.length
-  const streamProviders = providers.filter((item) => ['sarvam', 'navana'].includes(item.id) && item.available)
+  const streamProviders = providers.filter((item) => ['sarvam', 'navana', 'gnani'].includes(item.id) && item.available)
   const streamingReady = streamProviders.length > 0
 
   return (
@@ -639,6 +659,43 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
                         </div>
                       </Field>
                     </div>
+                  </>
+                )}
+
+                {provider === 'gnani' && (
+                  <>
+                    <Field label="Voice">
+                      <input
+                        value={fields.gnani.voice}
+                        onChange={(event) => updateField('voice', event.target.value)}
+                        placeholder="e.g. Nalini"
+                        className="field field-mono !bg-ink-850 !py-2"
+                      />
+                    </Field>
+                    {mode === 'file' && <Field label="Speed">
+                      <input
+                        type="number"
+                        min="0.1"
+                        step="0.1"
+                        value={fields.gnani.speed}
+                        onChange={(event) => updateField('speed', event.target.value)}
+                        placeholder="1.0"
+                        className="field field-mono !bg-ink-850 !py-2"
+                      />
+                    </Field>}
+                    {mode === 'live' && <>
+                      <Field label="Streaming transport">
+                        <select
+                          value={fields.gnani.streaming_transport}
+                          onChange={(event) => updateField('streaming_transport', event.target.value)}
+                          className="field !bg-ink-850 !py-2 text-xs"
+                        >
+                          <option value="websocket">WebSocket</option>
+                          <option value="sse">Server-sent events</option>
+                        </select>
+                      </Field>
+                      <p className="sm:col-span-2 text-[11px] text-parchment-500">Live playback requests 24 kHz mono PCM audio.</p>
+                    </>}
                   </>
                 )}
 

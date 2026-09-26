@@ -5,10 +5,10 @@ export function speechSocket(path: '/api/stt/stream' | '/api/tts/stream'): WebSo
   return new WebSocket(`${scheme}//${window.location.host}${path}`)
 }
 
-export function providerConnectionSettings(provider: 'sarvam' | 'navana'): { api_key?: string; endpoint?: string } {
+export function providerConnectionSettings(provider: 'sarvam' | 'navana' | 'gnani'): { api_key?: string; endpoint?: string } {
   const keys = loadApiKeys()
-  const apiKey = provider === 'navana' ? keys.navanaApiKey : keys.sarvamApiKey
-  const endpoint = provider === 'navana' ? keys.navanaEndpoint : keys.sarvamEndpoint
+  const apiKey = provider === 'navana' ? keys.navanaApiKey : provider === 'gnani' ? keys.gnaniApiKey : keys.sarvamApiKey
+  const endpoint = provider === 'navana' ? keys.navanaEndpoint : provider === 'gnani' ? keys.gnaniEndpoint : keys.sarvamEndpoint
   return {
     ...(apiKey.trim() ? { api_key: apiKey.trim() } : {}),
     ...(endpoint.trim() ? { endpoint: endpoint.trim() } : {}),

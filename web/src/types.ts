@@ -32,6 +32,8 @@ export interface ApiKeysConfig {
   bhashiniEndpoint: string
   navanaApiKey: string
   navanaEndpoint: string
+  gnaniApiKey: string
+  gnaniEndpoint: string
 }
 
 export interface TTSRequest {

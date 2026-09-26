@@ -67,6 +67,8 @@ export const ApiKeysModal: React.FC<ApiKeysModalProps> = ({
   const [bhashiniEndpoint, setBhashiniEndpoint] = useState(apiKeys.bhashiniEndpoint)
   const [navanaKey, setNavanaKey] = useState(apiKeys.navanaApiKey)
   const [navanaEndpoint, setNavanaEndpoint] = useState(apiKeys.navanaEndpoint)
+  const [gnaniKey, setGnaniKey] = useState(apiKeys.gnaniApiKey)
+  const [gnaniEndpoint, setGnaniEndpoint] = useState(apiKeys.gnaniEndpoint)
   const [savedNotice, setSavedNotice] = useState(false)
 
   useEffect(() => {
@@ -88,6 +90,8 @@ export const ApiKeysModal: React.FC<ApiKeysModalProps> = ({
       bhashiniEndpoint: bhashiniEndpoint.trim(),
       navanaApiKey: navanaKey.trim(),
       navanaEndpoint: navanaEndpoint.trim(),
+      gnaniApiKey: gnaniKey.trim(),
+      gnaniEndpoint: gnaniEndpoint.trim(),
     }
     saveApiKeys(updated)
     onSave(updated)
@@ -106,6 +110,8 @@ export const ApiKeysModal: React.FC<ApiKeysModalProps> = ({
     setBhashiniEndpoint('')
     setNavanaKey('')
     setNavanaEndpoint('')
+    setGnaniKey('')
+    setGnaniEndpoint('')
     const empty: ApiKeysConfig = {
       sarvamApiKey: '',
       sarvamEndpoint: '',
@@ -113,6 +119,8 @@ export const ApiKeysModal: React.FC<ApiKeysModalProps> = ({
       bhashiniEndpoint: '',
       navanaApiKey: '',
       navanaEndpoint: '',
+      gnaniApiKey: '',
+      gnaniEndpoint: '',
     }
     onSave(empty)
   }
@@ -262,6 +270,36 @@ export const ApiKeysModal: React.FC<ApiKeysModalProps> = ({
                 value={navanaEndpoint}
                 onChange={(e) => setNavanaEndpoint(e.target.value)}
                 placeholder="https://tts.navana.ai"
+                spellCheck={false}
+                className="field field-mono"
+              />
+            </div>
+          </div>
+
+          <div className="panel-sunken space-y-3.5 p-4">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-sm font-semibold text-parchment-100">
+                <Server className="h-4 w-4 text-peacock-300" />
+                Gnani AI
+                {gnaniKey.trim() && <span className="pill-ready">Set</span>}
+              </div>
+              <a href="https://docs.gnani.ai/" target="_blank" rel="noreferrer" className="link-accent">
+                Documentation <ExternalLink className="h-3 w-3" />
+              </a>
+            </div>
+            <SecretField
+              label="API key (GNANI_API_KEY)"
+              value={gnaniKey}
+              onChange={setGnaniKey}
+              placeholder="Gnani API key"
+            />
+            <div className="space-y-1.5">
+              <label className="block text-xs font-medium text-parchment-400">Custom endpoint URL (optional)</label>
+              <input
+                type="text"
+                value={gnaniEndpoint}
+                onChange={(e) => setGnaniEndpoint(e.target.value)}
+                placeholder="https://api.vachana.ai"
                 spellCheck={false}
                 className="field field-mono"
               />
