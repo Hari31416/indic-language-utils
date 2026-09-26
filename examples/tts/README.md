@@ -25,6 +25,21 @@ uv run --env-file .env python examples/tts/sarvam_tts_demo.py --speaker shubh --
 
 The example explicitly routes to Sarvam and writes `sarvam-speech.wav`. Sarvam Bulbul requires `--language`; its options use `speaker` and `pace` rather than Bhashini's `gender` and `samplingRate`.
 
+To generate audio with Navana Bodhi, set `NAVANA_API_KEY` in your shell or `.env` and run:
+
+```bash
+uv run --env-file .env python examples/tts/navana_tts_demo.py --voice achu --speed 1.0
+```
+
+The example explicitly routes to Navana and writes `navana-speech.wav`. Use `--stream` to synthesize over Navana's WebSocket API and save the returned PCM chunks in a WAV file:
+
+```bash
+uv run --env-file .env python examples/tts/navana_tts_demo.py \
+  --stream --language hi --voice achu --output /tmp/navana-live.wav
+```
+
+Streaming requires the `streaming` optional dependency (`uv sync --extra streaming`). The stream demo accepts `pcm16` output formats such as `24000:pcm16`; `--speed` applies to HTTP synthesis only. Other options include `--num-step`, `--output-format`, and `--output`.
+
 To generate audio with Microsoft Edge TTS (free, keyless), run:
 
 ```bash
