@@ -70,6 +70,18 @@ def test_invalid_edge_tts_settings_are_visible(
     assert "Invalid configuration" in edge["details"]
 
 
+def test_navana_is_listed_as_tts_only_when_configured(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from indic_language_utils.server import routes
+
+    monkeypatch.setattr(routes, "_get_env_overrides", lambda: {"NAVANA_API_KEY": "test-key"})
+    response = client.get("/api/providers")
+    navana = next(item for item in response.json()["text_to_speech"] if item["id"] == "navana")
+    assert navana["available"] is True
+    assert "navana" not in [item["id"] for item in response.json()["speech_to_text"]]
+
+
 def test_detect_script(client: TestClient) -> None:
     response = client.post("/api/detect-script", json={"text": "नमस्ते"})
     assert response.status_code == 200
@@ -435,6 +447,52 @@ def test_tts_endpoint(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> No
         },
     )
     assert named_response.status_code == 200
+
+
+def test_explicit_navana_tts_ignores_unselected_provider_keys(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from indic_language_utils.server import routes
+    from indic_language_utils.tts.models import ProviderTTSResult, TTSOptions
+    from indic_language_utils.tts.navana import NavanaTTSProvider
+
+    monkeypatch.setattr(
+        routes,
+        "_get_env_overrides",
+        lambda: {
+            "NAVANA_API_KEY": "navana-test-key",
+            "BHASHINI_API_KEY": "incomplete-bhashini-key",
+            "ILU_CACHE_ENABLED": "false",
+        },
+    )
+
+    async def mock_synthesize_batch(
+        self: NavanaTTSProvider,
+        texts: tuple[str, ...],
+        *,
+        language: object,
+        options: TTSOptions,
+        request_id: str,
+    ) -> tuple[ProviderTTSResult, ...]:
+        assert texts == ("Hello",)
+        assert language is not None
+        assert options.parameters["voice"] == "achu"
+        return (ProviderTTSResult(b"RIFFfake", "wav", None, "navana-provider-1"),)
+
+    monkeypatch.setattr(NavanaTTSProvider, "synthesize_batch", mock_synthesize_batch)
+    response = client.post(
+        "/api/tts",
+        json={
+            "text": "Hello",
+            "language": "en",
+            "provider": "navana",
+            "parameters": {"voice": "achu"},
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["provider"] == "navana"
+    assert data["audio_format"] == "wav"
 
 
 @pytest.mark.parametrize("backend", ["memory", "sqlite"])

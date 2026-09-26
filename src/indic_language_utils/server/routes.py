@@ -6,6 +6,7 @@ import base64
 import binascii
 import logging
 import os
+from dataclasses import replace
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
@@ -89,6 +90,12 @@ def _apply_request_overrides(env: dict[str, str], request: Request | None) -> di
         bhashini_endpoint = request.headers.get("x-bhashini-endpoint")
         if bhashini_endpoint:
             env["BHASHINI_ENDPOINT_URL"] = bhashini_endpoint.strip()
+        navana_key = request.headers.get("x-navana-api-key")
+        if navana_key:
+            env["NAVANA_API_KEY"] = navana_key.strip()
+        navana_endpoint = request.headers.get("x-navana-endpoint")
+        if navana_endpoint:
+            env["NAVANA_ENDPOINT_URL"] = navana_endpoint.strip()
     return env
 
 
@@ -385,6 +392,7 @@ async def list_providers(request: Request) -> ProvidersResponse:
             )
         except ConfigurationError:
             pass
+    has_navana_key = bool(env.get("NAVANA_API_KEY"))
     edge_tts_error: str | None = None
     if HAVE_EDGE_TTS:
         try:
@@ -451,6 +459,16 @@ async def list_providers(request: Request) -> ProvidersResponse:
             name="Sarvam TTS",
             available=sarvam_tts_summary is not None,
             details=sarvam_tts_summary or "Requires SARVAM_API_KEY and a TTS model ID",
+        ),
+        ProviderInfo(
+            id="navana",
+            name="Navana AI TTS",
+            available=has_navana_key,
+            details=(
+                "Non-streaming and WebSocket synthesis"
+                if has_navana_key
+                else "Requires NAVANA_API_KEY"
+            ),
         ),
     ]
 
@@ -845,9 +863,16 @@ async def synthesize_speech(body: TTSRequestBody, request: Request) -> TTSRespon
             env["SARVAM_API_KEY"] = body.api_key
         elif body.provider == "bhashini":
             env["BHASHINI_API_KEY"] = body.api_key
+        elif body.provider == "navana":
+            env["NAVANA_API_KEY"] = body.api_key
         else:
             env["SARVAM_API_KEY"] = body.api_key
             env["BHASHINI_API_KEY"] = body.api_key
+            env["NAVANA_API_KEY"] = body.api_key
+
+    if body.provider == "navana":
+        env.pop("BHASHINI_API_KEY", None)
+        env.pop("SARVAM_API_KEY", None)
 
     parameters = dict(body.parameters)
     if body.model_id:
@@ -858,6 +883,8 @@ async def synthesize_speech(body: TTSRequestBody, request: Request) -> TTSRespon
         if body.provider in ("edge_tts", "edge") or not body.provider or body.provider == "auto":
             parameters["voice"] = body.model_id
             env["EDGE_TTS_VOICE"] = body.model_id
+        if body.provider == "navana":
+            parameters["voice"] = body.model_id
 
     try:
         request_obj = TTSRequest(
@@ -870,6 +897,14 @@ async def synthesize_speech(body: TTSRequestBody, request: Request) -> TTSRespon
 
     try:
         settings = Settings.load(env=env)
+        if body.provider == "navana":
+            settings = replace(
+                settings,
+                routes={
+                    **settings.routes,
+                    CapabilityId.TEXT_TO_SPEECH.value: ("navana",),
+                },
+            )
         cache = None
         if settings.cache.enabled and settings.cache.backend == "memory":
             memory_caches = getattr(request.app.state, "tts_memory_caches", None)

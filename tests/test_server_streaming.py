@@ -14,6 +14,7 @@ from indic_language_utils.server.app import create_app
 from indic_language_utils.stt import STTStreamEvent
 from indic_language_utils.stt.sarvam import SarvamSTTProvider
 from indic_language_utils.tts import TTSStreamEvent
+from indic_language_utils.tts.navana import NavanaTTSProvider
 from indic_language_utils.tts.sarvam import SarvamTTSProvider
 
 
@@ -115,6 +116,59 @@ def test_tts_websocket_forwards_text_and_audio(
         websocket.send_json({"type": "flush"})
         audio = websocket.receive_json()
         assert audio["kind"] == "audio"
+        assert audio["audio_base64"] == "AAE="
+        assert websocket.receive_json()["kind"] == "done"
+        assert websocket.receive_json() == {"type": "done"}
+    assert texts == ["नमस्ते"]
+
+
+def test_navana_tts_websocket_uses_navana_key_and_stream(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    texts: list[str] = []
+
+    class FakeSession:
+        def __init__(self) -> None:
+            self.flushed = asyncio.Event()
+
+        async def send_text(self, text: str) -> None:
+            texts.append(text)
+
+        async def flush(self) -> None:
+            self.flushed.set()
+
+        async def events(self) -> AsyncIterator[TTSStreamEvent]:
+            await self.flushed.wait()
+            language = DEFAULT_LANGUAGE_REGISTRY.normalize("hi")
+            yield TTSStreamEvent(
+                "audio", b"\0\1", "24000:pcm16", language, "navana", "navana-tts", "request-3"
+            )
+            yield TTSStreamEvent(
+                "done", None, "24000:pcm16", language, "navana", "navana-tts", "request-3"
+            )
+
+    @asynccontextmanager
+    async def fake_open(self: NavanaTTSProvider, **_: object) -> AsyncIterator[FakeSession]:
+        assert self.config.api_key.reveal() == "navana-test-key"
+        yield FakeSession()
+
+    monkeypatch.setattr(NavanaTTSProvider, "open_stream", fake_open)
+    with client.websocket_connect("/api/tts/stream") as websocket:
+        websocket.send_json(
+            {
+                "type": "start",
+                "provider": "navana",
+                "language": "hi",
+                "parameters": {"output_format": "24000:pcm16"},
+                "api_key": "navana-test-key",
+            }
+        )
+        assert websocket.receive_json() == {"type": "ready"}
+        websocket.send_json({"type": "text", "text": "नमस्ते"})
+        websocket.send_json({"type": "flush"})
+        audio = websocket.receive_json()
+        assert audio["kind"] == "audio"
+        assert audio["provider"] == "navana"
         assert audio["audio_base64"] == "AAE="
         assert websocket.receive_json()["kind"] == "done"
         assert websocket.receive_json() == {"type": "done"}

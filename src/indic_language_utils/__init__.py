@@ -55,6 +55,7 @@ from .providers import (
     BhashiniConfig,
     CapabilityDeclaration,
     CapabilityId,
+    NavanaConfig,
     ProviderFactoryRegistry,
     ProviderRegistry,
     SarvamConfig,
@@ -140,6 +141,7 @@ from .transliteration import (
 )
 from .tts import (
     BhashiniTTSProvider,
+    NavanaTTSProvider,
     ProviderTTSResult,
     SarvamTTSProvider,
     StreamingTTSProvider,
@@ -203,6 +205,8 @@ __all__ = [
     "LocalizationCatalog",
     "MemoryCache",
     "ModelIdentity",
+    "NavanaConfig",
+    "NavanaTTSProvider",
     "NullCache",
     "OperationContext",
     "OrderedRouter",

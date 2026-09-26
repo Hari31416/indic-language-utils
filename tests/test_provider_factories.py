@@ -35,6 +35,7 @@ def test_default_factories_are_indexed_by_capability_and_provider() -> None:
 
     assert factories.get(CapabilityId.TRANSLATION, "bhashini") is not None
     assert factories.get(CapabilityId.TEXT_TO_SPEECH, "bhashini") is not None
+    assert factories.get(CapabilityId.TEXT_TO_SPEECH, "navana") is not None
     assert factories.get(CapabilityId.TRANSLATION, "missing") is None
     assert [
         factory.provider_id for factory in factories.for_capability(CapabilityId.TRANSLATION)

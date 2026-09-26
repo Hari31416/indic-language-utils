@@ -19,6 +19,7 @@ from .factories import (
     ProviderFactoryRegistry,
     default_provider_factories,
 )
+from .navana import NavanaConfig
 from .sarvam import (
     SarvamConfig,
     SarvamJsonTransport,
@@ -32,6 +33,7 @@ __all__ = [
     "HttpxJsonTransport",
     "JsonResponse",
     "JsonTransport",
+    "NavanaConfig",
     "Provider",
     "ProviderBuilder",
     "ProviderFactoryRegistry",
