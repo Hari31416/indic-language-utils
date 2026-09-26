@@ -188,6 +188,7 @@ def default_provider_factories() -> ProviderFactoryRegistry:
     registry.register(CapabilityId.SPEECH_TO_TEXT, "faster_whisper", _stt_faster_whisper)
     registry.register(CapabilityId.TEXT_TO_SPEECH, "bhashini", _tts_bhashini)
     registry.register(CapabilityId.TEXT_TO_SPEECH, "sarvam", _tts_sarvam)
+    registry.register(CapabilityId.TEXT_TO_SPEECH, "navana", _tts_navana)
     registry.register(
         CapabilityId.TEXT_TO_SPEECH,
         "edge_tts",
@@ -371,6 +372,15 @@ def _tts_sarvam(settings: Settings, env: Mapping[str, str]) -> Provider | None:
 
     config = SarvamConfig.from_settings(settings, env=env)
     return SarvamTTSProvider(config) if config.tts_model_id or config.tts_model_ids else None
+
+
+def _tts_navana(settings: Settings, env: Mapping[str, str]) -> Provider | None:
+    if not env.get("NAVANA_API_KEY"):
+        return None
+    from ..tts.navana import NavanaTTSProvider
+    from .navana import NavanaConfig
+
+    return NavanaTTSProvider(NavanaConfig.from_settings(settings, env=env))
 
 
 def _tts_edge(settings: Settings, env: Mapping[str, str]) -> Provider | None:

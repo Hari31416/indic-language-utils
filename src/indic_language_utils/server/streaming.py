@@ -6,11 +6,14 @@ import asyncio
 import base64
 import json
 import logging
+from dataclasses import replace
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field, ValidationError
 
+from ..config import Settings
 from ..errors import LanguageUtilsError
+from ..providers import CapabilityId
 from ..stt import get_stt_client
 from ..tts import TTSOptions, get_tts_client
 from .routes import _get_env_overrides
@@ -48,9 +51,15 @@ async def _start_message(websocket: WebSocket, model: type[StreamStart]) -> Stre
 def _stream_env(start: StreamStart) -> dict[str, str]:
     env = _get_env_overrides()
     if start.api_key:
-        env["SARVAM_API_KEY"] = start.api_key
+        if start.provider == "navana":
+            env["NAVANA_API_KEY"] = start.api_key
+        else:
+            env["SARVAM_API_KEY"] = start.api_key
     if start.endpoint:
-        env["SARVAM_ENDPOINT_URL"] = start.endpoint
+        if start.provider == "navana":
+            env["NAVANA_ENDPOINT_URL"] = start.endpoint
+        else:
+            env["SARVAM_ENDPOINT_URL"] = start.endpoint
     return env
 
 
@@ -135,7 +144,20 @@ async def stream_tts(websocket: WebSocket) -> None:
         assert isinstance(start, TTSStreamStart)
         if not start.language:
             raise ValueError("Live TTS requires a language")
-        client = get_tts_client(env=_stream_env(start))
+        env = _stream_env(start)
+        settings = Settings.load(env=env)
+        if start.provider:
+            if start.provider == "navana":
+                env.pop("BHASHINI_API_KEY", None)
+                env.pop("SARVAM_API_KEY", None)
+            settings = replace(
+                settings,
+                routes={
+                    **settings.routes,
+                    CapabilityId.TEXT_TO_SPEECH.value: (start.provider,),
+                },
+            )
+        client = get_tts_client(settings=settings, env=env)
         async with client:
             async with client.stream(
                 language=start.language,

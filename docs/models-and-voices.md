@@ -105,6 +105,12 @@ Environment variable override: `BHASHINI_TTS_MODEL_ID`
 
 Environment variable overrides: `BHASHINI_TRANSLITERATION_SERVICE_ID`, `BHASHINI_DETECTION_SERVICE_ID`
 
+## Navana AI TTS
+
+Navana Bodhi supports non-streaming and WebSocket TTS for Bengali (`bn`), English (`en`), Gujarati (`gu`), Hindi (`hi`), Kannada (`kn`), Malayalam (`ml`), Marathi (`mr`), Odia (`or`), Tamil (`ta`), and Telugu (`te`). Set `NAVANA_API_KEY` to enable the provider.
+
+Voice IDs are shared across all ten languages. The default is `default_female`. The provider accepts `voice`, `speed`, `num_step`, `g2p_overrides`, and `output_format` for non-streaming requests. Live streaming accepts `voice`, `num_step`, and `output_format`; it does not accept `speed`. See Navana's [voice reference](https://docs.navana.ai/text-to-speech/voices/) for the latest account-specific voice list.
+
 ## Microsoft Edge TTS
 
 Microsoft Edge TTS provides high-quality neural voice synthesis for Indian languages without requiring an API key. Install via `pip install 'indic-language-utils[tts-edge]'`.

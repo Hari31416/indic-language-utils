@@ -73,6 +73,11 @@ tts_model_id = "bulbul:v3"
 timeout_seconds = 20.0
 max_concurrency = 8
 
+[providers.navana]
+endpoint = "https://tts.navana.ai"
+timeout_seconds = 120.0
+max_concurrency = 8
+
 [providers.my_adapter.options]
 region = "south"
 batch_limit = 12
@@ -82,7 +87,7 @@ translation = ["sarvam", "bhashini", "googletrans"]
 text_language_detection = ["sarvam", "bhashini", "fasttext"]
 transliteration = ["bhashini", "aksharamukha"]
 speech_to_text = ["bhashini", "sarvam"]
-text_to_speech = ["bhashini", "sarvam"]
+text_to_speech = ["bhashini", "sarvam", "navana"]
 ```
 
 Relative cache paths resolve relative to the current working directory of the process. In production containers or multi-directory environments, specify an absolute path.
@@ -142,6 +147,15 @@ export SARVAM_STT_MODEL_ID="saaras:v4"
 export SARVAM_TTS_MODEL_ID="bulbul:v3"
 export SARVAM_TIMEOUT_SECONDS="20"
 export SARVAM_MAX_CONCURRENCY="8"
+```
+
+Navana AI TTS credentials and endpoint overrides:
+
+```bash
+export NAVANA_API_KEY="your-navana-api-key"
+export NAVANA_ENDPOINT_URL="https://tts.navana.ai"
+export NAVANA_TIMEOUT_SECONDS="120"
+export NAVANA_MAX_CONCURRENCY="8"
 ```
 
 # Google Free STT overrides

@@ -38,6 +38,7 @@ nav:
       - Transliteration: transliteration.md
       - Speech to text: stt.md
       - Text to speech: tts.md
+      - Server API: server.md
       - Processors: processors.md
   - Providers:
       - Provider reference: provider-reference.md

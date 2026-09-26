@@ -1,6 +1,6 @@
 # Text to speech
 
-The TTS client sends text to Bhashini, Sarvam, or Edge TTS and returns audio bytes. Configure a default model ID or select one per language. Bhashini calls these IDs `serviceId`; its [model list](https://dibd-bhashini.gitbook.io/bhashini-apis/available-models-for-usage) shows supported languages.
+The TTS client sends text to Bhashini, Sarvam, Navana, or Edge TTS and returns audio bytes. Configure a default model ID or select one per language. Bhashini calls these IDs `serviceId`; its [model list](https://dibd-bhashini.gitbook.io/bhashini-apis/available-models-for-usage) shows supported languages.
 
 ```python
 from indic_language_utils import TTSOptions, get_tts_client
@@ -96,6 +96,58 @@ async with get_tts_client() as client:
 
 The web app offers **Live playback** on the Text to Speech page. Its server bridge is `WS /api/tts/stream`. Send `{"type":"start","provider":"sarvam","language":"hi","parameters":{"audio_format":"linear16","speaker":"shubh"}}`, wait for `{"type":"ready"}`, then send one or more `{"type":"text","text":"..."}` messages and `{"type":"flush"}`. The server sends JSON `event` messages with the standard `TTSStreamEvent` fields; audio bytes are base64 encoded in `audio_base64`. A stream ends with an event whose `kind` is `done`, followed by `{"type":"done"}`. Errors use `{"type":"error","message":"..."}`. The server reads `SARVAM_API_KEY` from its environment or `.env`; the start message can include `api_key` and `endpoint` overrides.
 
+## Navana AI
+
+Set `NAVANA_API_KEY` to enable Navana Bodhi TTS. Non-streaming synthesis uses `POST /tts/bytes` and accepts the ten language codes `bn`, `en`, `gu`, `hi`, `kn`, `ml`, `mr`, `or`, `ta`, and `te`. Navana returns raw PCM. The adapter wraps it in a WAV container before returning it to the caller.
+
+```python
+from indic_language_utils import TTSOptions, get_tts_client
+
+async with get_tts_client() as client:
+    result = await client.synthesize(
+        "नमस्ते, आपका स्वागत है।",
+        language="hi",
+        options=TTSOptions(
+            {
+                "voice": "default_female",
+                "output_format": "24000:pcm16",
+                "speed": 1.0,
+            }
+        ),
+    )
+    with open("navana-speech.wav", "wb") as file:
+        file.write(result.audio)
+```
+
+Available options include `voice`, `output_format`, `speed` (0.25–4.0), `num_step` (1–100), and `g2p_overrides`. Output formats support 8, 16, or 24 kHz with `pcm16` or `float32` encoding. The default voice is `default_female`; voice IDs work across all supported languages. See [Navana voices and languages](https://docs.navana.ai/text-to-speech/voices/) for the current voice list.
+
+### Navana live TTS
+
+Install `indic-language-utils[streaming]` to use Navana's WebSocket endpoint. It sends raw PCM chunks as text arrives. The stream defaults to 24 kHz `pcm16`; set `TTSOptions({"voice": "achu"})` to select a voice. Navana streaming does not accept a `speed` option.
+
+```python
+import asyncio
+
+from indic_language_utils import TTSOptions, get_tts_client
+
+
+async def main():
+    async with get_tts_client() as client:
+        async with client.stream(
+            language="hi", provider="navana", options=TTSOptions({"voice": "achu"})
+        ) as stream:
+            await stream.send_text("नमस्ते।")
+            await stream.flush()
+            async for event in stream.events():
+                if event.kind == "audio":
+                    player.write(event.audio)
+
+
+asyncio.run(main())
+```
+
+See Navana's [non-streaming reference](https://docs.navana.ai/text-to-speech/non-streaming/) and [streaming reference](https://docs.navana.ai/text-to-speech/streaming/) for request fields and frames.
+
 ## Microsoft Edge TTS
 
 Microsoft Edge TTS provides high-quality neural voice synthesis for Indian languages without requiring an API key. Install the optional dependency:
@@ -180,4 +232,4 @@ therefore produces a new entry. Cache entries store audio but exclude request ID
 `ttl_seconds` also apply. The memory backend is shared across requests within one API process.
 Streaming synthesis remains live and is not cached.
 
-Use `"provider": "sarvam"` and Sarvam's option names to select Bulbul. `examples/tts/sarvam_tts_demo.py` writes the generated audio to a file.
+Use `"provider": "sarvam"` and Sarvam's option names to select Bulbul. `examples/tts/sarvam_tts_demo.py` writes the generated audio to a file. Select `"provider": "navana"` to send synthesis to Navana, or set `provider_parameters.navana` when Navana is a fallback route.

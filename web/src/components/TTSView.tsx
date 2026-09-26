@@ -12,7 +12,7 @@ import {
 } from 'lucide-react'
 import { synthesizeSpeech } from '../api'
 import { useLocalHistory } from '../history'
-import { decodeBase64, pcmChunksToWav, PcmPlayer, sarvamConnectionSettings, speechSocket } from '../streaming'
+import { decodeBase64, pcmChunksToWav, PcmPlayer, providerConnectionSettings, speechSocket } from '../streaming'
 import type { LanguageItem, ProviderInfo, TTSResponse, TTSStreamMessage } from '../types'
 import {
   EmptyState,
@@ -83,7 +83,18 @@ const TTS_MODEL_PRESETS: Record<string, string[]> = {
     'mr-IN-AarohiNeural',
     'gu-IN-DhwaniNeural',
   ],
+  navana: ['default_female', 'achu', 'ammu', 'ann', 'harleen', 'kannan', 'maria', 'murugan', 'shikha', 'zoya'],
 }
+
+const NAVANA_VOICES = [
+  'default_female', 'achu', 'ammu', 'anirban', 'ann', 'arasi', 'ayesha', 'basava',
+  'basheer', 'bhavana', 'bijay', 'bimla', 'champa', 'elango', 'faizal', 'falguni',
+  'flavia', 'gurdeep', 'harleen', 'imran', 'ipsita', 'jayita', 'jessy', 'kannan',
+  'kayal', 'kishan', 'mahadevi', 'malar', 'maria', 'merin', 'mukta', 'murugan',
+  'nasrin', 'nayeema', 'netra', 'nila', 'ponni', 'porkavi', 'rukhiya', 'rukhsana',
+  'savio', 'selvi', 'shabnam', 'sharon', 'shikha', 'shivanna', 'srinu', 'sulaiman',
+  'tanaji', 'temjen', 'vanaja', 'vetri', 'xavier', 'yasmin', 'zoya',
+]
 
 type Fields = Record<string, string>
 type ProviderFields = Record<string, Fields>
@@ -92,6 +103,7 @@ const initialFields: ProviderFields = {
   edge_tts: { gender: 'female', voice: '', rate: '', pitch: '', volume: '' },
   sarvam: { speaker: 'shubh', pace: '1.0' },
   bhashini: { gender: 'female', voiceId: '', samplingRate: '16000' },
+  navana: { voice: 'default_female', speed: '', num_step: '', output_format: '24000:pcm16' },
 }
 
 function parseObject(value: string, label: string): Record<string, unknown> {
@@ -163,13 +175,28 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
     completeRef.current = false
     try {
       const extra = parseObject(advanced, 'Extra options')
-      const pace = Number(fields.sarvam.pace)
-      if (!Number.isFinite(pace) || pace < 0.5 || pace > 2) throw new Error('Pace must be between 0.5 and 2.0')
-      const parameters = {
-        speaker: fields.sarvam.speaker,
-        pace,
-        ...extra,
-        audio_format: 'linear16',
+      let parameters: Record<string, unknown>
+      if (provider === 'navana') {
+        const steps = fields.navana.num_step ? Number(fields.navana.num_step) : undefined
+        if (steps !== undefined && (!Number.isInteger(steps) || steps < 1 || steps > 100)) {
+          throw new Error('Flow steps must be an integer between 1 and 100')
+        }
+        parameters = {
+          voice: fields.navana.voice,
+          output_format: '24000:pcm16',
+          ...(steps !== undefined ? { num_step: steps } : {}),
+          ...extra,
+        }
+        parameters.output_format = '24000:pcm16'
+      } else {
+        const pace = Number(fields.sarvam.pace)
+        if (!Number.isFinite(pace) || pace < 0.5 || pace > 2) throw new Error('Pace must be between 0.5 and 2.0')
+        parameters = {
+          speaker: fields.sarvam.speaker,
+          pace,
+          ...extra,
+          audio_format: 'linear16',
+        }
       }
       const player = new PcmPlayer()
       playerRef.current = player
@@ -178,9 +205,11 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
       socketRef.current = socket
       setLiveState('connecting')
       socket.onopen = () => socket.send(JSON.stringify({
-        type: 'start', provider: 'sarvam', language, parameters,
-        model_id: ['bulbul:v2', 'bulbul:v3'].includes(modelId.trim()) ? modelId.trim() : null,
-        ...sarvamConnectionSettings(),
+        type: 'start', provider, language, parameters,
+        model_id: provider === 'navana'
+          ? modelId.trim() || null
+          : ['bulbul:v2', 'bulbul:v3'].includes(modelId.trim()) ? modelId.trim() : null,
+        ...providerConnectionSettings(provider === 'navana' ? 'navana' : 'sarvam'),
       }))
       socket.onmessage = (message) => {
         let data: TTSStreamMessage
@@ -273,6 +302,22 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
           if (!Number.isInteger(rate) || rate <= 0) throw new Error('Sample rate must be positive')
           parameters.samplingRate = rate
         }
+        if (provider === 'navana') {
+          if (parameters.speed !== undefined) {
+            const speed = Number(parameters.speed)
+            if (!Number.isFinite(speed) || speed < 0.25 || speed > 4) {
+              throw new Error('Speed must be between 0.25 and 4.0')
+            }
+            parameters.speed = speed
+          }
+          if (parameters.num_step !== undefined) {
+            const steps = Number(parameters.num_step)
+            if (!Number.isInteger(steps) || steps < 1 || steps > 100) {
+              throw new Error('num_step must be an integer between 1 and 100')
+            }
+            parameters.num_step = steps
+          }
+        }
         parameters = { ...parameters, ...extra }
       }
 
@@ -298,9 +343,12 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
     ? `data:${AUDIO_MIME[format] ?? 'application/octet-stream'};base64,${result.audio_base64}`
     : null
 
-  const activeModelPresets = mode === 'live' ? ['bulbul:v3', 'bulbul:v2'] : TTS_MODEL_PRESETS[provider] ?? []
+  const activeModelPresets = mode === 'live' && provider === 'sarvam'
+    ? ['bulbul:v3', 'bulbul:v2']
+    : TTS_MODEL_PRESETS[provider] ?? []
   const charCount = text.length
-  const sarvamReady = providers.some((item) => item.id === 'sarvam' && item.available)
+  const streamProviders = providers.filter((item) => ['sarvam', 'navana'].includes(item.id) && item.available)
+  const streamingReady = streamProviders.length > 0
 
   return (
     <div className="space-y-5">
@@ -308,7 +356,7 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
         icon={<Volume2 className="h-4 w-4" />}
         tileClass="border-rosewood-500/30 bg-rosewood-500/10 text-rosewood-300"
         title="Text to Speech"
-        blurb="Generate a file or hear Sarvam Bulbul as each audio chunk arrives."
+        blurb="Generate a complete audio file or listen as speech arrives."
         glyph="उ"
       />
 
@@ -317,8 +365,15 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
           <div className="flex gap-1 rounded-xl border border-ink-700 bg-ink-900/70 p-1 text-xs">
             <button type="button" onClick={() => { setMode('file'); stopLive() }}
               className={`flex-1 rounded-lg px-3 py-2 font-semibold transition ${mode === 'file' ? 'bg-ink-700 text-parchment-100' : 'text-parchment-500 hover:text-parchment-200'}`}>Audio file</button>
-            <button type="button" disabled={!sarvamReady}
-              onClick={() => { setMode('live'); setProvider('sarvam'); setModelId('') }}
+            <button type="button" disabled={!streamingReady}
+              onClick={() => {
+                const next = streamProviders.some((item) => item.id === provider)
+                  ? provider
+                  : streamProviders[0]?.id ?? 'sarvam'
+                setProvider(next)
+                setMode('live')
+                setModelId('')
+              }}
               className={`flex-1 rounded-lg px-3 py-2 font-semibold transition ${mode === 'live' ? 'bg-ink-700 text-parchment-100' : 'text-parchment-500 hover:text-parchment-200'}`}>Live playback</button>
           </div>
           <div className="flex items-center justify-between">
@@ -385,7 +440,9 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
                 </button>
               }
             >
-              {mode === 'live' ? <div className="field !py-2.5 text-xs">Sarvam AI Bulbul</div> : <div className="relative">
+              {mode === 'live' ? <div className="relative"><select value={provider} onChange={(event) => setProvider(event.target.value)} className="field !py-2.5 text-xs">
+                {streamProviders.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+              </select><ChevronDown className="pointer-events-none absolute right-3 top-3 h-3.5 w-3.5 text-parchment-500" /></div> : <div className="relative">
                 <select
                   value={provider}
                   onChange={(event) => {
@@ -610,6 +667,57 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
                     </Field>
                   </>
                 )}
+
+                {provider === 'navana' && (
+                  <>
+                    <Field label="Voice">
+                      <select
+                        value={fields.navana.voice}
+                        onChange={(event) => updateField('voice', event.target.value)}
+                        className="field !bg-ink-850 !py-2 text-xs"
+                      >
+                        {NAVANA_VOICES.map((voice) => <option key={voice} value={voice}>{voice}</option>)}
+                      </select>
+                    </Field>
+                    {mode === 'file' && <Field label="Speed (0.25–4.0)">
+                      <input
+                        type="number"
+                        min="0.25"
+                        max="4"
+                        step="0.05"
+                        value={fields.navana.speed}
+                        onChange={(event) => updateField('speed', event.target.value)}
+                        placeholder="Voice default"
+                        className="field field-mono !bg-ink-850 !py-2"
+                      />
+                    </Field>}
+                    <Field label="Flow steps (1–100)">
+                      <input
+                        type="number"
+                        min="1"
+                        max="100"
+                        step="1"
+                        value={fields.navana.num_step}
+                        onChange={(event) => updateField('num_step', event.target.value)}
+                        placeholder="Voice default"
+                        className="field field-mono !bg-ink-850 !py-2"
+                      />
+                    </Field>
+                    {mode === 'file' && <Field label="Audio output">
+                      <select
+                        value={fields.navana.output_format}
+                        onChange={(event) => updateField('output_format', event.target.value)}
+                        className="field !bg-ink-850 !py-2 text-xs"
+                      >
+                        <option value="24000:pcm16">24 kHz PCM 16-bit</option>
+                        <option value="16000:pcm16">16 kHz PCM 16-bit</option>
+                        <option value="8000:pcm16">8 kHz PCM 16-bit</option>
+                        <option value="24000:float32">24 kHz Float 32-bit</option>
+                      </select>
+                    </Field>}
+                    {mode === 'live' && <p className="sm:col-span-2 text-[11px] text-parchment-500">Live playback uses 24 kHz PCM. Navana streaming does not accept a speed setting.</p>}
+                  </>
+                )}
               </div>
             </div>
           )}
@@ -701,9 +809,9 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
                 <Volume2 className={`h-7 w-7 text-rosewood-300 ${liveState === 'streaming' ? 'animate-pulse' : ''}`} />
                 <p className="font-display text-lg text-parchment-100">{liveState === 'complete' ? 'Speech ready' : 'Playing as audio arrives'}</p>
                 <p className="font-mono text-xs text-parchment-500">{liveChunks} audio chunks received</p>
-                {liveAudioUrl && <div className="mt-2 w-full space-y-3">
+                  {liveAudioUrl && <div className="mt-2 w-full space-y-3">
                   <audio controls src={liveAudioUrl} className="w-full" aria-label="Replay live speech" />
-                  <a href={liveAudioUrl} download="sarvam-live-speech.wav" className="btn-ghost w-full justify-center !py-2.5 !text-[13px]">
+                  <a href={liveAudioUrl} download={`${provider}-live-speech.wav`} className="btn-ghost w-full justify-center !py-2.5 !text-[13px]">
                     <Download className="h-4 w-4 text-marigold-300" /> Download WAV
                   </a>
                 </div>}
@@ -746,7 +854,7 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
               />
             )}
             {mode === 'live' && liveModel && <MetaTable rows={[
-              ['Provider', 'Sarvam AI'], ['Language', language], ['Model ID', liveModel],
+              ['Provider', provider === 'navana' ? 'Navana AI' : 'Sarvam AI'], ['Language', language], ['Engine', liveModel],
             ]} />}
           </ResultPanel>
         </div>

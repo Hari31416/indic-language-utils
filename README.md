@@ -11,7 +11,7 @@ Provider-neutral foundations for Indian language operations in Python.
 - Text Language Detection: Identify languages using offline FastText classification (`lid.176.ftz`) or cloud inference pipelines via Bhashini.
 - Transliteration: Convert between Roman script and native Indic scripts via Bhashini or Aksharamukha.
 - Speech to text: Transcribe audio with Bhashini, Sarvam, local Faster-Whisper, or keyless Google Speech.
-- Text to speech: Generate audio with Bhashini, Sarvam, or Edge TTS and pass model-specific voice settings.
+- Text to speech: Generate audio with Bhashini, Sarvam, Navana, or Edge TTS and pass model-specific voice settings.
 - Script Identification: Fast, zero-dependency Unicode script identification across 12+ Indic scripts and Latin.
 - Document and Code Protection: Structural pre-processors and post-processors protect headings, bullet markers, inline code spans, URLs, and code blocks from neural translation corruption.
 - Resilient Execution: Automatic multi-provider fallback routing, bounded concurrency limits per provider, and exponential backoff retries with jitter.
@@ -49,6 +49,7 @@ npx skills add Hari31416/indic-language-utils --skill indic-language-utils
 | **Aksharamukha**     | Transliteration (120+ scripts)          | Offline / Local    | `[local-transliteration]` extra |
 | **Bhashini**         | Translation, Detection, Transliteration, STT, TTS | Cloud API          | API key, Endpoint, Service ID |
 | **Sarvam AI**        | Translation, Detection, STT, TTS        | Cloud API          | API key (`SARVAM_API_KEY`)    |
+| **Navana AI**        | TTS                                     | Cloud API          | API key (`NAVANA_API_KEY`)    |
 | **FastText**         | Text Language Detection                 | Offline / Local    | `[local-tld]` extra           |
 | **Faster-Whisper**   | Speech to text                          | Offline / Local    | `[stt-whisper]` extra         |
 | **Google Free STT**  | Speech to text                          | Cloud (unofficial) | `[stt-google-free]` extra     |
@@ -88,12 +89,16 @@ stt_model_id = "saaras:v4"
 tts_model_id = "bulbul:v3"
 max_concurrency = 8
 
+[providers.navana]
+endpoint = "https://tts.navana.ai"
+max_concurrency = 8
+
 [routes]
 translation = ["sarvam", "bhashini", "googletrans"]
 text_language_detection = ["sarvam", "bhashini", "fasttext"]
 transliteration = ["bhashini", "aksharamukha"]
 speech_to_text = ["bhashini", "sarvam", "google_free", "faster_whisper"]
-text_to_speech = ["bhashini", "sarvam", "edge_tts"]
+text_to_speech = ["bhashini", "sarvam", "navana", "edge_tts"]
 ```
 
 Supply credentials securely through environment variables:
@@ -101,6 +106,7 @@ Supply credentials securely through environment variables:
 ```bash
 export BHASHINI_API_KEY="your-bhashini-api-key"
 export SARVAM_API_KEY="your-sarvam-api-key"
+export NAVANA_API_KEY="your-navana-api-key"
 ```
 
 ## Documentation
@@ -114,8 +120,9 @@ Comprehensive guides are available in the documentation site:
 - [Translation Guide](docs/translation.md): Synchronous and asynchronous translation, Markdown preservation, and catalogs.
 - [Detection Guide](docs/detection.md): Local FastText and cloud Bhashini detection, script analysis, and candidate scoring.
 - [Speech to text guide](docs/stt.md): Bhashini and Sarvam transcription and model IDs.
+- [Server API](docs/server.md): FastAPI endpoints and browser WebSocket streaming.
 - [STT example](examples/stt/README.md): Transcribe audio with Bhashini or Sarvam.
-- [Text to speech guide](docs/tts.md): Bhashini and Sarvam synthesis and voice options.
+- [Text to speech guide](docs/tts.md): Bhashini, Sarvam, Navana, and Edge synthesis, including live playback.
 - [TTS example](examples/tts/README.md): Generate audio with Bhashini or Sarvam.
 - [Configuration Reference](docs/configuration.md): Project TOML file formats, precedence rules, and environment variables.
 - [Processor Pipelines](docs/processors.md): Structural processors, segment processors, and custom pipeline authoring.
