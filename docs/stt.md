@@ -81,6 +81,22 @@ async with get_stt_client() as client:
 
 The web app offers **Live microphone** on the Speech to Text page. Its server bridge is `WS /api/stt/stream`. Send a JSON start message such as `{"type":"start","provider":"sarvam","language":"hi","sampling_rate":16000}`, then binary mono signed 16-bit PCM chunks. The server replies with `{"type":"ready"}` and JSON `event` messages using the standard `STTStreamEvent` fields. Send `{"type":"finish"}` after the last audio chunk; the server sends final events and `{"type":"done"}`. Errors arrive as `{"type":"error","message":"..."}`. The server reads `SARVAM_API_KEY` from its environment or `.env`; the start message can also include `api_key` and `endpoint` overrides.
 
+## Gnani
+
+Set `GNANI_API_KEY` and route STT to `gnani`. Gnani supports Bengali, English, Gujarati, Hindi, Kannada, Malayalam, Marathi, Punjabi, Tamil, and Telugu. Provide a language because the API requires a BCP 47 language code.
+
+```toml
+[providers.gnani]
+endpoint = "https://api.vachana.ai"
+
+[routes]
+speech_to_text = ["gnani", "sarvam"]
+```
+
+The non-streaming adapter posts multipart data to `/stt/v3`, with the audio in `audio_file`, `language_code` in BCP 47 form such as `hi-IN`, and `format` set to `transcribe` by default. This `format` selects transcript mode; the file's extension comes from `audio_format` passed to `transcribe()`. It returns Gnani's `transcript` and `request_id` in the standard STT result.
+
+Gnani's streaming adapter uses `/stt/v3/stream` over WebSocket and requires the `streaming` extra. It sends mono signed 16-bit PCM chunks as raw binary frames at 8, 16, 44.1, or 48 kHz. The connection provides the API key, BCP 47 language, and sample rate as headers. Gnani's `connected` and `processing` messages are internal; each `type=transcript` message's `text` becomes a standard `final` event. `finish()` sends 500 ms of silence to flush the final VAD segment. Pass `provider="gnani"` to `client.stream()` to select it.
+
 ## Google Free STT
 
 The Google Free STT adapter (`google_free`) provides keyless, zero-setup transcription using the unofficial Google Web Speech API backed by `SpeechRecognition`.

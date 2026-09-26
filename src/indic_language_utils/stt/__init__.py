@@ -2,6 +2,7 @@
 
 from .bhashini import BhashiniSTTProvider
 from .client import STTClient
+from .gnani import GnaniSTTProvider
 from .google_speech import (
     HAVE_SPEECH_RECOGNITION,
     GoogleFreeSTTConfig,
@@ -28,6 +29,7 @@ __all__ = [
     "BhashiniSTTProvider",
     "FasterWhisperSTTConfig",
     "FasterWhisperSTTProvider",
+    "GnaniSTTProvider",
     "GoogleFreeSTTConfig",
     "GoogleFreeSTTProvider",
     "GoogleSpeechSTTConfig",
