@@ -21,6 +21,17 @@ async def test_memory_cache_expiry_and_lru() -> None:
 
 
 @pytest.mark.asyncio
+async def test_memory_cache_byte_limit_eviction_and_oversized_value() -> None:
+    cache: MemoryCache[bytes] = MemoryCache(max_bytes=5, value_size=len)
+    await cache.set("a", b"aaa")
+    await cache.set("b", b"bbb")
+    assert await cache.get("a") is None
+    assert await cache.get("b") == b"bbb"
+    await cache.set("b", b"too-large")
+    assert await cache.get("b") is None
+
+
+@pytest.mark.asyncio
 async def test_null_cache_never_stores() -> None:
     cache: NullCache[str] = NullCache()
     await cache.set("key", "value")

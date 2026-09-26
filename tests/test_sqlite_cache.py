@@ -116,3 +116,16 @@ async def test_sqlite_bulk_read_write_honors_expiry_and_bound(tmp_path: Path) ->
 
     now = 111.0
     assert await cache.get_many(("a", "b", "c")) == {}
+
+
+@pytest.mark.asyncio
+async def test_sqlite_cache_byte_limit_bounds_values(tmp_path: Path) -> None:
+    codec = StringCodec()
+    small = len(codec.encode("a"))
+    cache = SQLiteCache(tmp_path / "cache.sqlite3", codec, namespace="audio", max_bytes=small * 2)
+    await cache.set("one", "a")
+    await cache.set("two", "a")
+    await cache.set("three", "a")
+    assert len(await cache.get_many(("one", "two", "three"))) == 2
+    await cache.set("huge", "x" * 100)
+    assert await cache.get("huge") is None

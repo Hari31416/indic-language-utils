@@ -55,6 +55,7 @@ class NullCache(Generic[T]):
 class _Entry(Generic[T]):
     value: T
     expires_at: float | None
+    size: int = 0
 
 
 class MemoryCache(Generic[T]):
@@ -65,11 +66,18 @@ class MemoryCache(Generic[T]):
         max_entries: int = 1024,
         default_ttl: float | None = 300,
         *,
+        max_bytes: int | None = None,
+        value_size: Callable[[T], int] | None = None,
         clock: Clock = time.monotonic,
     ) -> None:
         if max_entries < 1 or (default_ttl is not None and default_ttl < 0):
             raise ValueError("Cache size must be positive and TTL cannot be negative")
+        if max_bytes is not None and (max_bytes < 1 or value_size is None):
+            raise ValueError("A byte-limited cache needs a positive limit and value_size")
         self._max_entries = max_entries
+        self._max_bytes = max_bytes
+        self._value_size = value_size
+        self._total_bytes = 0
         self._default_ttl = default_ttl
         self._clock = clock
         self._entries: OrderedDict[str, _Entry[T]] = OrderedDict()
@@ -82,6 +90,7 @@ class MemoryCache(Generic[T]):
                 return None
             if entry.expires_at is not None and entry.expires_at <= self._clock():
                 del self._entries[key]
+                self._total_bytes -= entry.size
                 return None
             self._entries.move_to_end(key)
             return entry.value
@@ -90,20 +99,36 @@ class MemoryCache(Generic[T]):
         effective_ttl = self._default_ttl if ttl is None else ttl
         if effective_ttl is not None and effective_ttl < 0:
             raise ValueError("TTL cannot be negative")
+        size = self._value_size(value) if self._value_size is not None else 0
+        if size < 0:
+            raise ValueError("Cache value size cannot be negative")
         expires_at = None if effective_ttl is None else self._clock() + effective_ttl
         async with self._lock:
-            self._entries[key] = _Entry(value, expires_at)
+            previous = self._entries.pop(key, None)
+            if previous is not None:
+                self._total_bytes -= previous.size
+            if self._max_bytes is not None and size > self._max_bytes:
+                return
+            self._entries[key] = _Entry(value, expires_at, size)
+            self._total_bytes += size
             self._entries.move_to_end(key)
-            while len(self._entries) > self._max_entries:
-                self._entries.popitem(last=False)
+            while len(self._entries) > self._max_entries or (
+                self._max_bytes is not None and self._total_bytes > self._max_bytes
+            ):
+                _, evicted = self._entries.popitem(last=False)
+                self._total_bytes -= evicted.size
 
     async def delete(self, key: str) -> bool:
         async with self._lock:
-            return self._entries.pop(key, None) is not None
+            entry = self._entries.pop(key, None)
+            if entry is not None:
+                self._total_bytes -= entry.size
+            return entry is not None
 
     async def clear(self) -> None:
         async with self._lock:
             self._entries.clear()
+            self._total_bytes = 0
 
 
 class SQLiteCache(Generic[T]):
@@ -116,6 +141,7 @@ class SQLiteCache(Generic[T]):
         *,
         namespace: str = "indic-language-utils",
         max_entries: int = 10_000,
+        max_bytes: int | None = None,
         default_ttl: float | None = 86_400,
         timeout_seconds: float = 5.0,
         clock: Clock = time.time,
@@ -125,11 +151,14 @@ class SQLiteCache(Generic[T]):
             raise ValueError("Cache namespace cannot be empty")
         if max_entries < 1 or (default_ttl is not None and default_ttl < 0):
             raise ValueError("Cache size must be positive and TTL cannot be negative")
+        if max_bytes is not None and max_bytes < 1:
+            raise ValueError("Cache byte limit must be positive")
         if timeout_seconds <= 0:
             raise ValueError("SQLite timeout must be positive")
         self._codec = codec
         self._namespace = namespace
         self._max_entries = max_entries
+        self._max_bytes = max_bytes
         self._default_ttl = default_ttl
         self._timeout_seconds = timeout_seconds
         self._clock = clock
@@ -302,6 +331,12 @@ class SQLiteCache(Generic[T]):
         expires_at = None if ttl is None else now + ttl
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
+            if self._max_bytes is not None and len(value) > self._max_bytes:
+                connection.execute(
+                    "DELETE FROM cache_entries WHERE namespace = ? AND key = ?",
+                    (self._namespace, key),
+                )
+                return
             connection.execute(
                 "DELETE FROM cache_entries WHERE namespace = ? AND expires_at <= ?",
                 (self._namespace, now),
@@ -329,12 +364,23 @@ class SQLiteCache(Generic[T]):
                 """,
                 (self._namespace, self._namespace, self._max_entries),
             )
+            self._enforce_size_limit(connection)
 
     def _set_many_sync(self, values: Mapping[str, bytes], ttl: float | None) -> None:
         now = self._clock()
         expires_at = None if ttl is None else now + ttl
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
+            if self._max_bytes is not None:
+                for key, value in values.items():
+                    if len(value) > self._max_bytes:
+                        connection.execute(
+                            "DELETE FROM cache_entries WHERE namespace = ? AND key = ?",
+                            (self._namespace, key),
+                        )
+                values = {
+                    key: value for key, value in values.items() if len(value) <= self._max_bytes
+                }
             connection.execute(
                 "DELETE FROM cache_entries WHERE namespace = ? AND expires_at <= ?",
                 (self._namespace, now),
@@ -362,6 +408,31 @@ class SQLiteCache(Generic[T]):
                 """,
                 (self._namespace, self._namespace, self._max_entries),
             )
+            self._enforce_size_limit(connection)
+
+    def _enforce_size_limit(self, connection: sqlite3.Connection) -> None:
+        if self._max_bytes is None:
+            return
+        row = connection.execute(
+            "SELECT COALESCE(SUM(LENGTH(value)), 0) FROM cache_entries WHERE namespace = ?",
+            (self._namespace,),
+        ).fetchone()
+        total = int(row[0]) if row is not None else 0
+        while total > self._max_bytes:
+            oldest = connection.execute(
+                """
+                SELECT key, LENGTH(value) FROM cache_entries
+                WHERE namespace = ? ORDER BY accessed_at ASC, key ASC LIMIT 1
+                """,
+                (self._namespace,),
+            ).fetchone()
+            if oldest is None:
+                break
+            connection.execute(
+                "DELETE FROM cache_entries WHERE namespace = ? AND key = ?",
+                (self._namespace, oldest[0]),
+            )
+            total -= int(oldest[1])
 
     def _delete_sync(self, key: str) -> bool:
         with self._connect() as connection:
