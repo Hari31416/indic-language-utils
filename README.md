@@ -10,7 +10,7 @@ Provider-neutral foundations for Indian language operations in Python.
 - Text Translation: Translate plain text or complex Markdown documents across 22 scheduled Indian languages and English.
 - Text Language Detection: Identify languages using offline FastText classification (`lid.176.ftz`) or cloud inference pipelines via Bhashini.
 - Transliteration: Convert between Roman script and native Indic scripts via Bhashini or Aksharamukha.
-- Speech to text: Transcribe audio with Bhashini, Sarvam, local Faster-Whisper, or keyless Google Speech.
+- Speech to text: Transcribe audio with Bhashini, Sarvam, Gnani, local Faster-Whisper, or keyless Google Speech.
 - Text to speech: Generate audio with Bhashini, Sarvam, Gnani, Navana, or Edge TTS and pass model-specific voice settings.
 - Script Identification: Fast, zero-dependency Unicode script identification across 12+ Indic scripts and Latin.
 - Document and Code Protection: Structural pre-processors and post-processors protect headings, bullet markers, inline code spans, URLs, and code blocks from neural translation corruption.
@@ -120,7 +120,7 @@ Comprehensive guides are available in the documentation site:
 - [User Guide](docs/user-guide.md): Architecture overview, core capabilities, and usage styles.
 - [Translation Guide](docs/translation.md): Synchronous and asynchronous translation, Markdown preservation, and catalogs.
 - [Detection Guide](docs/detection.md): Local FastText and cloud Bhashini detection, script analysis, and candidate scoring.
-- [Speech to text guide](docs/stt.md): Bhashini and Sarvam transcription and model IDs.
+- [Speech to text guide](docs/stt.md): Bhashini, Sarvam, and Gnani transcription, including live streaming.
 - [Server API](docs/server.md): FastAPI endpoints and browser WebSocket streaming.
 - [STT example](examples/stt/README.md): Transcribe audio with Bhashini or Sarvam.
 - [Text to speech guide](docs/tts.md): Bhashini, Sarvam, Gnani, Navana, and Edge synthesis, including live playback.

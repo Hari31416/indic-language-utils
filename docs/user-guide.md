@@ -38,6 +38,7 @@ The system provides built-in adapters for multiple local and cloud providers:
 
 - Bhashini: Official Government of India ecosystem providing neural translation (IndicTrans2), text language detection, transliteration, speech-to-text, and text-to-speech via pipeline inference endpoints. Requires an API key and service identifiers.
 - Sarvam AI: Commercial cloud platform providing neural translation, text language detection, speech-to-text (Saaras), and text-to-speech (Bulbul) for Indian languages and English. Requires an API key (`SARVAM_API_KEY`).
+- Gnani AI: Cloud speech provider offering REST and realtime WebSocket STT, plus inference, WebSocket, and SSE TTS. Requires an API key (`GNANI_API_KEY`).
 - Aksharamukha: Lightweight, offline, pure-Python transliteration engine supporting 120+ scripts, cross-Indic script conversions, and standardized Romanization schemes.
 - IndicXlit: The adapter remains in the codebase, but its install extra is omitted from this beta because upstream dependencies have known vulnerabilities.
 - FastText: Offline, high-speed language detection using Facebook's compressed language identification model (`lid.176.ftz`). Requires no network access or credentials.
