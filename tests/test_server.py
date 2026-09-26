@@ -82,6 +82,32 @@ def test_navana_is_listed_as_tts_only_when_configured(
     assert "navana" not in [item["id"] for item in response.json()["speech_to_text"]]
 
 
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"NAVANA_ENDPOINT_URL": "ftp://tts.navana.ai"},
+        {"NAVANA_TIMEOUT_SECONDS": "invalid"},
+        {"NAVANA_MAX_CONCURRENCY": "0"},
+    ],
+)
+def test_navana_invalid_configuration_is_not_reported_available(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    overrides: dict[str, str],
+) -> None:
+    from indic_language_utils.server import routes
+
+    monkeypatch.setattr(
+        routes,
+        "_get_env_overrides",
+        lambda: {"NAVANA_API_KEY": "test-key", **overrides},
+    )
+    response = client.get("/api/providers")
+    navana = next(item for item in response.json()["text_to_speech"] if item["id"] == "navana")
+    assert navana["available"] is False
+    assert navana["details"] != "Requires NAVANA_API_KEY"
+
+
 def test_detect_script(client: TestClient) -> None:
     response = client.post("/api/detect-script", json={"text": "नमस्ते"})
     assert response.status_code == 200

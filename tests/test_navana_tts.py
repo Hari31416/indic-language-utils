@@ -10,6 +10,7 @@ from indic_language_utils.config import Secret
 from indic_language_utils.errors import AuthenticationError, InvalidInputError
 from indic_language_utils.languages import DEFAULT_LANGUAGE_REGISTRY
 from indic_language_utils.providers.navana import NavanaConfig
+from indic_language_utils.retry import RetryPolicy
 from indic_language_utils.tts.models import TTSOptions
 from indic_language_utils.tts.navana import NavanaTTSProvider
 from indic_language_utils.tts.navana_stream import NavanaTTSStream
@@ -67,6 +68,33 @@ async def test_navana_maps_authentication_errors() -> None:
                 options=TTSOptions(),
                 request_id="request-1",
             )
+
+
+@pytest.mark.asyncio
+async def test_navana_retries_retryable_http_statuses() -> None:
+    attempts = 0
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            return httpx.Response(503, json={"error": "temporarily unavailable"})
+        return httpx.Response(200, content=b"\x00\x00")
+
+    config = NavanaConfig(
+        Secret("test-secret"), retry_policy=RetryPolicy(max_attempts=2, base_delay=0, max_delay=0)
+    )
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        provider = NavanaTTSProvider(config, client=client)
+        result = await provider.synthesize_batch(
+            ("Hello",),
+            language=DEFAULT_LANGUAGE_REGISTRY.normalize("en"),
+            options=TTSOptions(),
+            request_id="request-1",
+        )
+
+    assert attempts == 2
+    assert result[0].audio.startswith(b"RIFF")
 
 
 @pytest.mark.asyncio

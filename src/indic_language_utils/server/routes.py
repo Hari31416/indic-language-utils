@@ -25,6 +25,7 @@ from ..errors import ConfigurationError, LanguageUtilsError
 from ..languages import DEFAULT_LANGUAGE_REGISTRY
 from ..providers import CapabilityId
 from ..providers.bhashini import BhashiniConfig
+from ..providers.navana import NavanaConfig
 from ..providers.sarvam import SarvamConfig
 from ..routing import OrderedRouter
 from ..stt import (
@@ -392,7 +393,15 @@ async def list_providers(request: Request) -> ProvidersResponse:
             )
         except ConfigurationError:
             pass
-    has_navana_key = bool(env.get("NAVANA_API_KEY"))
+    navana_configured = False
+    navana_details = "Requires NAVANA_API_KEY"
+    if env.get("NAVANA_API_KEY"):
+        try:
+            NavanaConfig.from_settings(Settings.load(env=env), env=env)
+            navana_configured = True
+            navana_details = "Non-streaming and WebSocket synthesis"
+        except ConfigurationError as exc:
+            navana_details = str(exc)
     edge_tts_error: str | None = None
     if HAVE_EDGE_TTS:
         try:
@@ -463,12 +472,8 @@ async def list_providers(request: Request) -> ProvidersResponse:
         ProviderInfo(
             id="navana",
             name="Navana AI TTS",
-            available=has_navana_key,
-            details=(
-                "Non-streaming and WebSocket synthesis"
-                if has_navana_key
-                else "Requires NAVANA_API_KEY"
-            ),
+            available=navana_configured,
+            details=navana_details,
         ),
     ]
 

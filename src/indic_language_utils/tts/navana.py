@@ -142,7 +142,7 @@ class NavanaTTSProvider:
                 async def send(payload: dict[str, object] = payload) -> httpx.Response:
                     try:
                         async with self._limiter.slot("navana", CapabilityId.TEXT_TO_SPEECH):
-                            return await client.post(
+                            response = await client.post(
                                 f"{self.config.endpoint.rstrip('/')}/tts/bytes",
                                 headers={
                                     "X-API-Key": self.config.api_key.reveal(),
@@ -151,6 +151,8 @@ class NavanaTTSProvider:
                                 json=payload,
                                 timeout=self.config.timeout_seconds,
                             )
+                        self._raise_status(response, request_id)
+                        return response
                     except httpx.TimeoutException as exc:
                         raise ProviderTimeoutError(
                             "Navana request timed out", provider="navana", request_id=request_id
@@ -161,7 +163,6 @@ class NavanaTTSProvider:
                         ) from exc
 
                 response = await retry(send, self.config.retry_policy)
-                self._raise_status(response, request_id)
                 encoding = response.headers.get("x-encoding", "pcm16").lower()
                 audio = response.content
                 if not audio:
