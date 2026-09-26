@@ -10,6 +10,21 @@ The repository includes three generated 16 kHz mono WAV clips:
 
 The clips were generated with macOS voices Aman, Lekha, and Vani. They contain synthetic speech only.
 
+## Gnani
+
+Set `GNANI_API_KEY` in `.env` or your shell. The REST example accepts WAV audio and a BCP 47 language code:
+
+```bash
+uv run --env-file .env python examples/stt/gnani_demo.py examples/stt/hindi.wav --language hi
+```
+
+For realtime recognition, install the optional WebSocket dependency and pass `--stream`. Streaming input must be mono, 16-bit PCM WAV at 8, 16, 44.1, or 48 kHz:
+
+```bash
+uv sync --extra streaming
+uv run --env-file .env python examples/stt/gnani_demo.py examples/stt/hindi.wav --language hi --stream
+```
+
 The repository's `.indic-language-utils.toml` contains the Bhashini endpoint and model IDs. Set `BHASHINI_API_KEY` in your shell or `.env`, then run all three clips against the live API:
 
 ```bash

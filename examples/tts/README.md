@@ -1,5 +1,23 @@
 # Text to speech example
 
+## Gnani
+
+Set `GNANI_API_KEY` in `.env` or your shell. Provide a voice supported by your Gnani account. The inference endpoint writes the returned audio bytes to the output path:
+
+```bash
+uv run --env-file .env python examples/tts/gnani_tts_demo.py --voice YOUR_VOICE --mode inference --output gnani-speech.wav
+```
+
+The example also supports Gnani's WebSocket and server-sent-event (SSE) streaming transports. Install the `streaming` extra for WebSocket mode; SSE uses HTTP and does not require it:
+
+```bash
+uv sync --extra streaming
+uv run --env-file .env python examples/tts/gnani_tts_demo.py --voice YOUR_VOICE --mode websocket --output gnani-live.wav
+uv run --env-file .env python examples/tts/gnani_tts_demo.py --voice YOUR_VOICE --mode sse --output gnani-sse.wav
+```
+
+Streaming output is saved as the concatenated audio chunks returned by Gnani. Use an extension appropriate to the `audio_config.container` selected for your account/model.
+
 The repository config selects Bhashini's `Bhashini/IITM/TTS` model. Set `BHASHINI_API_KEY` in your shell or `.env`, then run:
 
 ```bash
