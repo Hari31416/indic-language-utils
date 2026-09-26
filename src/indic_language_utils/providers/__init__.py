@@ -19,6 +19,7 @@ from .factories import (
     ProviderFactoryRegistry,
     default_provider_factories,
 )
+from .gnani import GnaniConfig
 from .navana import NavanaConfig
 from .sarvam import (
     SarvamConfig,
@@ -30,6 +31,7 @@ __all__ = [
     "BhashiniConfig",
     "CapabilityDeclaration",
     "CapabilityId",
+    "GnaniConfig",
     "HttpxJsonTransport",
     "JsonResponse",
     "JsonTransport",
