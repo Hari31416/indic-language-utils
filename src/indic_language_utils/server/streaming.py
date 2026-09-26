@@ -33,7 +33,7 @@ class StreamStart(BaseModel):
 
 
 class STTStreamStart(StreamStart):
-    sampling_rate: int = Field(default=16000, ge=8000, le=16000)
+    sampling_rate: int = Field(default=16000, ge=8000, le=48000)
 
 
 class TTSStreamStart(StreamStart):
@@ -53,11 +53,15 @@ def _stream_env(start: StreamStart) -> dict[str, str]:
     if start.api_key:
         if start.provider == "navana":
             env["NAVANA_API_KEY"] = start.api_key
+        elif start.provider == "gnani":
+            env["GNANI_API_KEY"] = start.api_key
         else:
             env["SARVAM_API_KEY"] = start.api_key
     if start.endpoint:
         if start.provider == "navana":
             env["NAVANA_ENDPOINT_URL"] = start.endpoint
+        elif start.provider == "gnani":
+            env["GNANI_ENDPOINT_URL"] = start.endpoint
         else:
             env["SARVAM_ENDPOINT_URL"] = start.endpoint
     return env

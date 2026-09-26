@@ -588,3 +588,16 @@ def test_client_api_key_headers_enable_providers(client: TestClient) -> None:
     assert sarvam_trans["available"] is True
     bhashini_trans = next(p for p in data["translation"] if p["id"] == "bhashini")
     assert bhashini_trans["available"] is True
+
+
+def test_gnani_api_key_headers_enable_speech_providers(client: TestClient) -> None:
+    response = client.get(
+        "/api/providers",
+        headers={"x-gnani-api-key": "test-gnani-key", "x-gnani-endpoint": "https://example.test"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    stt = next(item for item in data["speech_to_text"] if item["id"] == "gnani")
+    tts = next(item for item in data["text_to_speech"] if item["id"] == "gnani")
+    assert stt["available"] is True
+    assert tts["available"] is True
