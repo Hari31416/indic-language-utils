@@ -6,6 +6,7 @@ Choose an adapter by capability, dependency, and credential. A configured route 
 | ---------------- | ----------- | --------- | --------------- | --- | --- | ---------------------------------------------------- |
 | `bhashini`       | Yes         | Yes       | Yes             | Yes | Yes | API key, endpoint, capability service IDs            |
 | `sarvam`         | Yes         | Yes       | No              | Yes | Yes | `SARVAM_API_KEY`; STT/TTS model IDs                  |
+| `navana`         | No          | No        | No              | No  | Yes | `NAVANA_API_KEY`; HTTP or WebSocket TTS               |
 | `googletrans`    | Yes         | No        | No              | No  | No  | `[googletrans]` extra; unofficial online adapter     |
 | `fasttext`       | No          | Yes       | No              | No  | No  | `[local-tld]` extra; local model                     |
 | `aksharamukha`   | No          | No        | Yes             | No  | No  | `[local-transliteration]` extra                      |
@@ -23,7 +24,7 @@ Set route order under `[routes]` in `.indic-language-utils.toml`. For example:
 text_to_speech = ["sarvam", "bhashini", "edge_tts"]
 ```
 
-The client selects providers whose declarations support the requested language. It retries or falls back on rate limits, timeouts, transient provider errors, malformed responses, and output validation failures. Authentication, invalid input, and unsupported language errors stop the request. For TTS with no language, Sarvam is skipped because it requires one. Bhashini can handle an unspecified language only when it has a default TTS model.
+The client selects providers whose declarations support the requested language. It retries or falls back on rate limits, timeouts, transient provider errors, malformed responses, and output validation failures. Authentication, invalid input, and unsupported language errors stop the request. For TTS with no language, Sarvam is skipped because it requires one. Bhashini can handle an unspecified language only when it has a default TTS model. Navana uses Hindi when `language` is omitted.
 
 TTS options are provider-specific. `TTSOptions.parameters` applies to the first compatible provider only. Use `TTSOptions(provider_parameters={...})` when fallback providers need their own voice settings. See the [TTS guide](tts.md) for an example.
 
