@@ -5,13 +5,17 @@ All notable changes to the `indic-language-utils` project will be documented in 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.0] - 2026-09-26
 
 ### Added
+- Provider-neutral live speech sessions, Sarvam streaming STT and TTS adapters, and live microphone and playback controls in the web workbench.
+- Provider extension points for custom adapters, configured plugin entry points, provider-specific settings, request route selection, and injectable language registries, caches, telemetry, processors, and catalogs.
+- Public provider contract checks and a guide for building and testing external adapters.
 - Translation segment caching reuses unchanged Markdown lines and size-limited chunks across document edits, including with persistent SQLite caches.
 - Opt-in TTS caching for complete audio in memory or SQLite, with a byte limit and API cache-hit reporting.
 
 ### Fixed
+- Configured routes now reject unknown providers and routes without an available adapter.
 - Translation cache keys now include the configured provider model, so switching Sarvam models cannot reuse an earlier model's result.
 
 ## [0.6.0b1] - 2026-09-24

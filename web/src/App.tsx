@@ -157,7 +157,7 @@ export const App: React.FC = () => {
               indic-language-utils
             </span>
             <span className="rounded border border-ink-600 bg-ink-800 px-1.5 py-0.5 font-mono text-[10px] text-marigold-300">
-              v0.6.0b1
+              v1.0.0
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -215,7 +215,7 @@ export const App: React.FC = () => {
               <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-parchment-500">
                 Indian Language AI Workbench
                 <span className="rounded border border-ink-600 bg-ink-800 px-1 py-px font-mono text-[10px] text-marigold-300">
-                  v0.6.0b1
+                  v1.0.0
                 </span>
               </p>
             </div>
