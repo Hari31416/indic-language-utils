@@ -65,6 +65,8 @@ export const ApiKeysModal: React.FC<ApiKeysModalProps> = ({
   const [sarvamEndpoint, setSarvamEndpoint] = useState(apiKeys.sarvamEndpoint)
   const [bhashiniKey, setBhashiniKey] = useState(apiKeys.bhashiniApiKey)
   const [bhashiniEndpoint, setBhashiniEndpoint] = useState(apiKeys.bhashiniEndpoint)
+  const [navanaKey, setNavanaKey] = useState(apiKeys.navanaApiKey)
+  const [navanaEndpoint, setNavanaEndpoint] = useState(apiKeys.navanaEndpoint)
   const [savedNotice, setSavedNotice] = useState(false)
 
   useEffect(() => {
@@ -84,6 +86,8 @@ export const ApiKeysModal: React.FC<ApiKeysModalProps> = ({
       sarvamEndpoint: sarvamEndpoint.trim(),
       bhashiniApiKey: bhashiniKey.trim(),
       bhashiniEndpoint: bhashiniEndpoint.trim(),
+      navanaApiKey: navanaKey.trim(),
+      navanaEndpoint: navanaEndpoint.trim(),
     }
     saveApiKeys(updated)
     onSave(updated)
@@ -100,11 +104,15 @@ export const ApiKeysModal: React.FC<ApiKeysModalProps> = ({
     setSarvamEndpoint('')
     setBhashiniKey('')
     setBhashiniEndpoint('')
+    setNavanaKey('')
+    setNavanaEndpoint('')
     const empty: ApiKeysConfig = {
       sarvamApiKey: '',
       sarvamEndpoint: '',
       bhashiniApiKey: '',
       bhashiniEndpoint: '',
+      navanaApiKey: '',
+      navanaEndpoint: '',
     }
     onSave(empty)
   }
@@ -227,6 +235,39 @@ export const ApiKeysModal: React.FC<ApiKeysModalProps> = ({
               />
             </div>
           </div>
+
+          <div className="panel-sunken space-y-3.5 p-4">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-sm font-semibold text-parchment-100">
+                <Server className="h-4 w-4 text-peacock-300" />
+                Navana AI
+                {navanaKey.trim() && <span className="pill-ready">Set</span>}
+              </div>
+              <a href="https://platform.navana.ai" target="_blank" rel="noreferrer" className="link-accent">
+                Get API key <ExternalLink className="h-3 w-3" />
+              </a>
+            </div>
+            <SecretField
+              label="API key (NAVANA_API_KEY)"
+              value={navanaKey}
+              onChange={setNavanaKey}
+              placeholder="Navana Bodhi API key"
+            />
+            <div className="space-y-1.5">
+              <label className="block text-xs font-medium text-parchment-400">
+                Custom endpoint URL (optional)
+              </label>
+              <input
+                type="text"
+                value={navanaEndpoint}
+                onChange={(e) => setNavanaEndpoint(e.target.value)}
+                placeholder="https://tts.navana.ai"
+                spellCheck={false}
+                className="field field-mono"
+              />
+            </div>
+          </div>
+
         </div>
 
         <div className="flex items-center justify-between border-t divider bg-ink-900/70 px-6 py-4">

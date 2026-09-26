@@ -129,7 +129,8 @@ export const App: React.FC = () => {
   }
 
   const configuredKeyCount =
-    (apiKeys.sarvamApiKey.trim() ? 1 : 0) + (apiKeys.bhashiniApiKey.trim() ? 1 : 0)
+    (apiKeys.sarvamApiKey.trim() ? 1 : 0) + (apiKeys.bhashiniApiKey.trim() ? 1 : 0) +
+    (apiKeys.navanaApiKey.trim() ? 1 : 0)
 
   const allProviders: ProviderInfo[] = providersData
     ? [

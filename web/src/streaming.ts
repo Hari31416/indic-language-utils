@@ -5,13 +5,17 @@ export function speechSocket(path: '/api/stt/stream' | '/api/tts/stream'): WebSo
   return new WebSocket(`${scheme}//${window.location.host}${path}`)
 }
 
-export function sarvamConnectionSettings(): { api_key?: string; endpoint?: string } {
+export function providerConnectionSettings(provider: 'sarvam' | 'navana'): { api_key?: string; endpoint?: string } {
   const keys = loadApiKeys()
+  const apiKey = provider === 'navana' ? keys.navanaApiKey : keys.sarvamApiKey
+  const endpoint = provider === 'navana' ? keys.navanaEndpoint : keys.sarvamEndpoint
   return {
-    ...(keys.sarvamApiKey.trim() ? { api_key: keys.sarvamApiKey.trim() } : {}),
-    ...(keys.sarvamEndpoint.trim() ? { endpoint: keys.sarvamEndpoint.trim() } : {}),
+    ...(apiKey.trim() ? { api_key: apiKey.trim() } : {}),
+    ...(endpoint.trim() ? { endpoint: endpoint.trim() } : {}),
   }
 }
+
+export const sarvamConnectionSettings = () => providerConnectionSettings('sarvam')
 
 export function decodeBase64(value: string): Uint8Array {
   const binary = atob(value)
