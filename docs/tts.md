@@ -1,6 +1,6 @@
 # Text to speech
 
-The TTS client sends text to Bhashini, Sarvam, Navana, or Edge TTS and returns audio bytes. Configure a default model ID or select one per language. Bhashini calls these IDs `serviceId`; its [model list](https://dibd-bhashini.gitbook.io/bhashini-apis/available-models-for-usage) shows supported languages.
+The TTS client sends text to Bhashini, Sarvam, Gnani, Navana, or Edge TTS and returns audio bytes. Configure a default model ID or select one per language. Bhashini calls these IDs `serviceId`; its [model list](https://dibd-bhashini.gitbook.io/bhashini-apis/available-models-for-usage) shows supported languages.
 
 ```python
 from indic_language_utils import TTSOptions, get_tts_client
@@ -95,6 +95,23 @@ async with get_tts_client() as client:
 `flush()` tells Sarvam to synthesize the remaining buffered text; the `done` event follows its final audio chunk. Audio defaults to MP3. Set `TTSOptions({"audio_format": "linear16"})` for PCM output. The [Sarvam WebSocket guide](https://docs.sarvam.ai/api/api-guides-tutorials/text-to-speech/streaming-api/web-socket) describes its text buffering and completion event. Each stream stays on its selected provider until it closes.
 
 The web app offers **Live playback** on the Text to Speech page. Its server bridge is `WS /api/tts/stream`. Send `{"type":"start","provider":"sarvam","language":"hi","parameters":{"audio_format":"linear16","speaker":"shubh"}}`, wait for `{"type":"ready"}`, then send one or more `{"type":"text","text":"..."}` messages and `{"type":"flush"}`. The server sends JSON `event` messages with the standard `TTSStreamEvent` fields; audio bytes are base64 encoded in `audio_base64`. A stream ends with an event whose `kind` is `done`, followed by `{"type":"done"}`. Errors use `{"type":"error","message":"..."}`. The server reads `SARVAM_API_KEY` from its environment or `.env`; the start message can include `api_key` and `endpoint` overrides.
+
+## Gnani AI
+
+Set `GNANI_API_KEY` to enable Gnani TTS. The provider supports Bengali, English, Gujarati, Hindi, Kannada, Malayalam, Marathi, Punjabi, Tamil, and Telugu, and defaults to `timbre-v2.5`. Gnani requires a voice and BCP 47 language:
+
+```python
+from indic_language_utils import TTSOptions, get_tts_client
+
+async with get_tts_client() as client:
+    result = await client.synthesize(
+        "नमस्ते दुनिया", language="hi", options=TTSOptions({"voice": "Nalini"})
+    )
+```
+
+Pass optional `speed` and `audio_config` (including a `container`) in `TTSOptions.parameters`. Non-streaming inference returns raw audio bytes. Gnani's [inference reference](https://docs.gnani.ai/api/TTS/tts-inference.md) documents its accepted values.
+
+Install `indic-language-utils[streaming]` to use the Gnani stream interface. The `send_text`/`flush` contract buffers text until flush, then synthesizes it in one request. WebSocket is the default transport. Set `TTSOptions({"voice": "Nalini", "streaming_transport": "sse"})` to use SSE instead. Both transports emit standard `TTSStreamEvent` audio events followed by `done`. The transport selector is library-only and is not sent to Gnani. See the [WebSocket](https://docs.gnani.ai/api/TTS/tts-websocket.md) and [SSE](https://docs.gnani.ai/api/TTS/tts-sse.md) references.
 
 ## Navana AI
 

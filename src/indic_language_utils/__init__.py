@@ -143,6 +143,7 @@ from .transliteration import (
 )
 from .tts import (
     BhashiniTTSProvider,
+    GnaniTTSProvider,
     NavanaTTSProvider,
     ProviderTTSResult,
     SarvamTTSProvider,
@@ -194,6 +195,7 @@ __all__ = [
     "FasterWhisperSTTProvider",
     "GnaniConfig",
     "GnaniSTTProvider",
+    "GnaniTTSProvider",
     "GoogleFreeSTTConfig",
     "GoogleFreeSTTProvider",
     "GoogleTranslateConfig",
