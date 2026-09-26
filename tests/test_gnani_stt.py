@@ -90,5 +90,7 @@ async def test_gnani_stream_sends_raw_pcm_and_maps_transcript(
         "lang_code": "hi-IN",
         "x-sample-rate": "16000",
     }
-    assert socket.sent == [b"\x00\x01", bytes(16000)]
+    assert socket.sent[0] == b"\x00\x01"
+    assert b"".join(socket.sent[1:]) == bytes(16000)
+    assert all(len(chunk) <= 1024 for chunk in socket.sent[1:])
     assert [(event.kind, event.text) for event in events] == [("final", "hello")]
