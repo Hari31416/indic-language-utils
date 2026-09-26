@@ -224,6 +224,9 @@ when a document has changed. Cache keys incorporate the hashed input text, norma
 and target languages, provider identity, service and configured model IDs, request options, and
 active processor pipeline versions. `cache.hit` is true only when no provider call was needed.
 
+TTS also caches complete audio when caching is enabled. Its entries use a separate namespace
+and a 64 MiB byte limit by default, configurable through `cache.tts_max_bytes`.
+
 To prevent cache stampedes under high concurrency, requests for identical keys are coalesced using `SingleFlight`.
 
 ## Content Protection and Markdown

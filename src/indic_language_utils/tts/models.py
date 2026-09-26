@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 
 from ..languages import DEFAULT_LANGUAGE_REGISTRY, LanguageRegistry, LanguageTag
-from ..models import OperationContext
+from ..models import CacheMetadata, OperationContext
 
 _RESERVED_PARAMETERS = {"serviceId", "language"}
 
@@ -97,3 +97,4 @@ class TTSResult:
     request_id: str
     provider_request_id: str | None = None
     fallback_count: int = 0
+    cache: CacheMetadata = field(default_factory=lambda: CacheMetadata(False, "none", 1))

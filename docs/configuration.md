@@ -26,6 +26,7 @@ backend = "sqlite"
 path = ".cache/translations.sqlite3"
 namespace = "my-application"
 max_entries = 50000
+tts_max_bytes = 67108864
 ttl_seconds = 86400
 
 [retry]
@@ -173,6 +174,7 @@ export ILU_CACHE_BACKEND="sqlite"
 export ILU_CACHE_PATH="/var/lib/indic-language-utils/cache.sqlite3"
 export ILU_CACHE_NAMESPACE="my-app"
 export ILU_CACHE_MAX_ENTRIES="50000"
+export ILU_CACHE_TTS_MAX_BYTES="67108864"
 export ILU_CACHE_TTL_SECONDS="86400"
 
 # Retry settings

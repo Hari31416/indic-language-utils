@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 import pytest
 
 from indic_language_utils import BhashiniConfig, Secret, TTSOptions, TTSRequest, get_tts_client
+from indic_language_utils.config import CacheSettings, Settings
 from indic_language_utils.errors import (
     ConfigurationError,
     MalformedProviderResponseError,
@@ -96,7 +97,7 @@ async def test_bhashini_tts_with_language_and_model_options() -> None:
 async def test_tts_without_language_uses_default_model() -> None:
     transport = FakeTransport([response()])
     provider = BhashiniTTSProvider(config(), transport=transport)
-    client = get_tts_client(providers=[provider])
+    client = get_tts_client(Settings(cache=CacheSettings()), providers=[provider])
     result = await client.synthesize("Hello", options=TTSOptions({"gender": "male"}))
     assert result.audio == WAV
     assert result.language is None

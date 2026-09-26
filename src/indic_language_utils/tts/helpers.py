@@ -6,6 +6,7 @@ import logging
 import os
 from collections.abc import Mapping, Sequence
 
+from ..cache import AsyncCache, CacheKeyBuilder
 from ..config import Settings
 from ..languages import LanguageRegistry
 from ..providers import CapabilityId, ProviderRegistry
@@ -15,6 +16,7 @@ from ..providers.factories import (
     default_provider_factories,
 )
 from ..routing import OrderedRouter, RouteSelector, resolve_route_names
+from .cache import TTSCacheEntry, create_tts_cache
 from .client import TTSClient
 from .protocols import TTSProvider
 
@@ -30,6 +32,8 @@ def get_tts_client(
     env: Mapping[str, str] | None = None,
     language_registry: LanguageRegistry | None = None,
     route_selector: RouteSelector | None = None,
+    cache: AsyncCache[TTSCacheEntry] | None = None,
+    cache_keys: CacheKeyBuilder | None = None,
 ) -> TTSClient:
     use_configured_routes = providers is None or settings is not None
     settings = settings or Settings.load(env=env)
@@ -72,4 +76,10 @@ def get_tts_client(
         route = default_route
 
     router = OrderedRouter(registry, {CapabilityId.TEXT_TO_SPEECH: route}, selector=route_selector)
-    return TTSClient(router, language_registry=language_registry)
+    selected_cache = cache if cache is not None else create_tts_cache(settings.cache)
+    return TTSClient(
+        router,
+        cache=selected_cache,
+        cache_keys=cache_keys or CacheKeyBuilder(settings.cache.namespace),
+        language_registry=language_registry,
+    )

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -392,6 +394,7 @@ def test_tts_endpoint(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> No
             "BHASHINI_API_KEY": "test-key",
             "BHASHINI_ENDPOINT_URL": "https://example.test/inference",
             "BHASHINI_TTS_MODEL_ID": "test-tts",
+            "ILU_CACHE_ENABLED": "false",
         },
     )
 
@@ -432,6 +435,54 @@ def test_tts_endpoint(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> No
         },
     )
     assert named_response.status_code == 200
+
+
+@pytest.mark.parametrize("backend", ["memory", "sqlite"])
+def test_tts_endpoint_uses_cache(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, backend: str
+) -> None:
+    from indic_language_utils.server import routes
+    from indic_language_utils.tts.bhashini import BhashiniTTSProvider
+    from indic_language_utils.tts.models import ProviderTTSResult, TTSOptions
+
+    monkeypatch.setattr(
+        routes,
+        "_get_env_overrides",
+        lambda: {
+            "BHASHINI_API_KEY": "test-key",
+            "BHASHINI_ENDPOINT_URL": "https://example.test/inference",
+            "BHASHINI_TTS_MODEL_ID": "test-tts",
+            "ILU_CACHE_ENABLED": "true",
+            "ILU_CACHE_BACKEND": backend,
+            "ILU_CACHE_PATH": str(tmp_path / "tts.sqlite3"),
+        },
+    )
+    calls: list[str] = []
+
+    async def mock_synthesize_batch(
+        self: BhashiniTTSProvider,
+        texts: tuple[str, ...],
+        *,
+        language: object,
+        options: TTSOptions,
+        request_id: str,
+    ) -> tuple[ProviderTTSResult, ...]:
+        calls.extend(texts)
+        return (ProviderTTSResult(b"cached-audio", "wav", "test-tts", "provider-123"),)
+
+    monkeypatch.setattr(BhashiniTTSProvider, "synthesize_batch", mock_synthesize_batch)
+    first = client.post("/api/tts", json={"text": "Repeat", "provider": "bhashini"})
+    second = client.post("/api/tts", json={"text": "Repeat", "provider": "bhashini"})
+
+    assert first.status_code == second.status_code == 200
+    assert first.json()["cached"] is False
+    assert second.json()["cached"] is True
+    assert second.json()["cache_backend"] == (
+        "MemoryCache" if backend == "memory" else "SQLiteCache"
+    )
+    assert second.json()["provider_request_id"] is None
+    assert first.json()["request_id"] != second.json()["request_id"]
+    assert calls == ["Repeat"]
 
 
 def test_tts_rejects_reserved_parameters(client: TestClient) -> None:

@@ -163,6 +163,21 @@ Send the equivalent request to `POST /api/tts`:
 
 For auto routing, omit `provider` and pass `provider_parameters` with provider IDs as keys. The API accepts the same `TTSOptions` structure as the Python client.
 
-The response contains base64 audio, its detected format when recognized, the selected model ID, and request IDs. TTS is not cached. The API reports `cached: false` and `cache_backend: "none"`. See `examples/tts/bhashini_tts_demo.py` for a runnable file output example.
+The response contains base64 audio, its detected format when recognized, the selected model ID,
+and request IDs. See `examples/tts/bhashini_tts_demo.py` for a runnable file output example.
+
+### Caching complete audio
+
+TTS caching is disabled by default. When `[cache] enabled = true`, `get_tts_client` caches
+complete synthesis results using the configured memory or SQLite backend. The API uses the
+same setting and reports `cached` and `cache_backend` for each result. A cache hit returns a
+new request ID and omits the old provider request ID.
+
+Keys include the exact text, language, provider, resolved model or voice, effective options,
+provider configuration, and credential identity. Changing a voice, pace, or output format
+therefore produces a new entry. Cache entries store audio but exclude request IDs. The
+`tts_max_bytes` setting limits total cached audio to 64 MiB by default; `max_entries` and
+`ttl_seconds` also apply. The memory backend is shared across requests within one API process.
+Streaming synthesis remains live and is not cached.
 
 Use `"provider": "sarvam"` and Sarvam's option names to select Bulbul. `examples/tts/sarvam_tts_demo.py` writes the generated audio to a file.

@@ -44,6 +44,7 @@ class CacheSettings:
     max_entries: int = 1024
     ttl_seconds: float = 300.0
     path: str = ".cache/indic-language-utils.sqlite3"
+    tts_max_bytes: int = 64 * 1024 * 1024
 
 
 @dataclass(frozen=True, slots=True)
@@ -135,7 +136,15 @@ class Settings:
         )
         _reject_unknown(
             cache_data,
-            {"enabled", "backend", "namespace", "max_entries", "ttl_seconds", "path"},
+            {
+                "enabled",
+                "backend",
+                "namespace",
+                "max_entries",
+                "tts_max_bytes",
+                "ttl_seconds",
+                "path",
+            },
             "cache",
         )
         _reject_unknown(
@@ -158,6 +167,7 @@ class Settings:
             backend=_string(cache_data.get("backend", defaults.cache.backend)),
             namespace=_string(cache_data.get("namespace", defaults.cache.namespace)),
             max_entries=_integer(cache_data.get("max_entries", defaults.cache.max_entries)),
+            tts_max_bytes=_integer(cache_data.get("tts_max_bytes", defaults.cache.tts_max_bytes)),
             ttl_seconds=_number(cache_data.get("ttl_seconds", defaults.cache.ttl_seconds)),
             path=_string(cache_data.get("path", defaults.cache.path)),
         )
@@ -190,7 +200,7 @@ class Settings:
     def validate(self) -> None:
         if self.retry.max_attempts < 1:
             raise ConfigurationError("retry.max_attempts must be positive")
-        if self.cache.max_entries < 1 or self.cache.ttl_seconds < 0:
+        if self.cache.max_entries < 1 or self.cache.tts_max_bytes < 1 or self.cache.ttl_seconds < 0:
             raise ConfigurationError("Cache size must be positive and TTL cannot be negative")
         if self.cache.backend not in {"null", "memory", "sqlite"}:
             raise ConfigurationError("Cache backend must be null, memory, or sqlite")
@@ -274,6 +284,7 @@ def _environment_data(values: Mapping[str, str], prefix: str) -> dict[str, Any]:
         "CACHE_BACKEND": ("cache", "backend", str),
         "CACHE_NAMESPACE": ("cache", "namespace", str),
         "CACHE_MAX_ENTRIES": ("cache", "max_entries", int),
+        "CACHE_TTS_MAX_BYTES": ("cache", "tts_max_bytes", int),
         "CACHE_TTL_SECONDS": ("cache", "ttl_seconds", float),
         "CACHE_PATH": ("cache", "path", str),
         "RETRY_MAX_ATTEMPTS": ("retry", "max_attempts", int),

@@ -1,6 +1,7 @@
 """Text to speech models, client, and Bhashini adapter."""
 
 from .bhashini import BhashiniTTSProvider
+from .cache import TTSCacheEntry, TTSCacheEntryCodec, create_tts_cache
 from .client import TTSClient
 from .edge_tts import HAVE_EDGE_TTS, EdgeTTSConfig, EdgeTTSProvider
 from .helpers import get_tts_client
@@ -17,6 +18,8 @@ __all__ = [
     "ProviderTTSResult",
     "SarvamTTSProvider",
     "StreamingTTSProvider",
+    "TTSCacheEntry",
+    "TTSCacheEntryCodec",
     "TTSClient",
     "TTSOptions",
     "TTSProvider",
@@ -24,5 +27,6 @@ __all__ = [
     "TTSResult",
     "TTSStream",
     "TTSStreamEvent",
+    "create_tts_cache",
     "get_tts_client",
 ]

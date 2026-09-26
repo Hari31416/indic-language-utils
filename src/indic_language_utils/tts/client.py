@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
 
+from ..cache import AsyncCache, CacheKeyBuilder, NullCache, SingleFlight
 from ..errors import (
     ConfigurationError,
     MalformedProviderResponseError,
@@ -15,10 +16,11 @@ from ..errors import (
     UnsupportedLanguageError,
 )
 from ..languages import DEFAULT_LANGUAGE_REGISTRY, LanguageRegistry, LanguageTag
-from ..models import OperationContext
+from ..models import CacheMetadata, OperationContext
 from ..providers import AsyncLifecycle, CapabilityId, ResourceManager
 from ..routing import OrderedRouter, RouteRequirement
-from .models import TTSOptions, TTSRequest, TTSResult
+from .cache import TTSCacheEntry
+from .models import ProviderTTSResult, TTSOptions, TTSRequest, TTSResult
 from .protocols import StreamingTTSProvider, TTSProvider
 from .streaming import TTSStream
 
@@ -33,9 +35,17 @@ _FALLBACK_ERRORS = (
 
 class TTSClient:
     def __init__(
-        self, router: OrderedRouter, *, language_registry: LanguageRegistry | None = None
+        self,
+        router: OrderedRouter,
+        *,
+        cache: AsyncCache[TTSCacheEntry] | None = None,
+        cache_keys: CacheKeyBuilder | None = None,
+        language_registry: LanguageRegistry | None = None,
     ) -> None:
         self._router = router
+        self._cache = cache if cache is not None else NullCache()
+        self._cache_keys = cache_keys or CacheKeyBuilder("indic-language-utils")
+        self._single_flight: SingleFlight[ProviderTTSResult] = SingleFlight()
         self._language_registry = language_registry or DEFAULT_LANGUAGE_REGISTRY
         self._resources: ResourceManager | None = None
 
@@ -137,25 +147,58 @@ class TTSClient:
                 if not isinstance(provider, TTSProvider):
                     continue
                 try:
-                    response = await provider.synthesize_batch(
-                        (request.text,),
-                        language=request.language,
-                        options=request.options.for_provider(
-                            provider.identity.provider, primary=fallback_count == 0
-                        ),
-                        request_id=request.context.request_id,
+                    provider_options = request.options.for_provider(
+                        provider.identity.provider, primary=fallback_count == 0
                     )
-                    if (
-                        len(response) != 1
-                        or not isinstance(response[0].audio, bytes)
-                        or not response[0].audio
-                    ):
-                        raise OutputValidationError(
-                            "TTS provider returned invalid audio",
-                            provider=provider.identity.provider,
-                            capability=CapabilityId.TEXT_TO_SPEECH.value,
+                    key = self._key(request, provider, provider_options)
+                    cached = await self._cache.get(key)
+                    if cached is not None:
+                        results.append(
+                            TTSResult(
+                                cached.audio,
+                                cached.audio_format,
+                                request.language,
+                                provider.identity.provider,
+                                cached.model_id,
+                                request.context.request_id,
+                                None,
+                                fallback_count,
+                                CacheMetadata(
+                                    True, type(self._cache).__name__, self._cache_keys.version
+                                ),
+                            )
                         )
-                    item = response[0]
+                        break
+
+                    async def execute(
+                        selected: TTSProvider = provider,
+                        options: TTSOptions = provider_options,
+                        cache_key: str = key,
+                        selected_request: TTSRequest = request,
+                    ) -> ProviderTTSResult:
+                        response = await selected.synthesize_batch(
+                            (selected_request.text,),
+                            language=selected_request.language,
+                            options=options,
+                            request_id=selected_request.context.request_id,
+                        )
+                        if (
+                            len(response) != 1
+                            or not isinstance(response[0].audio, bytes)
+                            or not response[0].audio
+                        ):
+                            raise OutputValidationError(
+                                "TTS provider returned invalid audio",
+                                provider=selected.identity.provider,
+                                capability=CapabilityId.TEXT_TO_SPEECH.value,
+                            )
+                        item = response[0]
+                        await self._cache.set(
+                            cache_key, TTSCacheEntry(item.audio, item.audio_format, item.model_id)
+                        )
+                        return item
+
+                    item = await self._single_flight.run(key, execute)
                     results.append(
                         TTSResult(
                             item.audio,
@@ -166,6 +209,15 @@ class TTSClient:
                             request.context.request_id,
                             item.request_id,
                             fallback_count,
+                            CacheMetadata(
+                                False,
+                                (
+                                    "none"
+                                    if isinstance(self._cache, NullCache)
+                                    else type(self._cache).__name__
+                                ),
+                                self._cache_keys.version,
+                            ),
                         )
                     )
                     break
@@ -178,3 +230,34 @@ class TTSClient:
                     capability=CapabilityId.TEXT_TO_SPEECH.value,
                 )
         return tuple(results)
+
+    def _key(self, request: TTSRequest, provider: TTSProvider, options: TTSOptions) -> str:
+        model_resolver = getattr(provider, "model_id_for", None)
+        voice_resolver = getattr(provider, "resolve_voice", None)
+        if callable(model_resolver):
+            model_id = model_resolver(request.language)
+        elif callable(voice_resolver):
+            model_id = voice_resolver(request.language, options)
+        else:
+            model_id = None
+        config = getattr(provider, "config", None)
+        secret = getattr(config, "api_key", None)
+        reveal = getattr(secret, "reveal", None)
+        credential_hash = self._cache_keys.hash_content(reveal()) if callable(reveal) else None
+        return self._cache_keys.build(
+            CapabilityId.TEXT_TO_SPEECH.value,
+            {
+                "text_hash": self._cache_keys.hash_content(request.text),
+                "language": str(request.language) if request.language else None,
+                "provider": provider.identity.provider,
+                "model_id": model_id,
+                "options": dict(options.parameters),
+                "config_hash": self._cache_keys.hash_content(repr(config)) if config else None,
+                "credential_hash": credential_hash,
+                "tenant_hash": (
+                    self._cache_keys.hash_content(request.context.tenant_id)
+                    if request.context.tenant_id
+                    else None
+                ),
+            },
+        )

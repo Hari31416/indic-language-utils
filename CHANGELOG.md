@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Translation segment caching reuses unchanged Markdown lines and size-limited chunks across document edits, including with persistent SQLite caches.
+- Opt-in TTS caching for complete audio in memory or SQLite, with a byte limit and API cache-hit reporting.
 
 ### Fixed
 - Translation cache keys now include the configured provider model, so switching Sarvam models cannot reuse an earlier model's result.

@@ -143,6 +143,8 @@ from .tts import (
     ProviderTTSResult,
     SarvamTTSProvider,
     StreamingTTSProvider,
+    TTSCacheEntry,
+    TTSCacheEntryCodec,
     TTSClient,
     TTSOptions,
     TTSProvider,
@@ -150,6 +152,7 @@ from .tts import (
     TTSResult,
     TTSStream,
     TTSStreamEvent,
+    create_tts_cache,
     get_tts_client,
 )
 
@@ -241,6 +244,8 @@ __all__ = [
     "SyncDetectionClient",
     "SyncTranslationClient",
     "SyncTransliterationClient",
+    "TTSCacheEntry",
+    "TTSCacheEntryCodec",
     "TTSClient",
     "TTSOptions",
     "TTSProvider",
@@ -273,6 +278,7 @@ __all__ = [
     "create_translation_cache",
     "create_translation_segment_cache",
     "create_transliteration_cache",
+    "create_tts_cache",
     "detect",
     "detect_batch",
     "detect_batch_sync",

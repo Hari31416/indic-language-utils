@@ -49,7 +49,7 @@ from ..transliteration import (
 from ..transliteration.aksharamukha import HAVE_AKSHARAMUKHA
 from ..transliteration.client import TransliterationClient
 from ..transliteration.indicxlit import HAVE_INDICXLIT
-from ..tts import HAVE_EDGE_TTS, TTSClient, TTSOptions, TTSRequest, get_tts_client
+from ..tts import HAVE_EDGE_TTS, TTSClient, TTSOptions, TTSRequest, create_tts_cache, get_tts_client
 from ..tts.edge_tts import EdgeTTSConfig
 
 logger = logging.getLogger(__name__)
@@ -869,7 +869,18 @@ async def synthesize_speech(body: TTSRequestBody, request: Request) -> TTSRespon
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     try:
-        base_client = get_tts_client(env=env)
+        settings = Settings.load(env=env)
+        cache = None
+        if settings.cache.enabled and settings.cache.backend == "memory":
+            memory_caches = getattr(request.app.state, "tts_memory_caches", None)
+            if memory_caches is None:
+                memory_caches = {}
+                request.app.state.tts_memory_caches = memory_caches
+            cache = memory_caches.get(settings.cache)
+            if cache is None:
+                cache = create_tts_cache(settings.cache)
+                memory_caches[settings.cache] = cache
+        base_client = get_tts_client(settings=settings, env=env, cache=cache)
     except ConfigurationError as exc:
         logger.warning("TTS setup error: %s", exc)
         raise HTTPException(status_code=503, detail="TTS provider is not configured") from exc
@@ -893,7 +904,9 @@ async def synthesize_speech(body: TTSRequestBody, request: Request) -> TTSRespon
             OrderedRouter(
                 base_client.router.registry,
                 {CapabilityId.TEXT_TO_SPEECH: (target_provider,)},
-            )
+            ),
+            cache=base_client._cache,
+            cache_keys=base_client._cache_keys,
         )
 
     try:
@@ -915,6 +928,6 @@ async def synthesize_speech(body: TTSRequestBody, request: Request) -> TTSRespon
         request_id=result.request_id,
         provider_request_id=result.provider_request_id,
         fallback_count=result.fallback_count,
-        cached=False,
-        cache_backend="none",
+        cached=result.cache.hit,
+        cache_backend=result.cache.backend,
     )
