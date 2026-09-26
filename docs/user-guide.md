@@ -19,6 +19,8 @@ The library currently supports the following capabilities:
 - Text Transliteration: Converts phonetic or Romanized text to native Indic scripts and native scripts to Romanized forms using Bhashini and Aksharamukha.
 - Text Language Detection: Identifies languages across short and long texts using local FastText models or cloud inference pipelines.
 - Script Identification: Analyzes Unicode code points to detect 12+ Indic scripts and Latin without external dependencies.
+- Speech to Text: Transcribes audio into text across Indian languages using cloud and local models (Bhashini, Sarvam, Faster-Whisper, Google Free).
+- Text to Speech: Synthesizes spoken audio from text across Indian languages and English using cloud models (Bhashini, Sarvam, Edge TTS).
 - Multi-Provider Routing: Routes requests sequentially across an ordered list of providers, falling back when primary services fail.
 - Concurrency and Rate Limiting: Limits active calls per provider to adhere to service quotas and prevent client exhaustion.
 - Automatic Retries: Retries transient network failures, timeouts, and rate limits with exponential backoff and jitter.
@@ -34,13 +36,17 @@ credential-free development setup, Bhashini environment variables, and working e
 
 The system provides built-in adapters for multiple local and cloud providers:
 
-- Bhashini: Official Government of India ecosystem providing neural translation (IndicTrans2), text language detection, and transliteration via pipeline inference endpoints. Requires an API key and service identifiers.
+- Bhashini: Official Government of India ecosystem providing neural translation (IndicTrans2), text language detection, transliteration, speech-to-text, and text-to-speech via pipeline inference endpoints. Requires an API key and service identifiers.
+- Sarvam AI: Commercial cloud platform providing neural translation, text language detection, speech-to-text (Saaras), and text-to-speech (Bulbul) for Indian languages and English. Requires an API key (`SARVAM_API_KEY`).
 - Aksharamukha: Lightweight, offline, pure-Python transliteration engine supporting 120+ scripts, cross-Indic script conversions, and standardized Romanization schemes.
 - IndicXlit: The adapter remains in the codebase, but its install extra is omitted from this beta because upstream dependencies have known vulnerabilities.
 - FastText: Offline, high-speed language detection using Facebook's compressed language identification model (`lid.176.ftz`). Requires no network access or credentials.
 - Google Translate: Unofficial translation adapter powered by `googletrans`, useful for local development and testing without credentials.
+- Faster-Whisper: Offline, high-speed local speech-to-text transcription powered by quantized Whisper models via `[stt-whisper]`.
+- Google Free STT: Unofficial cloud speech-to-text adapter powered by `SpeechRecognition`, useful for zero-credential development via `[stt-google-free]`.
+- Microsoft Edge TTS: Keyless cloud text-to-speech adapter powered by `edge-tts` supporting natural voices across Indic languages via `[tts-edge]`.
 
-Custom adapters can be registered by implementing the translation, transliteration, or detection provider protocols
+Custom adapters can be registered by implementing the translation, transliteration, detection, STT, or TTS provider protocols
 and adding their capability declarations to a `ProviderRegistry`.
 
 ## Language Tags and Registry

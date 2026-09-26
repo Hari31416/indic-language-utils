@@ -28,18 +28,22 @@ theme:
     - content.code.copy
 
 nav:
-  - Overview: index.md
-  - Installation and quick start: getting-started.md
-  - Provider reference: provider-reference.md
-  - Contributing a provider: contributing-providers.md
-  - User Guide: user-guide.md
-  - Translation: translation.md
-  - Detection: detection.md
-  - Transliteration: transliteration.md
-  - Speech to text: stt.md
-  - Text to speech: tts.md
+  - Getting Started:
+      - Overview: index.md
+      - Installation and quick start: getting-started.md
+      - User Guide: user-guide.md
+  - Capabilities:
+      - Translation: translation.md
+      - Detection: detection.md
+      - Transliteration: transliteration.md
+      - Speech to text: stt.md
+      - Text to speech: tts.md
+      - Processors: processors.md
+  - Providers:
+      - Provider reference: provider-reference.md
+      - Models and voices: models-and-voices.md
+      - Contributing a provider: contributing-providers.md
   - Configuration: configuration.md
-  - Processors: processors.md
 
 markdown_extensions:
   - admonition
