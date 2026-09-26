@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from types import SimpleNamespace
 
 import pytest
 
 from indic_language_utils.cache import CacheKeyBuilder, MemoryCache
+from indic_language_utils.config import CacheSettings, Settings
 from indic_language_utils.errors import AuthenticationError, TransientProviderError
 from indic_language_utils.languages import DEFAULT_LANGUAGE_REGISTRY
 from indic_language_utils.models import OperationContext
@@ -18,6 +20,7 @@ from indic_language_utils.translation import (
     TranslationProcessorPipeline,
     TranslationRequest,
     TranslationResult,
+    get_translation_client,
 )
 from indic_language_utils.translation.processing import DefaultTranslationStructureProcessor
 
@@ -210,3 +213,98 @@ async def test_best_effort_returns_source_text_with_warning_on_failure() -> None
     assert result.text == "hello"
     assert result.provider.provider == "fallback-source"
     assert any(w.code == "translation_fallback" for w in result.warnings)
+
+
+@pytest.mark.asyncio
+async def test_markdown_reuses_unchanged_segments_and_whole_result() -> None:
+    provider = FakeTranslationProvider(transform=str.upper)
+    settings = Settings(cache=CacheSettings(enabled=True, backend="memory"))
+    client = get_translation_client(settings, providers=[provider])
+    options = TranslationOptions(text_format=TextFormat.MARKDOWN)
+    original = "# Heading\nFirst line.\nSecond line.\n"
+    changed = "# Heading\nFirst line.\nChanged line.\n"
+
+    first = await client.translate(original, EN, HI, options=options)
+    second = await client.translate(changed, EN, HI, options=options)
+    repeated = await client.translate(changed, EN, HI, options=options)
+    structural_change = await client.translate(
+        changed + "\n```py\nvalue = 1\n```\n", EN, HI, options=options
+    )
+
+    assert first.text == original.upper()
+    assert second.text == changed.upper()
+    assert not second.cache.hit
+    assert repeated.cache.hit
+    assert structural_change.cache.hit
+    assert provider.calls == [
+        ("Heading", "First line.", "Second line."),
+        ("Changed line.",),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_segment_cache_keeps_provider_fallback_consistent() -> None:
+    first = FakeTranslationProvider("first", transform=lambda text: f"A:{text}")
+    second = FakeTranslationProvider("second", transform=lambda text: f"B:{text}")
+    client = TranslationClient(
+        router_for(first, second),
+        cache=MemoryCache(),
+        segment_cache=MemoryCache(),
+    )
+    options = TranslationOptions(text_format=TextFormat.MARKDOWN)
+    await client.translate("Keep\nOld\n", EN, HI, options=options)
+    first.fail_with = TransientProviderError("temporary", provider="first")
+
+    result = await client.translate("Keep\nNew\n", EN, HI, options=options)
+
+    assert result.text == "B:Keep\nB:New\n"
+    assert result.provider.provider == "second"
+    assert result.fallback_count == 1
+    assert first.calls[-1] == ("New",)
+    assert second.calls == [("Keep", "New")]
+
+
+@pytest.mark.asyncio
+async def test_model_change_invalidates_document_and_segment_cache() -> None:
+    class ModelAwareProvider(FakeTranslationProvider):
+        config: SimpleNamespace
+
+    provider = ModelAwareProvider()
+    model = SimpleNamespace(model="model-a")
+    provider.config = model
+    provider.transform = lambda text: f"{model.model}:{text}"
+    client = TranslationClient(
+        router_for(provider),
+        cache=MemoryCache(),
+        segment_cache=MemoryCache(),
+    )
+    options = TranslationOptions(text_format=TextFormat.MARKDOWN)
+
+    first = await client.translate("Same line\n", EN, HI, options=options)
+    model.model = "model-b"
+    second = await client.translate("Same line\n", EN, HI, options=options)
+
+    assert first.text == "model-a:Same line\n"
+    assert second.text == "model-b:Same line\n"
+    assert not second.cache.hit
+    assert provider.calls == [("Same line",), ("Same line",)]
+
+
+@pytest.mark.asyncio
+async def test_protected_content_is_part_of_segment_identity() -> None:
+    provider = FakeTranslationProvider(transform=lambda text: text)
+    client = TranslationClient(
+        router_for(provider), cache=MemoryCache(), segment_cache=MemoryCache()
+    )
+    options = TranslationOptions(text_format=TextFormat.MARKDOWN)
+
+    first = await client.translate("Visit https://one.example/path\n", EN, HI, options=options)
+    second = await client.translate("Visit https://two.example/path\n", EN, HI, options=options)
+
+    assert first.text == "Visit https://one.example/path\n"
+    assert second.text == "Visit https://two.example/path\n"
+    assert not second.cache.hit
+    assert provider.calls == [
+        ("Visit [[ILU-P-000000]]",),
+        ("Visit [[ILU-P-000000]]",),
+    ]

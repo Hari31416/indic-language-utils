@@ -219,11 +219,18 @@ class TranslationProcessorPipeline:
         return tuple(f"{item.identity.name}@{item.identity.version}" for item in processors)
 
     def prepare(self, text: str, options: TranslationOptions) -> PreparedText:
+        prepared, _ = self.prepare_with_sources(text, options)
+        return prepared
+
+    def prepare_with_sources(
+        self, text: str, options: TranslationOptions
+    ) -> tuple[PreparedText, tuple[str, ...]]:
         prepared = self.structure.prepare(text, options)
+        source_segments = tuple(segment.text for segment in prepared.segments)
         segments = prepared.segments
         for processor in self.segments:
             segments = tuple(processor.prepare(segment, options) for segment in segments)
-        return PreparedText(segments, prepared.literals)
+        return PreparedText(segments, prepared.literals), source_segments
 
     def restore_segment(self, text: str, segment: Segment, options: TranslationOptions) -> str:
         for processor in reversed(self.segments):

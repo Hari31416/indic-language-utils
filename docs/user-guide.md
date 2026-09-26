@@ -219,7 +219,10 @@ The library provides pluggable caching backends to reduce latency and downstream
 - `MemoryCache`: Fast in-memory LRU cache for transient scripts and tests.
 - `SQLiteCache`: Persistent single-host storage using SQLite WAL mode and LRU eviction.
 
-Cache keys incorporate the hashed input text, normalized source and target languages, provider identity, service IDs, request options, and active processor pipeline versions. This prevents stale cache entries when configurations or pipelines change.
+Translation checks an exact document cache first, then reuses unchanged translatable segments
+when a document has changed. Cache keys incorporate the hashed input text, normalized source
+and target languages, provider identity, service and configured model IDs, request options, and
+active processor pipeline versions. `cache.hit` is true only when no provider call was needed.
 
 To prevent cache stampedes under high concurrency, requests for identical keys are coalesced using `SingleFlight`.
 

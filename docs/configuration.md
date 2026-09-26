@@ -242,6 +242,7 @@ from indic_language_utils import (
     Settings,
     TranslationClient,
     create_translation_cache,
+    create_translation_segment_cache,
 )
 
 settings = Settings.load()
@@ -257,6 +258,7 @@ router = OrderedRouter(registry, {CapabilityId.TRANSLATION: route})
 client = TranslationClient(
     router=router,
     cache=create_translation_cache(settings.cache),
+    segment_cache=create_translation_segment_cache(settings.cache),
     cache_keys=CacheKeyBuilder(settings.cache.namespace),
 )
 ```

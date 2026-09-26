@@ -94,3 +94,25 @@ async def test_concurrent_sqlite_writes_stay_bounded(tmp_path: Path) -> None:
             "SELECT COUNT(*) FROM cache_entries WHERE namespace = ?", ("test",)
         ).fetchone()
     assert count == (5,)
+
+
+@pytest.mark.asyncio
+async def test_sqlite_bulk_read_write_honors_expiry_and_bound(tmp_path: Path) -> None:
+    now = 100.0
+    cache = SQLiteCache(
+        tmp_path / "cache.sqlite3",
+        StringCodec(),
+        namespace="test",
+        max_entries=2,
+        default_ttl=10,
+        clock=lambda: now,
+    )
+    await cache.set_many({"a": "A", "b": "B"})
+    assert await cache.get_many(("a", "b", "missing")) == {"a": "A", "b": "B"}
+
+    now = 101.0
+    await cache.set_many({"c": "C"})
+    assert len(await cache.get_many(("a", "b", "c"))) == 2
+
+    now = 111.0
+    assert await cache.get_many(("a", "b", "c")) == {}

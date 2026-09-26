@@ -18,7 +18,7 @@ from ..providers.factories import (
 )
 from ..routing import OrderedRouter, RouteSelector, resolve_route_names
 from ..telemetry import EventLogger, MetricHook, TraceHook
-from .cache import create_translation_cache
+from .cache import SegmentTranslation, create_translation_cache, create_translation_segment_cache
 from .catalog import LocalizationCatalog
 from .client import TranslationClient
 from .models import TranslationOptions, TranslationResult
@@ -36,6 +36,7 @@ def get_translation_client(
     env: Mapping[str, str] | None = None,
     language_registry: LanguageRegistry | None = None,
     cache: AsyncCache[TranslationResult] | None = None,
+    segment_cache: AsyncCache[SegmentTranslation] | None = None,
     cache_keys: CacheKeyBuilder | None = None,
     catalog: LocalizationCatalog | None = None,
     logger: EventLogger | None = None,
@@ -114,9 +115,18 @@ def get_translation_client(
         if cache is not None
         else create_translation_cache(settings.cache, language_registry=language_registry)
     )
+    selected_segment_cache = segment_cache
+    if (
+        selected_segment_cache is None
+        and cache is None
+        and settings.cache.enabled
+        and settings.cache.backend != "null"
+    ):
+        selected_segment_cache = create_translation_segment_cache(settings.cache)
     return TranslationClient(
         router=router,
         cache=selected_cache,
+        segment_cache=selected_segment_cache,
         cache_keys=cache_keys,
         catalog=catalog,
         logger=logger,
@@ -136,6 +146,7 @@ def get_sync_translation_client(
     env: Mapping[str, str] | None = None,
     language_registry: LanguageRegistry | None = None,
     cache: AsyncCache[TranslationResult] | None = None,
+    segment_cache: AsyncCache[SegmentTranslation] | None = None,
     cache_keys: CacheKeyBuilder | None = None,
     catalog: LocalizationCatalog | None = None,
     logger: EventLogger | None = None,
@@ -154,6 +165,7 @@ def get_sync_translation_client(
             env=env,
             language_registry=language_registry,
             cache=cache,
+            segment_cache=segment_cache,
             cache_keys=cache_keys,
             catalog=catalog,
             logger=logger,

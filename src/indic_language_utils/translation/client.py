@@ -8,7 +8,7 @@ from collections.abc import Sequence
 from dataclasses import replace
 from typing import cast, overload
 
-from ..cache import AsyncCache, CacheKeyBuilder, NullCache, SingleFlight
+from ..cache import AsyncCache, CacheKeyBuilder, NullCache, SingleFlight, SQLiteCache
 from ..errors import (
     MalformedProviderResponseError,
     OutputValidationError,
@@ -21,6 +21,7 @@ from ..models import CacheMetadata, OperationContext, WarningInfo
 from ..providers import AsyncLifecycle, CapabilityId, ResourceManager
 from ..routing import OrderedRouter, RouteRequirement
 from ..telemetry import EventLogger, MetricHook, NoOpMetrics, NoOpTracing, TraceHook
+from .cache import SegmentTranslation
 from .catalog import LocalizationCatalog
 from .models import (
     ProviderTranslationResult,
@@ -52,6 +53,7 @@ class TranslationClient:
         router: OrderedRouter,
         *,
         cache: AsyncCache[TranslationResult] | None = None,
+        segment_cache: AsyncCache[SegmentTranslation] | None = None,
         cache_keys: CacheKeyBuilder | None = None,
         catalog: LocalizationCatalog | None = None,
         logger: EventLogger | None = None,
@@ -63,6 +65,7 @@ class TranslationClient:
         self._router = router
         self._language_registry = language_registry or DEFAULT_LANGUAGE_REGISTRY
         self._cache = cache or NullCache()
+        self._segment_cache = segment_cache
         self._cache_keys = cache_keys or CacheKeyBuilder("indic-language-utils")
         self._catalog = catalog or LocalizationCatalog()
         self._logger = logger
@@ -231,7 +234,8 @@ class TranslationClient:
                 if callable(resolver)
                 else getattr(provider, "service_id", None)
             )
-            key = self._key(request, provider.identity.provider, service_id)
+            model_id = self._model_id(provider)
+            key = self._key(request, provider.identity.provider, service_id, model_id)
             cached = await self._cache.get(key)
             if cached is not None:
                 return replace(
@@ -247,9 +251,17 @@ class TranslationClient:
                     selected: TranslationProvider = provider,
                     cache_key: str = key,
                     count: int = fallback_count,
+                    selected_service_id: object = service_id,
+                    selected_model_id: str | None = model_id,
                 ) -> TranslationResult:
                     return await self._execute(
-                        request, selected, cache_key, started=started, fallback_count=count
+                        request,
+                        selected,
+                        cache_key,
+                        service_id=selected_service_id,
+                        model_id=selected_model_id,
+                        started=started,
+                        fallback_count=count,
                     )
 
                 result = await self._single_flight.run(
@@ -293,10 +305,14 @@ class TranslationClient:
         provider: TranslationProvider,
         key: str,
         *,
+        service_id: object,
+        model_id: str | None,
         started: float,
         fallback_count: int,
     ) -> TranslationResult:
-        prepared = self._processors.prepare(request.text, request.options)
+        prepared, source_segments = self._processors.prepare_with_sources(
+            request.text, request.options
+        )
         if not prepared.segments:
             result = TranslationResult(
                 request.text,
@@ -311,12 +327,19 @@ class TranslationClient:
             )
             await self._cache.set(key, result)
             return result
-        outputs: list[str] = []
-        metadata: ProviderTranslationResult | None = None
-        for offset in range(0, len(prepared.segments), request.options.max_batch_items):
-            group = prepared.segments[offset : offset + request.options.max_batch_items]
-            translated, metadata = await self._translate_group(provider, request, group)
-            outputs.extend(translated)
+        segment_hits = False
+        staged_segments: dict[str, SegmentTranslation] = {}
+        if self._segment_cache is None:
+            outputs: list[str] = []
+            metadata: ProviderTranslationResult | None = None
+            for offset in range(0, len(prepared.segments), request.options.max_batch_items):
+                group = prepared.segments[offset : offset + request.options.max_batch_items]
+                translated, metadata = await self._translate_group(provider, request, group)
+                outputs.extend(translated)
+        else:
+            outputs, metadata, segment_hits, staged_segments = await self._translate_segments(
+                provider, request, prepared.segments, source_segments, service_id, model_id
+            )
         text = (
             self._processors.reconstruct(prepared, tuple(outputs), request.options)
             if prepared.segments
@@ -337,12 +360,22 @@ class TranslationClient:
             ),
             request.context.request_id,
             elapsed,
-            CacheMetadata(False, type(self._cache).__name__, self._cache_keys.version),
+            CacheMetadata(
+                segment_hits,
+                type(self._segment_cache if segment_hits else self._cache).__name__,
+                self._cache_keys.version,
+            ),
             fallback_count,
             metadata.warnings,
             source_text=request.text,
         )
         await self._cache.set(key, result)
+        if self._segment_cache is not None:
+            if isinstance(self._segment_cache, SQLiteCache):
+                await self._segment_cache.set_many(staged_segments)
+            else:
+                for segment_key, segment_result in staged_segments.items():
+                    await self._segment_cache.set(segment_key, segment_result)
         attributes = {
             "capability": CapabilityId.TRANSLATION.value,
             "provider": provider.identity.provider,
@@ -361,6 +394,78 @@ class TranslationClient:
                 },
             )
         return result
+
+    async def _translate_segments(
+        self,
+        provider: TranslationProvider,
+        request: TranslationRequest,
+        segments: tuple[Segment, ...],
+        source_segments: tuple[str, ...],
+        service_id: object,
+        model_id: str | None,
+    ) -> tuple[list[str], ProviderTranslationResult, bool, dict[str, SegmentTranslation]]:
+        assert self._segment_cache is not None
+        keys = tuple(
+            self._segment_key(
+                request, provider.identity.provider, service_id, model_id, source, segment
+            )
+            for source, segment in zip(source_segments, segments, strict=True)
+        )
+        cached: dict[str, SegmentTranslation | None] = {}
+        if isinstance(self._segment_cache, SQLiteCache):
+            cached.update(await self._segment_cache.get_many(keys))
+        else:
+            for offset in range(0, len(keys), request.options.max_batch_items):
+                lookup_keys = tuple(
+                    dict.fromkeys(keys[offset : offset + request.options.max_batch_items])
+                )
+                values = await asyncio.gather(
+                    *(self._segment_cache.get(item) for item in lookup_keys)
+                )
+                cached.update(zip(lookup_keys, values, strict=True))
+
+        outputs = [""] * len(segments)
+        missing: dict[str, tuple[Segment, list[int]]] = {}
+        first_hit: SegmentTranslation | None = None
+        for index, (segment, segment_key) in enumerate(zip(segments, keys, strict=True)):
+            entry = cached.get(segment_key)
+            if entry is not None:
+                try:
+                    self._processors.restore_segment(entry.text, segment, request.options)
+                except OutputValidationError:
+                    await self._segment_cache.delete(segment_key)
+                else:
+                    outputs[index] = entry.text
+                    first_hit = first_hit or entry
+                    continue
+            if segment_key in missing:
+                missing[segment_key][1].append(index)
+            else:
+                missing[segment_key] = (segment, [index])
+
+        staged: dict[str, SegmentTranslation] = {}
+        metadata: ProviderTranslationResult | None = None
+        missed = tuple(missing.items())
+        for offset in range(0, len(missed), request.options.max_batch_items):
+            miss_group = missed[offset : offset + request.options.max_batch_items]
+            translated, metadata = await self._translate_group(
+                provider, request, tuple(item[1][0] for item in miss_group)
+            )
+            for (segment_key, (_, positions)), output in zip(miss_group, translated, strict=True):
+                for position in positions:
+                    outputs[position] = output
+                if not metadata.warnings:
+                    staged[segment_key] = SegmentTranslation(
+                        output, metadata.service_id, metadata.model_id
+                    )
+
+        all_hit = not missing
+        if metadata is None:
+            assert first_hit is not None
+            metadata = ProviderTranslationResult(
+                (), service_id=first_hit.service_id, model_id=first_hit.model_id
+            )
+        return outputs, metadata, all_hit, staged
 
     async def _translate_group(
         self,
@@ -451,7 +556,52 @@ class TranslationClient:
             latest = translated
         return "".join(pieces), latest
 
-    def _key(self, request: TranslationRequest, provider: str, service_id: object) -> str:
+    @staticmethod
+    def _model_id(provider: TranslationProvider) -> str | None:
+        model = getattr(getattr(provider, "config", None), "model", None)
+        return model if isinstance(model, str) else None
+
+    def _segment_key(
+        self,
+        request: TranslationRequest,
+        provider: str,
+        service_id: object,
+        model_id: str | None,
+        source: str,
+        segment: Segment,
+    ) -> str:
+        return self._cache_keys.build(
+            "translation-segment",
+            {
+                "source_hash": self._cache_keys.hash_content(source),
+                "prepared_hash": self._cache_keys.hash_content(segment.text),
+                "protected_hash": self._cache_keys.hash_content(repr(segment.protected)),
+                "state_hash": self._cache_keys.hash_content(repr(segment.state)),
+                "prefix": segment.prefix,
+                "suffix": segment.suffix,
+                "source": str(request.source),
+                "target": str(request.target),
+                "provider": provider,
+                "service_id": service_id,
+                "model_id": model_id,
+                "options": {
+                    "format": request.options.text_format.value,
+                    "max_segment_characters": request.options.max_segment_characters,
+                    "max_batch_items": request.options.max_batch_items,
+                    "allow_reordered_placeholders": request.options.allow_reordered_placeholders,
+                    "best_effort": request.options.best_effort,
+                },
+                "processors": self._processors.cache_identity,
+            },
+        )
+
+    def _key(
+        self,
+        request: TranslationRequest,
+        provider: str,
+        service_id: object,
+        model_id: str | None,
+    ) -> str:
         return self._cache_keys.build(
             CapabilityId.TRANSLATION.value,
             {
@@ -460,6 +610,7 @@ class TranslationClient:
                 "target": str(request.target),
                 "provider": provider,
                 "service_id": service_id,
+                "model_id": model_id,
                 "options": {
                     "format": request.options.text_format.value,
                     "max_segment_characters": request.options.max_segment_characters,

@@ -303,6 +303,7 @@ from indic_language_utils import (
     CacheKeyBuilder,
     CacheSettings,
     create_translation_cache,
+    create_translation_segment_cache,
 )
 
 settings = CacheSettings(
@@ -315,11 +316,24 @@ settings = CacheSettings(
 )
 
 cache = create_translation_cache(settings)
+segment_cache = create_translation_segment_cache(settings)
 ```
+
+Pass both caches to a manually constructed `TranslationClient`. The `get_translation_client`
+and `get_sync_translation_client` factories create both automatically when caching is enabled
+and no custom cache was supplied. A caller supplying a custom whole-document cache can pass
+`segment_cache` separately.
+The full-document cache handles exact repeats. On a document miss, the segment cache reuses
+unchanged Markdown lines and size-limited chunks, and the client sends only missing segments
+to one provider. `result.cache.hit` is true when the entire response required no provider call;
+partial reuse reports false.
 
 The SQLite cache uses write-ahead logging (WAL mode) with a busy timeout, allowing concurrent processes on one host to read and write safely. Expired entries are evicted automatically, and database files receive owner-only permissions (`0600`) on POSIX systems.
 
-Cache keys incorporate the input text hash, normalized language pair, provider identity, service IDs, request options, processor versions, and catalog version. Cache entries store versioned JSON without using pickle.
+Cache keys incorporate the input text hash, normalized language pair, provider identity,
+service and configured model IDs, request options, and processor versions. Document keys also
+include the catalog version. Document and segment entries use separate SQLite namespaces and
+versioned JSON without pickle.
 
 ### Localization Catalogs
 

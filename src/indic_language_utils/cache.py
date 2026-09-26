@@ -9,7 +9,7 @@ import os
 import sqlite3
 import time
 from collections import OrderedDict
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Generic, Protocol, TypeVar, runtime_checkable
@@ -151,6 +151,20 @@ class SQLiteCache(Generic[T]):
             await self.delete(key)
             return None
 
+    async def get_many(self, keys: Sequence[str]) -> dict[str, T]:
+        """Read several entries with one SQLite transaction."""
+        if not keys:
+            return {}
+        await self._ensure_initialized()
+        encoded = await asyncio.to_thread(self._get_many_sync, tuple(dict.fromkeys(keys)))
+        values: dict[str, T] = {}
+        for key, value in encoded.items():
+            try:
+                values[key] = self._codec.decode(value)
+            except (KeyError, TypeError, ValueError, UnicodeError, json.JSONDecodeError):
+                await self.delete(key)
+        return values
+
     async def set(self, key: str, value: T, *, ttl: float | None = None) -> None:
         effective_ttl = self._default_ttl if ttl is None else ttl
         if effective_ttl is not None and effective_ttl < 0:
@@ -158,6 +172,17 @@ class SQLiteCache(Generic[T]):
         encoded = self._codec.encode(value)
         await self._ensure_initialized()
         await asyncio.to_thread(self._set_sync, key, encoded, effective_ttl)
+
+    async def set_many(self, values: Mapping[str, T], *, ttl: float | None = None) -> None:
+        """Write several entries and apply the LRU bound in one transaction."""
+        if not values:
+            return
+        effective_ttl = self._default_ttl if ttl is None else ttl
+        if effective_ttl is not None and effective_ttl < 0:
+            raise ValueError("TTL cannot be negative")
+        encoded = {key: self._codec.encode(value) for key, value in values.items()}
+        await self._ensure_initialized()
+        await asyncio.to_thread(self._set_many_sync, encoded, effective_ttl)
 
     async def delete(self, key: str) -> bool:
         await self._ensure_initialized()
@@ -236,6 +261,42 @@ class SQLiteCache(Generic[T]):
             )
             return bytes(value)
 
+    def _get_many_sync(self, keys: tuple[str, ...]) -> dict[str, bytes]:
+        now = self._clock()
+        results: dict[str, bytes] = {}
+        with self._connect() as connection:
+            for offset in range(0, len(keys), 400):
+                group = keys[offset : offset + 400]
+                placeholders = ",".join("?" for _ in group)
+                rows = connection.execute(
+                    f"SELECT key, value, expires_at FROM cache_entries "
+                    f"WHERE namespace = ? AND key IN ({placeholders})",
+                    (self._namespace, *group),
+                ).fetchall()
+                live_keys: list[str] = []
+                expired_keys: list[str] = []
+                for key, value, expires_at in rows:
+                    if expires_at is not None and expires_at <= now:
+                        expired_keys.append(key)
+                    else:
+                        live_keys.append(key)
+                        results[key] = bytes(value)
+                if live_keys:
+                    live_placeholders = ",".join("?" for _ in live_keys)
+                    connection.execute(
+                        f"UPDATE cache_entries SET accessed_at = ? "
+                        f"WHERE namespace = ? AND key IN ({live_placeholders})",
+                        (now, self._namespace, *live_keys),
+                    )
+                if expired_keys:
+                    expired_placeholders = ",".join("?" for _ in expired_keys)
+                    connection.execute(
+                        f"DELETE FROM cache_entries "
+                        f"WHERE namespace = ? AND key IN ({expired_placeholders})",
+                        (self._namespace, *expired_keys),
+                    )
+        return results
+
     def _set_sync(self, key: str, value: bytes, ttl: float | None) -> None:
         now = self._clock()
         expires_at = None if ttl is None else now + ttl
@@ -255,6 +316,39 @@ class SQLiteCache(Generic[T]):
                     accessed_at = excluded.accessed_at
                 """,
                 (self._namespace, key, value, expires_at, now),
+            )
+            connection.execute(
+                """
+                DELETE FROM cache_entries
+                WHERE namespace = ? AND key IN (
+                    SELECT key FROM cache_entries
+                    WHERE namespace = ?
+                    ORDER BY accessed_at DESC, key DESC
+                    LIMIT -1 OFFSET ?
+                )
+                """,
+                (self._namespace, self._namespace, self._max_entries),
+            )
+
+    def _set_many_sync(self, values: Mapping[str, bytes], ttl: float | None) -> None:
+        now = self._clock()
+        expires_at = None if ttl is None else now + ttl
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute(
+                "DELETE FROM cache_entries WHERE namespace = ? AND expires_at <= ?",
+                (self._namespace, now),
+            )
+            connection.executemany(
+                """
+                INSERT INTO cache_entries (namespace, key, value, expires_at, accessed_at)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(namespace, key) DO UPDATE SET
+                    value = excluded.value,
+                    expires_at = excluded.expires_at,
+                    accessed_at = excluded.accessed_at
+                """,
+                ((self._namespace, key, value, expires_at, now) for key, value in values.items()),
             )
             connection.execute(
                 """

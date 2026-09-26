@@ -9,11 +9,14 @@ from indic_language_utils.config import CacheSettings
 from indic_language_utils.errors import AuthenticationError
 from indic_language_utils.languages import DEFAULT_LANGUAGE_REGISTRY
 from indic_language_utils.translation import (
+    TextFormat,
     TranslationClient,
+    TranslationOptions,
     TranslationRequest,
     TranslationResult,
     TranslationResultCodec,
     create_translation_cache,
+    get_translation_client,
 )
 
 from .translation_support import FakeTranslationProvider, router_for
@@ -85,3 +88,28 @@ def test_cache_factory_builds_configured_backends(tmp_path: Path) -> None:
         )
     )
     assert isinstance(sqlite_cache, SQLiteCache)
+
+
+@pytest.mark.asyncio
+async def test_segment_cache_survives_client_restart(tmp_path: Path) -> None:
+    from indic_language_utils.config import Settings
+
+    settings = Settings(
+        cache=CacheSettings(
+            enabled=True,
+            backend="sqlite",
+            path=str(tmp_path / "translations.sqlite3"),
+        )
+    )
+    options = TranslationOptions(text_format=TextFormat.MARKDOWN)
+    first_provider = FakeTranslationProvider(transform=str.upper)
+    first_client = get_translation_client(settings, providers=[first_provider])
+    await first_client.translate("Keep\nOld\n", EN, HI, options=options)
+
+    restarted_provider = FakeTranslationProvider(transform=str.upper)
+    restarted_client = get_translation_client(settings, providers=[restarted_provider])
+    result = await restarted_client.translate("Keep\nNew\n", EN, HI, options=options)
+
+    assert result.text == "KEEP\nNEW\n"
+    assert not result.cache.hit
+    assert restarted_provider.calls == [("New",)]

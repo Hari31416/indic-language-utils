@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -86,6 +87,40 @@ class TranslationResultCodec(CacheCodec[TranslationResult]):
         )
 
 
+@dataclass(frozen=True, slots=True)
+class SegmentTranslation:
+    text: str
+    service_id: str | None = None
+    model_id: str | None = None
+
+
+class SegmentTranslationCodec(CacheCodec[SegmentTranslation]):
+    schema_version = 1
+
+    def encode(self, value: SegmentTranslation) -> bytes:
+        return json.dumps(
+            {
+                "schema_version": self.schema_version,
+                "text": value.text,
+                "service_id": value.service_id,
+                "model_id": value.model_id,
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+
+    def decode(self, value: bytes) -> SegmentTranslation:
+        payload = _mapping(json.loads(value.decode("utf-8")))
+        if payload.get("schema_version") != self.schema_version:
+            raise ValueError("Unsupported translation segment cache schema")
+        return SegmentTranslation(
+            _string(payload["text"]),
+            _optional_string(payload.get("service_id")),
+            _optional_string(payload.get("model_id")),
+        )
+
+
 def create_translation_cache(
     settings: CacheSettings, *, language_registry: LanguageRegistry | None = None
 ) -> AsyncCache[TranslationResult]:
@@ -99,6 +134,23 @@ def create_translation_cache(
             Path(settings.path),
             TranslationResultCodec(language_registry),
             namespace=settings.namespace,
+            max_entries=settings.max_entries,
+            default_ttl=settings.ttl_seconds,
+        )
+    raise ValueError(f"Unsupported cache backend: {settings.backend}")
+
+
+def create_translation_segment_cache(settings: CacheSettings) -> AsyncCache[SegmentTranslation]:
+    """Build a separate cache for validated provider segment outputs."""
+    if not settings.enabled or settings.backend == "null":
+        return NullCache()
+    if settings.backend == "memory":
+        return MemoryCache(settings.max_entries, settings.ttl_seconds)
+    if settings.backend == "sqlite":
+        return SQLiteCache(
+            Path(settings.path),
+            SegmentTranslationCodec(),
+            namespace=f"{settings.namespace}:translation-segments",
             max_entries=settings.max_entries,
             default_ttl=settings.ttl_seconds,
         )

@@ -1,7 +1,13 @@
 """Public translation API."""
 
 from .bhashini_translate import BhashiniTranslationProvider
-from .cache import TranslationResultCodec, create_translation_cache
+from .cache import (
+    SegmentTranslation,
+    SegmentTranslationCodec,
+    TranslationResultCodec,
+    create_translation_cache,
+    create_translation_segment_cache,
+)
 from .catalog import CatalogEntry, CatalogStatus, LocalizationCatalog
 from .client import TranslationClient
 from .google_translate import (
@@ -57,6 +63,8 @@ __all__ = [
     "ProviderTranslationResult",
     "SarvamTranslationProvider",
     "Segment",
+    "SegmentTranslation",
+    "SegmentTranslationCodec",
     "SyncTranslationClient",
     "TextFormat",
     "TranslationClient",
@@ -71,6 +79,7 @@ __all__ = [
     "TranslationStructureProcessor",
     "UnicodeNormalizationProcessor",
     "create_translation_cache",
+    "create_translation_segment_cache",
     "get_sync_translation_client",
     "get_translation_client",
     "translate",
