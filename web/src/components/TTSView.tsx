@@ -736,6 +736,12 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
                   ['Language', result.language ?? 'Auto'],
                   ...(result.model_id ? [['Model ID', result.model_id] as [string, string]] : []),
                   ['Route fallbacks', String(result.fallback_count)],
+                  [
+                    'Cache',
+                    result.cached
+                      ? `Hit · ${result.cache_backend}`
+                      : result.cache_backend === 'none' ? 'Off' : 'Miss',
+                  ],
                 ]}
               />
             )}
