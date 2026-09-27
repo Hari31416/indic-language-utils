@@ -521,6 +521,50 @@ def test_explicit_navana_tts_ignores_unselected_provider_keys(
     assert data["audio_format"] == "wav"
 
 
+def test_explicit_gnani_tts_routes_to_gnani(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from indic_language_utils.server import routes
+    from indic_language_utils.tts.gnani import GnaniTTSProvider
+    from indic_language_utils.tts.models import ProviderTTSResult, TTSOptions
+
+    monkeypatch.setattr(
+        routes,
+        "_get_env_overrides",
+        lambda: {"GNANI_API_KEY": "gnani-test-key", "ILU_CACHE_ENABLED": "false"},
+    )
+
+    async def mock_synthesize_batch(
+        self: GnaniTTSProvider,
+        texts: tuple[str, ...],
+        *,
+        language: object,
+        options: TTSOptions,
+        request_id: str,
+    ) -> tuple[ProviderTTSResult, ...]:
+        assert self.config.api_key.reveal() == "gnani-test-key"
+        assert texts == ("नमस्ते",)
+        assert language is not None
+        assert options.parameters == {"voice": "Nalini"}
+        return (ProviderTTSResult(b"RIFFfake", "wav", "timbre-v2.5"),)
+
+    monkeypatch.setattr(GnaniTTSProvider, "synthesize_batch", mock_synthesize_batch)
+    response = client.post(
+        "/api/tts",
+        json={
+            "text": "नमस्ते",
+            "language": "hi",
+            "provider": "gnani",
+            "parameters": {"voice": "Nalini"},
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["provider"] == "gnani"
+    assert data["audio_format"] == "wav"
+
+
 @pytest.mark.parametrize("backend", ["memory", "sqlite"])
 def test_tts_endpoint_uses_cache(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, backend: str

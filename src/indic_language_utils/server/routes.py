@@ -943,7 +943,7 @@ async def synthesize_speech(body: TTSRequestBody, request: Request) -> TTSRespon
                 settings,
                 routes={
                     **settings.routes,
-                    CapabilityId.TEXT_TO_SPEECH.value: ("navana",),
+                    CapabilityId.TEXT_TO_SPEECH.value: (body.provider,),
                 },
             )
         cache = None
