@@ -85,7 +85,17 @@ async def stream_stt(websocket: WebSocket) -> None:
     try:
         start = await _start_message(websocket, STTStreamStart)
         assert isinstance(start, STTStreamStart)
-        client = get_stt_client(env=_stream_env(start))
+        env = _stream_env(start)
+        settings = Settings.load(env=env)
+        if start.provider:
+            settings = replace(
+                settings,
+                routes={
+                    **settings.routes,
+                    CapabilityId.SPEECH_TO_TEXT.value: (start.provider,),
+                },
+            )
+        client = get_stt_client(settings=settings, env=env)
         async with client:
             async with client.stream(
                 language=start.language,
@@ -94,6 +104,7 @@ async def stream_stt(websocket: WebSocket) -> None:
                 model_id=start.model_id,
             ) as stream:
                 await websocket.send_json({"type": "ready"})
+                transcript_count = 0
 
                 async def receive_audio() -> None:
                     while True:
@@ -118,7 +129,10 @@ async def stream_stt(websocket: WebSocket) -> None:
                         raise ValueError("Expected PCM audio or a finish message")
 
                 async def send_events() -> None:
+                    nonlocal transcript_count
                     async for event in stream.events():
+                        if event.kind == "final" and event.text and event.text.strip():
+                            transcript_count += 1
                         await websocket.send_json(
                             {
                                 "type": "event",
@@ -132,7 +146,7 @@ async def stream_stt(websocket: WebSocket) -> None:
                         )
 
                 await _run_pair(receive_audio(), send_events())
-                await websocket.send_json({"type": "done"})
+                await websocket.send_json({"type": "done", "transcript_count": transcript_count})
     except WebSocketDisconnect:
         return
     except Exception as exc:

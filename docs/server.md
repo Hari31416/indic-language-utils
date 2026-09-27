@@ -18,7 +18,7 @@ The server reads provider credentials from its process environment or a local `.
 {"type":"start","provider":"gnani","language":"hi","sampling_rate":16000}
 ```
 
-After `ready`, send mono signed 16-bit PCM as binary WebSocket messages, then send `{"type":"finish"}`. Gnani supports 8, 16, 44.1, and 48 kHz sample rates. A start-frame `api_key` or `endpoint` overrides `GNANI_API_KEY` or `GNANI_ENDPOINT_URL`.
+After `ready`, send mono signed 16-bit PCM as binary WebSocket messages, then send `{"type":"finish"}`. Gnani supports 8, 16, 44.1, and 48 kHz sample rates. The server selects Gnani when it appears in the start frame, splits input into Gnani's required 1,024-byte frames, and returns `{"type":"done","transcript_count":0}` if no speech was transcribed. A start-frame `api_key` or `endpoint` overrides `GNANI_API_KEY` or `GNANI_ENDPOINT_URL`.
 
 ## Non-streaming TTS
 

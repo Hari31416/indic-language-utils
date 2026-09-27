@@ -106,6 +106,7 @@ export const STTView: React.FC<STTViewProps> = ({ languages, providers }) => {
   const [liveFinal, setLiveFinal] = useState('')
   const [livePartial, setLivePartial] = useState('')
   const [liveModel, setLiveModel] = useState('')
+  const [noSpeech, setNoSpeech] = useState(false)
   const [micLevel, setMicLevel] = useState(0)
   const socketRef = useRef<WebSocket | null>(null)
   const captureRef = useRef<PcmCapture | null>(null)
@@ -138,6 +139,7 @@ export const STTView: React.FC<STTViewProps> = ({ languages, providers }) => {
     setLiveFinal('')
     setLivePartial('')
     setLiveModel('')
+    setNoSpeech(false)
     setMicLevel(0)
     setLiveState('connecting')
     stoppingRef.current = false
@@ -178,6 +180,7 @@ export const STTView: React.FC<STTViewProps> = ({ languages, providers }) => {
         setError(data.message ?? 'Live transcription failed')
         socket.close()
       } else if (data.type === 'done') {
+        if (provider === 'gnani' && data.transcript_count === 0) setNoSpeech(true)
         stoppingRef.current = true
         socket.close()
       }
@@ -547,8 +550,8 @@ export const STTView: React.FC<STTViewProps> = ({ languages, providers }) => {
             ) : (
               <EmptyState
                 icon={mode === 'live' ? <Mic className="h-8 w-8 opacity-60" /> : <FileAudio2 className="h-8 w-8 opacity-60" />}
-                title="No audio transcribed yet"
-                hint={mode === 'live' ? 'Start the microphone to see words appear' : 'Upload a clip and press Transcribe'}
+                title={noSpeech && mode === 'live' ? 'No speech detected' : 'No audio transcribed yet'}
+                hint={noSpeech && mode === 'live' ? 'Try again and speak near your microphone' : mode === 'live' ? 'Start the microphone to see words appear' : 'Upload a clip and press Transcribe'}
               />
             )}
             {mode === 'file' && result && (
