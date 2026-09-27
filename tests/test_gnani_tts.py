@@ -10,8 +10,10 @@ import pytest
 
 from indic_language_utils.cache import NullCache
 from indic_language_utils.config import Secret
+from indic_language_utils.errors import InvalidInputError
 from indic_language_utils.languages import DEFAULT_LANGUAGE_REGISTRY
 from indic_language_utils.providers.gnani import GnaniConfig
+from indic_language_utils.retry import RetryPolicy
 from indic_language_utils.tts import get_tts_client
 from indic_language_utils.tts.gnani import GnaniTTSProvider
 from indic_language_utils.tts.models import TTSOptions
@@ -50,6 +52,53 @@ async def test_gnani_tts_inference_posts_json_and_returns_binary_audio() -> None
     }
     assert result[0].audio == b"audio-data"
     assert result[0].audio_format == "wav"
+
+
+@pytest.mark.parametrize("status", [429, 503])
+@pytest.mark.asyncio
+async def test_gnani_tts_inference_retries_transient_responses(status: int) -> None:
+    attempts = 0
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        return httpx.Response(status if attempts == 1 else 200, content=b"audio")
+
+    retry_policy = RetryPolicy(max_attempts=2, base_delay=0, max_delay=0)
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as http:
+        provider = GnaniTTSProvider(
+            GnaniConfig(Secret("secret"), retry_policy=retry_policy), client=http
+        )
+        result = await provider.synthesize_batch(
+            ("नमस्ते",),
+            language=DEFAULT_LANGUAGE_REGISTRY.normalize("hi"),
+            options=TTSOptions({"voice": "Nalini"}),
+            request_id="req",
+        )
+
+    assert attempts == 2
+    assert result[0].audio == b"audio"
+
+
+@pytest.mark.asyncio
+async def test_gnani_tts_options_cannot_override_request_text() -> None:
+    requests: list[httpx.Request] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, content=b"audio")
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as http:
+        provider = GnaniTTSProvider(GnaniConfig(Secret("secret")), client=http)
+        with pytest.raises(InvalidInputError, match="cannot override"):
+            await provider.synthesize_batch(
+                ("expected",),
+                language=DEFAULT_LANGUAGE_REGISTRY.normalize("hi"),
+                options=TTSOptions({"voice": "Nalini", "text": "other"}),
+                request_id="req",
+            )
+
+    assert requests == []
 
 
 @pytest.mark.asyncio

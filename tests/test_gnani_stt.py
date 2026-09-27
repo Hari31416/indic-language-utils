@@ -10,6 +10,7 @@ import pytest
 
 from indic_language_utils import GnaniConfig, GnaniSTTProvider, Secret, get_stt_client
 from indic_language_utils.languages import DEFAULT_LANGUAGE_REGISTRY
+from indic_language_utils.retry import RetryPolicy
 from indic_language_utils.stt.gnani_stream import GnaniSTTStream, open_gnani_stt_stream
 
 
@@ -41,6 +42,35 @@ async def test_gnani_rest_posts_audio_and_maps_transcript() -> None:
     assert 'name="audio_file"' in body and "wav-data" in body
     assert result.text == "નમસ્તે"
     assert result.provider_request_id == "abc"
+
+
+@pytest.mark.parametrize("status", [429, 503])
+@pytest.mark.asyncio
+async def test_gnani_rest_retries_transient_responses(status: int) -> None:
+    attempts = 0
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            return httpx.Response(status)
+        return httpx.Response(200, json={"transcript": "नमस्ते"})
+
+    retry_policy = RetryPolicy(max_attempts=2, base_delay=0, max_delay=0)
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as http:
+        provider = GnaniSTTProvider(
+            GnaniConfig(Secret("test-key"), retry_policy=retry_policy), client=http
+        )
+        result = await provider.transcribe_batch(
+            (b"wav-data",),
+            language=DEFAULT_LANGUAGE_REGISTRY.normalize("hi"),
+            audio_format="wav",
+            sampling_rate=16000,
+            request_id="req",
+        )
+
+    assert attempts == 2
+    assert result[0].text == "नमस्ते"
 
 
 class FakeSocket:

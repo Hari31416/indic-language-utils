@@ -12,12 +12,14 @@ from ..errors import (
     InvalidInputError,
     MalformedProviderResponseError,
     ProviderTimeoutError,
+    RateLimitError,
     TransientProviderError,
 )
 from ..languages import DEFAULT_LANGUAGE_REGISTRY, LanguageTag
 from ..models import ProviderIdentity
 from ..providers import CapabilityDeclaration, CapabilityId
 from ..providers.gnani import GnaniConfig
+from ..retry import retry
 from .gnani_stream import GnaniSTTStream, open_gnani_stt_stream
 from .models import ProviderSTTResult
 
@@ -88,31 +90,42 @@ class GnaniSTTProvider:
         try:
             results: list[ProviderSTTResult] = []
             for clip in audio:
-                try:
-                    async with self._limiter.slot("gnani", CapabilityId.SPEECH_TO_TEXT):
-                        response = await client.post(
-                            f"{self.config.endpoint.rstrip('/')}/stt/v3",
-                            headers={"X-API-Key-ID": self.config.api_key.reveal()},
-                            data={"language_code": str(language), "format": "transcribe"},
-                            files={"audio_file": (f"audio.{audio_format}", clip)},
-                            timeout=self.config.timeout_seconds,
+
+                async def send(clip: bytes = clip) -> httpx.Response:
+                    try:
+                        async with self._limiter.slot("gnani", CapabilityId.SPEECH_TO_TEXT):
+                            response = await client.post(
+                                f"{self.config.endpoint.rstrip('/')}/stt/v3",
+                                headers={"X-API-Key-ID": self.config.api_key.reveal()},
+                                data={"language_code": str(language), "format": "transcribe"},
+                                files={"audio_file": (f"audio.{audio_format}", clip)},
+                                timeout=self.config.timeout_seconds,
+                            )
+                    except httpx.TimeoutException as exc:
+                        raise ProviderTimeoutError(
+                            "Gnani STT timed out", provider="gnani", request_id=request_id
+                        ) from exc
+                    except httpx.TransportError as exc:
+                        raise TransientProviderError(
+                            "Gnani STT transport failed", provider="gnani", request_id=request_id
+                        ) from exc
+                    if response.status_code == 429:
+                        raise RateLimitError(
+                            "Gnani STT rate limit exceeded", provider="gnani", request_id=request_id
                         )
-                except httpx.TimeoutException as exc:
-                    raise ProviderTimeoutError(
-                        "Gnani STT timed out", provider="gnani", request_id=request_id
-                    ) from exc
-                except httpx.TransportError as exc:
-                    raise TransientProviderError(
-                        "Gnani STT transport failed", provider="gnani", request_id=request_id
-                    ) from exc
-                if response.status_code >= 500 or response.status_code == 429:
-                    raise TransientProviderError(
-                        "Gnani STT request failed", provider="gnani", request_id=request_id
-                    )
-                if response.status_code >= 400:
-                    raise InvalidInputError(
-                        "Gnani rejected the STT request", provider="gnani", request_id=request_id
-                    )
+                    if response.status_code >= 500:
+                        raise TransientProviderError(
+                            "Gnani STT request failed", provider="gnani", request_id=request_id
+                        )
+                    if response.status_code >= 400:
+                        raise InvalidInputError(
+                            "Gnani rejected the STT request",
+                            provider="gnani",
+                            request_id=request_id,
+                        )
+                    return response
+
+                response = await retry(send, self.config.retry_policy)
                 try:
                     data: object = response.json()
                 except ValueError as exc:

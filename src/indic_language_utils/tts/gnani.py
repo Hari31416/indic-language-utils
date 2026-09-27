@@ -25,6 +25,7 @@ from ..languages import DEFAULT_LANGUAGE_REGISTRY, LanguageTag
 from ..models import ProviderIdentity
 from ..providers import CapabilityDeclaration, CapabilityId
 from ..providers.gnani import GnaniConfig
+from ..retry import retry
 from .models import ProviderTTSResult, TTSOptions
 from .streaming import TTSStreamEvent
 
@@ -47,6 +48,8 @@ def _payload(
     text: str, language: LanguageTag, options: TTSOptions, model_id: str | None
 ) -> dict[str, object]:
     values = dict(options.parameters)
+    if "text" in values:
+        raise InvalidInputError("Gnani TTS options cannot override text", provider="gnani")
     values.pop("streaming_transport", None)
     voice = values.pop("voice", None)
     if not isinstance(voice, str) or not voice.strip():
@@ -118,41 +121,61 @@ class GnaniTTSProvider:
             body = _payload(text, language, options, None)
             client, owned = self._get_client()
             try:
-                async with self._limiter.slot("gnani", CapabilityId.TEXT_TO_SPEECH):
-                    response = await client.post(
-                        f"{self.config.endpoint.rstrip('/')}/api/v1/tts/inference",
-                        headers={"X-API-Key-ID": self.config.api_key.reveal()},
-                        json=body,
-                        timeout=self.config.timeout_seconds,
-                    )
-            except httpx.TimeoutException as exc:
-                raise ProviderTimeoutError(
-                    "Gnani TTS timed out", provider="gnani", request_id=request_id
-                ) from exc
-            except httpx.TransportError as exc:
-                raise TransientProviderError(
-                    "Gnani TTS transport failed", provider="gnani", request_id=request_id
-                ) from exc
+
+                async def send(
+                    client: httpx.AsyncClient = client, body: dict[str, object] = body
+                ) -> httpx.Response:
+                    try:
+                        async with self._limiter.slot("gnani", CapabilityId.TEXT_TO_SPEECH):
+                            response = await client.post(
+                                f"{self.config.endpoint.rstrip('/')}/api/v1/tts/inference",
+                                headers={"X-API-Key-ID": self.config.api_key.reveal()},
+                                json=body,
+                                timeout=self.config.timeout_seconds,
+                            )
+                    except httpx.TimeoutException as exc:
+                        raise ProviderTimeoutError(
+                            "Gnani TTS timed out", provider="gnani", request_id=request_id
+                        ) from exc
+                    except httpx.TransportError as exc:
+                        raise TransientProviderError(
+                            "Gnani TTS transport failed", provider="gnani", request_id=request_id
+                        ) from exc
+                    if response.status_code >= 400:
+                        if response.status_code == 401:
+                            raise AuthenticationError(
+                                "Gnani authentication failed",
+                                provider="gnani",
+                                request_id=request_id,
+                            )
+                        if response.status_code == 403:
+                            raise PermissionDeniedError(
+                                "Gnani denied access to TTS",
+                                provider="gnani",
+                                request_id=request_id,
+                            )
+                        if response.status_code == 429:
+                            raise RateLimitError(
+                                "Gnani TTS rate limit exceeded",
+                                provider="gnani",
+                                request_id=request_id,
+                            )
+                        error = (
+                            TransientProviderError
+                            if response.status_code >= 500
+                            else InvalidInputError
+                        )
+                        raise error(
+                            "Gnani rejected the TTS request",
+                            provider="gnani",
+                            request_id=request_id,
+                        )
+                    return response
+
+                response = await retry(send, self.config.retry_policy)
             finally:
                 if owned:
                     await client.aclose()
-            if response.status_code >= 400:
-                if response.status_code == 401:
-                    raise AuthenticationError(
-                        "Gnani authentication failed", provider="gnani", request_id=request_id
-                    )
-                if response.status_code == 403:
-                    raise PermissionDeniedError(
-                        "Gnani denied access to TTS", provider="gnani", request_id=request_id
-                    )
-                if response.status_code == 429:
-                    raise RateLimitError(
-                        "Gnani TTS rate limit exceeded", provider="gnani", request_id=request_id
-                    )
-                error = TransientProviderError if response.status_code >= 500 else InvalidInputError
-                raise error(
-                    "Gnani rejected the TTS request", provider="gnani", request_id=request_id
-                )
             if not response.content:
                 raise MalformedProviderResponseError(
                     "Gnani returned empty TTS audio", provider="gnani", request_id=request_id
