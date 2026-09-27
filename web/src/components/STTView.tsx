@@ -111,6 +111,7 @@ export const STTView: React.FC<STTViewProps> = ({ languages, providers }) => {
   const socketRef = useRef<WebSocket | null>(null)
   const captureRef = useRef<PcmCapture | null>(null)
   const stoppingRef = useRef(false)
+  const finishTimerRef = useRef<number | null>(null)
   const { items: history, push, clear } = useLocalHistory<Hist>('ilu-hist-stt')
 
   useEffect(() => {
@@ -124,6 +125,7 @@ export const STTView: React.FC<STTViewProps> = ({ languages, providers }) => {
   }, [file])
 
   useEffect(() => () => {
+    if (finishTimerRef.current !== null) window.clearTimeout(finishTimerRef.current)
     socketRef.current?.close()
     if (captureRef.current) void captureRef.current.stop()
   }, [])
@@ -143,6 +145,8 @@ export const STTView: React.FC<STTViewProps> = ({ languages, providers }) => {
     setMicLevel(0)
     setLiveState('connecting')
     stoppingRef.current = false
+    if (finishTimerRef.current !== null) window.clearTimeout(finishTimerRef.current)
+    finishTimerRef.current = null
     const socket = speechSocket('/api/stt/stream')
     socketRef.current = socket
     socket.onopen = () => socket.send(JSON.stringify({
@@ -188,6 +192,8 @@ export const STTView: React.FC<STTViewProps> = ({ languages, providers }) => {
     socket.onerror = () => setError('Live transcription connection failed')
     socket.onclose = () => {
       if (socketRef.current !== socket) return
+      if (finishTimerRef.current !== null) window.clearTimeout(finishTimerRef.current)
+      finishTimerRef.current = null
       socketRef.current = null
       if (captureRef.current) {
         void captureRef.current.stop()
@@ -203,13 +209,39 @@ export const STTView: React.FC<STTViewProps> = ({ languages, providers }) => {
     const socket = socketRef.current
     if (!socket || stoppingRef.current) return
     setLiveState('stopping')
-    if (captureRef.current) {
-      await captureRef.current.stop()
-      captureRef.current = null
+    const capture = captureRef.current
+    captureRef.current = null
+    if (capture) {
+      let stopTimer: number | undefined
+      try {
+        await Promise.race([
+          capture.stop(),
+          new Promise<void>((resolve) => { stopTimer = window.setTimeout(resolve, 1500) }),
+        ])
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Could not stop microphone capture')
+      } finally {
+        if (stopTimer !== undefined) window.clearTimeout(stopTimer)
+      }
     }
+    if (socketRef.current !== socket) return
     stoppingRef.current = true
     if (socket.readyState === WebSocket.OPEN) {
-      socket.send('{"type":"finish"}')
+      try {
+        socket.send('{"type":"finish"}')
+        finishTimerRef.current = window.setTimeout(() => {
+          if (socketRef.current !== socket) return
+          setError('Transcription did not finish in time. Try again.')
+          setLiveState('idle')
+          socket.close()
+        }, 10000)
+      } catch {
+        setError('Could not finish the transcription connection')
+        socket.close()
+      }
+    } else {
+      setError('Transcription connection closed before finishing')
+      socket.close()
     }
   }
 

@@ -21,6 +21,7 @@ from .routes import _get_env_overrides
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api")
 MAX_AUDIO_CHUNK_BYTES = 64 * 1024
+GNANI_STT_COMPLETION_TIMEOUT_SECONDS = 8.0
 
 
 class StreamStart(BaseModel):
@@ -145,7 +146,13 @@ async def stream_stt(websocket: WebSocket) -> None:
                             }
                         )
 
-                await _run_pair(receive_audio(), send_events())
+                await _run_pair(
+                    receive_audio(),
+                    send_events(),
+                    completion_timeout=(
+                        GNANI_STT_COMPLETION_TIMEOUT_SECONDS if start.provider == "gnani" else None
+                    ),
+                )
                 await websocket.send_json({"type": "done", "transcript_count": transcript_count})
     except WebSocketDisconnect:
         return
@@ -224,7 +231,9 @@ async def stream_tts(websocket: WebSocket) -> None:
         await _send_error(websocket, exc)
 
 
-async def _run_pair(receiver: object, sender: object) -> None:
+async def _run_pair(
+    receiver: object, sender: object, *, completion_timeout: float | None = None
+) -> None:
     """Keep sending output after input flush, but stop input if output ends first."""
     assert asyncio.iscoroutine(receiver) and asyncio.iscoroutine(sender)
     receive_task = asyncio.create_task(receiver)
@@ -234,7 +243,10 @@ async def _run_pair(receiver: object, sender: object) -> None:
         for task in done:
             task.result()
         if receive_task in done:
-            await send_task
+            try:
+                await asyncio.wait_for(send_task, timeout=completion_timeout)
+            except TimeoutError as exc:
+                raise ValueError("Transcription did not finish in time") from exc
         else:
             receive_task.cancel()
             await asyncio.gather(receive_task, return_exceptions=True)
