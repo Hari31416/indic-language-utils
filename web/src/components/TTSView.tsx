@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { synthesizeSpeech } from '../api'
 import { useLocalHistory } from '../history'
+import { GNANI_VOICE_GROUPS, preferredGnaniVoice } from '../gnaniVoices'
 import { decodeBase64, pcmChunksToWav, PcmPlayer, providerConnectionSettings, speechSocket } from '../streaming'
 import type { LanguageItem, ProviderInfo, TTSResponse, TTSStreamMessage } from '../types'
 import {
@@ -101,7 +102,7 @@ type Fields = Record<string, string>
 type ProviderFields = Record<string, Fields>
 
 const initialFields: ProviderFields = {
-  gnani: { voice: 'Nalini', speed: '1.0', streaming_transport: 'websocket' },
+  gnani: { voice: 'Nalini', speed: '1.0', container: 'wav', sample_rate: '48000', streaming_transport: 'websocket' },
   edge_tts: { gender: 'female', voice: '', rate: '', pitch: '', volume: '' },
   sarvam: { speaker: 'shubh', pace: '1.0' },
   bhashini: { gender: 'female', voiceId: '', samplingRate: '16000' },
@@ -130,6 +131,7 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
   const [showModelConfig, setShowModelConfig] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [fields, setFields] = useState<ProviderFields>(initialFields)
+  const [customGnaniVoice, setCustomGnaniVoice] = useState(false)
   const [advanced, setAdvanced] = useState('{}')
   const [result, setResult] = useState<TTSResponse | null>(null)
   const [loading, setLoading] = useState(false)
@@ -144,6 +146,28 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
   const liveAudioUrlRef = useRef<string | null>(null)
   const completeRef = useRef(false)
   const { items: history, push, clear } = useLocalHistory<Hist>('ilu-hist-tts')
+
+  const selectLanguage = (next: string) => {
+    setLanguage(next)
+    if (provider === 'gnani' && !customGnaniVoice) {
+      setFields((current) => ({
+        ...current,
+        gnani: { ...current.gnani, voice: preferredGnaniVoice(next) },
+      }))
+    }
+  }
+
+  const selectProvider = (next: string) => {
+    setProvider(next)
+    setModelId('')
+    if (next !== 'gnani' && language === 'hi-en') setLanguage('hi')
+    if (next === 'gnani' && !customGnaniVoice) {
+      setFields((current) => ({
+        ...current,
+        gnani: { ...current.gnani, voice: preferredGnaniVoice(language) },
+      }))
+    }
+  }
 
   useEffect(() => () => {
     socketRef.current?.close()
@@ -179,8 +203,9 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
       const extra = parseObject(advanced, 'Extra options')
       let parameters: Record<string, unknown>
       if (provider === 'gnani') {
+        if (!fields.gnani.voice.trim()) throw new Error('Gnani TTS requires a voice')
         const speed = Number(fields.gnani.speed || 1)
-        if (!Number.isFinite(speed) || speed <= 0) throw new Error('Speed must be positive')
+        if (!Number.isFinite(speed) || speed < 0.85 || speed > 1.15) throw new Error('Gnani speed must be between 0.85 and 1.15')
         parameters = {
           voice: fields.gnani.voice.trim(),
           speed,
@@ -334,8 +359,22 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
           if (!String(parameters.voice ?? '').trim()) throw new Error('Gnani TTS requires a voice')
           if (parameters.speed !== undefined) {
             const speed = Number(parameters.speed)
-            if (!Number.isFinite(speed) || speed <= 0) throw new Error('Speed must be positive')
+            if (!Number.isFinite(speed) || speed < 0.85 || speed > 1.15) throw new Error('Gnani speed must be between 0.85 and 1.15')
             parameters.speed = speed
+          }
+          const container = String(parameters.container ?? 'wav')
+          const sampleRate = Number(parameters.sample_rate ?? 48000)
+          if (!['wav', 'mp3', 'ogg'].includes(container)) throw new Error('Unsupported Gnani audio format')
+          if (![8000, 16000, 22050, 24000, 44100, 48000].includes(sampleRate)) throw new Error('Unsupported Gnani sample rate')
+          delete parameters.container
+          delete parameters.sample_rate
+          delete parameters.streaming_transport
+          parameters.audio_config = {
+            sample_rate: sampleRate,
+            num_channels: 1,
+            sample_width: 2,
+            container,
+            ...(container === 'wav' ? { encoding: 'linear_pcm' } : {}),
           }
         }
         parameters = { ...parameters, ...extra }
@@ -366,6 +405,7 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
   const activeModelPresets = mode === 'live' && provider === 'sarvam'
     ? ['bulbul:v3', 'bulbul:v2']
     : TTS_MODEL_PRESETS[provider] ?? []
+  const selectedGnaniVoiceGroup = GNANI_VOICE_GROUPS.find((group) => group.voices.includes(fields.gnani.voice))
   const charCount = text.length
   const streamProviders = providers.filter((item) => ['sarvam', 'navana', 'gnani'].includes(item.id) && item.available)
   const streamingReady = streamProviders.length > 0
@@ -390,9 +430,8 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
                 const next = streamProviders.some((item) => item.id === provider)
                   ? provider
                   : streamProviders[0]?.id ?? 'sarvam'
-                setProvider(next)
+                selectProvider(next)
                 setMode('live')
-                setModelId('')
               }}
               className={`flex-1 rounded-lg px-3 py-2 font-semibold transition ${mode === 'live' ? 'bg-ink-700 text-parchment-100' : 'text-parchment-500 hover:text-parchment-200'}`}>Live playback</button>
           </div>
@@ -417,7 +456,7 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
                 key={sample.title}
                 type="button"
                 onClick={() => {
-                  setLanguage(sample.lang)
+                  selectLanguage(sample.lang)
                   setText(sample.text)
                   setResult(null)
                 }}
@@ -433,7 +472,7 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
               <div className="relative">
                 <select
                   value={language}
-                  onChange={(event) => setLanguage(event.target.value)}
+                  onChange={(event) => selectLanguage(event.target.value)}
                   className="field !py-2.5 text-xs"
                 >
                   <option value="">Unspecified</option>
@@ -442,6 +481,7 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
                       {item.name} ({item.code})
                     </option>
                   ))}
+                  {provider === 'gnani' && <option value="hi-en">Hinglish (hi-en)</option>}
                 </select>
                 <ChevronDown className="pointer-events-none absolute right-3 top-3 h-3.5 w-3.5 text-parchment-500" />
               </div>
@@ -449,7 +489,7 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
 
             <Field
               label="Engine"
-              action={
+              action={provider === 'gnani' ? undefined : (
                 <button
                   type="button"
                   onClick={() => setShowModelConfig(!showModelConfig)}
@@ -458,16 +498,15 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
                   <Sliders className="h-3 w-3" />
                   {showModelConfig ? 'Hide Model' : 'Custom Model'}
                 </button>
-              }
+              )}
             >
-              {mode === 'live' ? <div className="relative"><select value={provider} onChange={(event) => setProvider(event.target.value)} className="field !py-2.5 text-xs">
+              {mode === 'live' ? <div className="relative"><select value={provider} onChange={(event) => selectProvider(event.target.value)} className="field !py-2.5 text-xs">
                 {streamProviders.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
               </select><ChevronDown className="pointer-events-none absolute right-3 top-3 h-3.5 w-3.5 text-parchment-500" /></div> : <div className="relative">
                 <select
                   value={provider}
                   onChange={(event) => {
-                    setProvider(event.target.value)
-                    setModelId('')
+                    selectProvider(event.target.value)
                     setAdvanced('{}')
                   }}
                   className="field !py-2.5 text-xs"
@@ -485,7 +524,7 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
           </div>
 
           <ModelDrawer
-            open={showModelConfig}
+            open={showModelConfig && provider !== 'gnani'}
             title="TTS Model / Voice ID Override"
             presets={activeModelPresets}
             modelId={modelId}
@@ -664,25 +703,59 @@ export const TTSView: React.FC<TTSViewProps> = ({ languages, providers }) => {
 
                 {provider === 'gnani' && (
                   <>
-                    <Field label="Voice">
-                      <input
-                        value={fields.gnani.voice}
-                        onChange={(event) => updateField('voice', event.target.value)}
-                        placeholder="e.g. Nalini"
-                        className="field field-mono !bg-ink-850 !py-2"
-                      />
+                    <Field label="Voice" action={<a href="https://docs.gnani.ai/api/TTS/available-voices" target="_blank" rel="noreferrer" className="link-accent">Voice catalog</a>}>
+                      <select
+                        value={customGnaniVoice ? '__custom__' : fields.gnani.voice}
+                        onChange={(event) => {
+                          const value = event.target.value
+                          setCustomGnaniVoice(value === '__custom__')
+                          updateField('voice', value === '__custom__' ? '' : value)
+                        }}
+                        className="field !bg-ink-850 !py-2 text-xs"
+                      >
+                        {GNANI_VOICE_GROUPS
+                          .filter((group) => group.language === language)
+                          .map((group) => <optgroup key={group.language} label={`Preferred for ${group.label}`}>
+                            {group.voices.map((voice) => <option key={voice} value={voice}>{voice}</option>)}
+                          </optgroup>)}
+                        {GNANI_VOICE_GROUPS
+                          .filter((group) => group.language !== language)
+                          .map((group) => <optgroup key={group.language} label={group.label}>
+                            {group.voices.map((voice) => <option key={voice} value={voice}>{voice}</option>)}
+                          </optgroup>)}
+                        <option value="__custom__">Custom voice…</option>
+                      </select>
                     </Field>
-                    {mode === 'file' && <Field label="Speed">
+                    {customGnaniVoice && <Field label="Custom voice name">
+                      <input value={fields.gnani.voice} onChange={(event) => updateField('voice', event.target.value)} className="field field-mono !bg-ink-850 !py-2" />
+                    </Field>}
+                    {!customGnaniVoice && selectedGnaniVoiceGroup && selectedGnaniVoiceGroup.language !== language && <p className="sm:col-span-2 text-[11px] text-parchment-500">{fields.gnani.voice} is tuned for {selectedGnaniVoiceGroup.label}. Match the language for best results.</p>}
+                    <Field label="Speed (0.85–1.15)">
                       <input
                         type="number"
-                        min="0.1"
-                        step="0.1"
+                        min="0.85"
+                        max="1.15"
+                        step="0.05"
                         value={fields.gnani.speed}
                         onChange={(event) => updateField('speed', event.target.value)}
                         placeholder="1.0"
                         className="field field-mono !bg-ink-850 !py-2"
                       />
-                    </Field>}
+                    </Field>
+                    {mode === 'file' && <>
+                      <Field label="Audio format">
+                        <select value={fields.gnani.container} onChange={(event) => updateField('container', event.target.value)} className="field !bg-ink-850 !py-2 text-xs">
+                          <option value="wav">WAV</option>
+                          <option value="mp3">MP3</option>
+                          <option value="ogg">OGG Opus</option>
+                        </select>
+                      </Field>
+                      <Field label="Sample rate">
+                        <select value={fields.gnani.sample_rate} onChange={(event) => updateField('sample_rate', event.target.value)} className="field !bg-ink-850 !py-2 text-xs">
+                          {[8000, 16000, 22050, 24000, 44100, 48000].map((rate) => <option key={rate} value={rate}>{(rate / 1000).toLocaleString()} kHz</option>)}
+                        </select>
+                      </Field>
+                    </>}
                     {mode === 'live' && <>
                       <Field label="Streaming transport">
                         <select

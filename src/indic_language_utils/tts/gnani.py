@@ -38,6 +38,11 @@ def _audio_format(payload: Mapping[str, object]) -> str:
     return "wav"
 
 
+def _language_code(language: LanguageTag) -> str:
+    # Gnani uses hi-en for Hinglish; the shared tag parser normalizes it to hi-EN.
+    return "hi-en" if language.language == "hi" and language.region == "EN" else str(language)
+
+
 def _payload(
     text: str, language: LanguageTag, options: TTSOptions, model_id: str | None
 ) -> dict[str, object]:
@@ -52,7 +57,7 @@ def _payload(
         "text": text,
         "voice": voice,
         "model": model_id or str(option_model),
-        "language": str(language),
+        "language": _language_code(language),
     }
     if "speed" in values:
         result["speed"] = values.pop("speed")
@@ -70,7 +75,9 @@ class GnaniTTSProvider:
     capabilities: tuple[CapabilityDeclaration, ...] = (
         CapabilityDeclaration(
             CapabilityId.TEXT_TO_SPEECH,
-            languages=frozenset(DEFAULT_LANGUAGE_REGISTRY.normalize(code) for code in _LANGUAGES),
+            languages=frozenset(
+                DEFAULT_LANGUAGE_REGISTRY.normalize(code) for code in (*_LANGUAGES, "hi-en")
+            ),
         ),
     )
 

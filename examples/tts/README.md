@@ -18,6 +18,18 @@ uv run --env-file .env python examples/tts/gnani_tts_demo.py --voice YOUR_VOICE 
 
 Streaming output is saved as the concatenated audio chunks returned by Gnani. Use an extension appropriate to the `audio_config.container` selected for your account/model.
 
+The [official Timbre v2.5 voice catalog](https://docs.gnani.ai/api/TTS/available-voices) groups 42 voices by preferred language. For example, use Nalini with Hindi, Kaveri with English, or Poorvi with Hinglish:
+
+```bash
+uv run --env-file .env python examples/tts/gnani_tts_demo.py --language hi-en --voice Poorvi --text "Namaste, how are you?" --output gnani-hinglish.wav
+```
+
+Use `--speed` between 0.85 and 1.15, `--sample-rate` with a documented rate, and `--container wav|mp3|ogg` to choose the output. For example:
+
+```bash
+uv run --env-file .env python examples/tts/gnani_tts_demo.py --language en --voice Kaveri --speed 1.1 --sample-rate 48000 --container mp3
+```
+
 The repository config selects Bhashini's `Bhashini/IITM/TTS` model. Set `BHASHINI_API_KEY` in your shell or `.env`, then run:
 
 ```bash

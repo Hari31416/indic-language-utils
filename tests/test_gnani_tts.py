@@ -8,9 +8,11 @@ from contextlib import asynccontextmanager
 import httpx
 import pytest
 
+from indic_language_utils.cache import NullCache
 from indic_language_utils.config import Secret
 from indic_language_utils.languages import DEFAULT_LANGUAGE_REGISTRY
 from indic_language_utils.providers.gnani import GnaniConfig
+from indic_language_utils.tts import get_tts_client
 from indic_language_utils.tts.gnani import GnaniTTSProvider
 from indic_language_utils.tts.models import TTSOptions
 from indic_language_utils.tts.streaming import TTSStreamEvent
@@ -48,6 +50,27 @@ async def test_gnani_tts_inference_posts_json_and_returns_binary_audio() -> None
     }
     assert result[0].audio == b"audio-data"
     assert result[0].audio_format == "wav"
+
+
+@pytest.mark.asyncio
+async def test_gnani_tts_routes_hinglish_and_sends_documented_code() -> None:
+    requests: list[httpx.Request] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, content=b"audio-data")
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as http:
+        provider = GnaniTTSProvider(GnaniConfig(Secret("secret")), client=http)
+        async with get_tts_client(providers=[provider], cache=NullCache()) as client:
+            result = await client.synthesize(
+                "Namaste, how are you?",
+                language="hi-en",
+                options=TTSOptions({"voice": "Poorvi"}),
+            )
+
+    assert result.provider == "gnani"
+    assert json.loads(requests[0].content)["language"] == "hi-en"
 
 
 @pytest.mark.asyncio

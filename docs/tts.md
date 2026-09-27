@@ -98,7 +98,7 @@ The web app offers **Live playback** on the Text to Speech page. Its server brid
 
 ## Gnani AI
 
-Set `GNANI_API_KEY` to enable Gnani TTS. The provider supports Bengali, English, Gujarati, Hindi, Kannada, Malayalam, Marathi, Punjabi, Tamil, and Telugu, and defaults to `timbre-v2.5`. Gnani requires a voice and BCP 47 language:
+Set `GNANI_API_KEY` to enable Gnani TTS. The provider supports Bengali, English, Gujarati, Hindi, Kannada, Malayalam, Marathi, Punjabi, Tamil, Telugu, and Hinglish, and defaults to `timbre-v2.5`. Gnani requires a voice and language:
 
 ```python
 from indic_language_utils import TTSOptions, get_tts_client
@@ -109,7 +109,25 @@ async with get_tts_client() as client:
     )
 ```
 
-Pass optional `speed` and `audio_config` (including a `container`) in `TTSOptions.parameters`. Non-streaming inference returns raw audio bytes. Gnani's [inference reference](https://docs.gnani.ai/api/TTS/tts-inference.md) documents its accepted values.
+Gnani's [Timbre v2.5 voice catalog](https://docs.gnani.ai/api/TTS/available-voices) lists these preferred voices. Match the voice to the request language for best results.
+
+| Language | Preferred voices |
+| --- | --- |
+| English (`en`) | Kaveri, Trupti, Devika, Pranav, Shlok, Girish |
+| Hindi (`hi`) | Nalini, Bhavna, Yashvi, Urmila, Jwala, Chitra, Ambuja, Deepak, Roopesh, Vikrant, Hemraj, Jalaj, Omkar |
+| Hinglish (`hi-en`) | Poorvi |
+| Tamil (`ta`) | Asmita, Trisha, Brinda, Vedika, Noopur |
+| Telugu (`te`) | Suhana, Lehara, Lavanya, Yukti, Varuni |
+| Kannada (`kn`) | Saanvi, Kavin |
+| Malayalam (`ml`) | Reshma, Riyaan |
+| Marathi (`mr`) | Zahira, Ishaan |
+| Bengali (`bn`) | Kirra, Dhruva |
+| Gujarati (`gu`) | Falak, Veera |
+| Punjabi (`pa`) | Mehuli, Zayan |
+
+Use `language="hi-en"` with Poorvi for Hinglish. The provider sends Gnani's lowercase `hi-en` code. The web app lists all catalog voices by preferred language and also accepts a custom voice name.
+
+Gnani accepts `speed` from `0.85` to `1.15` and `audio_config.sample_rate` of 8000, 16000, 22050, 24000, 44100, or 48000 Hz. Output containers include WAV, raw PCM, MP3, OGG Opus, µ-law, and A-law. The web app offers WAV, MP3, and OGG for downloadable audio; use `TTSOptions.parameters["audio_config"]` for raw or telephony formats. Non-streaming inference returns audio bytes in the selected format. See the [inference reference](https://docs.gnani.ai/api/TTS/tts-inference) for encoding and bitrate combinations.
 
 Install `indic-language-utils[streaming]` to use the Gnani stream interface. The `send_text`/`flush` contract buffers text until flush, then synthesizes it in one request. WebSocket is the default transport. Set `TTSOptions({"voice": "Nalini", "streaming_transport": "sse"})` to use SSE instead. Both transports emit standard `TTSStreamEvent` audio events followed by `done`. The transport selector is library-only and is not sent to Gnani. See the [WebSocket](https://docs.gnani.ai/api/TTS/tts-websocket.md) and [SSE](https://docs.gnani.ai/api/TTS/tts-sse.md) references.
 
