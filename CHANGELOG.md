@@ -5,6 +5,14 @@ All notable changes to the `indic-language-utils` project will be documented in 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-09-27
+
+### Added
+- Navana AI Text-to-Speech (TTS) integration with REST and WebSocket streaming adapters, configurable voice and sample rates, API server routes, and web workbench controls.
+- Gnani provider support with REST speech recognition (STT), realtime WebSocket streaming STT sessions, REST text-to-speech (TTS), voice configurations, retry handling, and web workbench controls.
+- Navana and Gnani examples under `examples/` and documentation across provider references and guides.
+- Agent skill at `skills/indic-language-utils/SKILL.md` providing integration guidance for coding assistants.
+
 ## [1.0.0] - 2026-09-26
 
 ### Added
