@@ -7,6 +7,7 @@ Choose an adapter by capability, dependency, and credential. A configured route 
 | `bhashini`       | Yes         | Yes       | Yes             | Yes | Yes | API key, endpoint, capability service IDs            |
 | `sarvam`         | Yes         | Yes       | No              | Yes | Yes | `SARVAM_API_KEY`; STT/TTS model IDs                  |
 | `navana`         | No          | No        | No              | No  | Yes | `NAVANA_API_KEY`; HTTP or WebSocket TTS               |
+| `gnani`          | No          | No        | No              | Yes | Yes | `GNANI_API_KEY`; streaming and non-streaming STT/TTS  |
 | `googletrans`    | Yes         | No        | No              | No  | No  | `[googletrans]` extra; unofficial online adapter     |
 | `fasttext`       | No          | Yes       | No              | No  | No  | `[local-tld]` extra; local model                     |
 | `aksharamukha`   | No          | No        | Yes             | No  | No  | `[local-transliteration]` extra                      |

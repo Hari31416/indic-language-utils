@@ -184,10 +184,12 @@ def default_provider_factories() -> ProviderFactoryRegistry:
     )
     registry.register(CapabilityId.SPEECH_TO_TEXT, "bhashini", _stt_bhashini)
     registry.register(CapabilityId.SPEECH_TO_TEXT, "sarvam", _stt_sarvam)
+    registry.register(CapabilityId.SPEECH_TO_TEXT, "gnani", _stt_gnani)
     registry.register(CapabilityId.SPEECH_TO_TEXT, "google_free", _stt_google_free)
     registry.register(CapabilityId.SPEECH_TO_TEXT, "faster_whisper", _stt_faster_whisper)
     registry.register(CapabilityId.TEXT_TO_SPEECH, "bhashini", _tts_bhashini)
     registry.register(CapabilityId.TEXT_TO_SPEECH, "sarvam", _tts_sarvam)
+    registry.register(CapabilityId.TEXT_TO_SPEECH, "gnani", _tts_gnani)
     registry.register(CapabilityId.TEXT_TO_SPEECH, "navana", _tts_navana)
     registry.register(
         CapabilityId.TEXT_TO_SPEECH,
@@ -330,6 +332,15 @@ def _stt_sarvam(settings: Settings, env: Mapping[str, str]) -> Provider | None:
     return SarvamSTTProvider(config) if config.stt_model_id or config.stt_model_ids else None
 
 
+def _stt_gnani(settings: Settings, env: Mapping[str, str]) -> Provider | None:
+    if not env.get("GNANI_API_KEY"):
+        return None
+    from ..stt.gnani import GnaniSTTProvider
+    from .gnani import GnaniConfig
+
+    return GnaniSTTProvider(GnaniConfig.from_settings(settings, env=env))
+
+
 def _stt_google_free(settings: Settings, env: Mapping[str, str]) -> Provider | None:
     if not (
         "google_free" in settings.providers
@@ -372,6 +383,15 @@ def _tts_sarvam(settings: Settings, env: Mapping[str, str]) -> Provider | None:
 
     config = SarvamConfig.from_settings(settings, env=env)
     return SarvamTTSProvider(config) if config.tts_model_id or config.tts_model_ids else None
+
+
+def _tts_gnani(settings: Settings, env: Mapping[str, str]) -> Provider | None:
+    if not env.get("GNANI_API_KEY"):
+        return None
+    from ..tts.gnani import GnaniTTSProvider
+    from .gnani import GnaniConfig
+
+    return GnaniTTSProvider(GnaniConfig.from_settings(settings, env=env))
 
 
 def _tts_navana(settings: Settings, env: Mapping[str, str]) -> Provider | None:

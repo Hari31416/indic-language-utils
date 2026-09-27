@@ -4,6 +4,7 @@ from .bhashini import BhashiniTTSProvider
 from .cache import TTSCacheEntry, TTSCacheEntryCodec, create_tts_cache
 from .client import TTSClient
 from .edge_tts import HAVE_EDGE_TTS, EdgeTTSConfig, EdgeTTSProvider
+from .gnani import GnaniTTSProvider
 from .helpers import get_tts_client
 from .models import ProviderTTSResult, TTSOptions, TTSRequest, TTSResult
 from .navana import NavanaTTSProvider
@@ -16,6 +17,7 @@ __all__ = [
     "BhashiniTTSProvider",
     "EdgeTTSConfig",
     "EdgeTTSProvider",
+    "GnaniTTSProvider",
     "NavanaTTSProvider",
     "ProviderTTSResult",
     "SarvamTTSProvider",

@@ -14,7 +14,7 @@ import {
 } from 'lucide-react'
 import { transcribeAudio } from '../api'
 import { useLocalHistory } from '../history'
-import { sarvamConnectionSettings, speechSocket, startPcmCapture } from '../streaming'
+import { providerConnectionSettings, speechSocket, startPcmCapture } from '../streaming'
 import type { PcmCapture } from '../streaming'
 import type { LanguageItem, ProviderInfo, STTResponse, STTStreamMessage } from '../types'
 import {
@@ -106,10 +106,12 @@ export const STTView: React.FC<STTViewProps> = ({ languages, providers }) => {
   const [liveFinal, setLiveFinal] = useState('')
   const [livePartial, setLivePartial] = useState('')
   const [liveModel, setLiveModel] = useState('')
+  const [noSpeech, setNoSpeech] = useState(false)
   const [micLevel, setMicLevel] = useState(0)
   const socketRef = useRef<WebSocket | null>(null)
   const captureRef = useRef<PcmCapture | null>(null)
   const stoppingRef = useRef(false)
+  const finishTimerRef = useRef<number | null>(null)
   const { items: history, push, clear } = useLocalHistory<Hist>('ilu-hist-stt')
 
   useEffect(() => {
@@ -123,28 +125,36 @@ export const STTView: React.FC<STTViewProps> = ({ languages, providers }) => {
   }, [file])
 
   useEffect(() => () => {
+    if (finishTimerRef.current !== null) window.clearTimeout(finishTimerRef.current)
     socketRef.current?.close()
     if (captureRef.current) void captureRef.current.stop()
   }, [])
 
   const startLive = () => {
     if (socketRef.current) return
+    if (provider === 'gnani' && !language) {
+      setError('Choose a spoken language for Gnani streaming transcription.')
+      return
+    }
     setError(null)
     setResult(null)
     setLiveFinal('')
     setLivePartial('')
     setLiveModel('')
+    setNoSpeech(false)
     setMicLevel(0)
     setLiveState('connecting')
     stoppingRef.current = false
+    if (finishTimerRef.current !== null) window.clearTimeout(finishTimerRef.current)
+    finishTimerRef.current = null
     const socket = speechSocket('/api/stt/stream')
     socketRef.current = socket
     socket.onopen = () => socket.send(JSON.stringify({
-      type: 'start', provider: 'sarvam', language: language || null,
+      type: 'start', provider, language: language || null,
       sampling_rate: 16000,
-      model_id: ['saaras:v4', 'saaras:v3-realtime'].includes(modelId.trim())
+      model_id: provider === 'sarvam' && ['saaras:v4', 'saaras:v3-realtime'].includes(modelId.trim())
         ? modelId.trim() : null,
-      ...sarvamConnectionSettings(),
+      ...providerConnectionSettings(provider === 'gnani' ? 'gnani' : 'sarvam'),
     }))
     socket.onmessage = (message) => {
       let data: STTStreamMessage
@@ -174,6 +184,7 @@ export const STTView: React.FC<STTViewProps> = ({ languages, providers }) => {
         setError(data.message ?? 'Live transcription failed')
         socket.close()
       } else if (data.type === 'done') {
+        if (provider === 'gnani' && data.transcript_count === 0) setNoSpeech(true)
         stoppingRef.current = true
         socket.close()
       }
@@ -181,6 +192,8 @@ export const STTView: React.FC<STTViewProps> = ({ languages, providers }) => {
     socket.onerror = () => setError('Live transcription connection failed')
     socket.onclose = () => {
       if (socketRef.current !== socket) return
+      if (finishTimerRef.current !== null) window.clearTimeout(finishTimerRef.current)
+      finishTimerRef.current = null
       socketRef.current = null
       if (captureRef.current) {
         void captureRef.current.stop()
@@ -196,13 +209,39 @@ export const STTView: React.FC<STTViewProps> = ({ languages, providers }) => {
     const socket = socketRef.current
     if (!socket || stoppingRef.current) return
     setLiveState('stopping')
-    if (captureRef.current) {
-      await captureRef.current.stop()
-      captureRef.current = null
+    const capture = captureRef.current
+    captureRef.current = null
+    if (capture) {
+      let stopTimer: number | undefined
+      try {
+        await Promise.race([
+          capture.stop(),
+          new Promise<void>((resolve) => { stopTimer = window.setTimeout(resolve, 1500) }),
+        ])
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Could not stop microphone capture')
+      } finally {
+        if (stopTimer !== undefined) window.clearTimeout(stopTimer)
+      }
     }
+    if (socketRef.current !== socket) return
     stoppingRef.current = true
     if (socket.readyState === WebSocket.OPEN) {
-      socket.send('{"type":"finish"}')
+      try {
+        socket.send('{"type":"finish"}')
+        finishTimerRef.current = window.setTimeout(() => {
+          if (socketRef.current !== socket) return
+          setError('Transcription did not finish in time. Try again.')
+          setLiveState('idle')
+          socket.close()
+        }, 10000)
+      } catch {
+        setError('Could not finish the transcription connection')
+        socket.close()
+      }
+    } else {
+      setError('Transcription connection closed before finishing')
+      socket.close()
     }
   }
 
@@ -234,6 +273,10 @@ export const STTView: React.FC<STTViewProps> = ({ languages, providers }) => {
 
   const handleTranscribe = async () => {
     if (!file || !samplingRate) return
+    if (provider === 'gnani' && !language) {
+      setError('Choose a spoken language for Gnani transcription.')
+      return
+    }
     setLoading(true)
     setError(null)
     setResult(null)
@@ -266,10 +309,12 @@ export const STTView: React.FC<STTViewProps> = ({ languages, providers }) => {
   }
 
   const activeModelPresets = mode === 'live'
-    ? ['saaras:v4', 'saaras:v3-realtime'] : STT_MODEL_PRESETS[provider] ?? []
+    ? provider === 'sarvam' ? ['saaras:v4', 'saaras:v3-realtime'] : [] : STT_MODEL_PRESETS[provider] ?? []
   const displayText = mode === 'live' ? [liveFinal, livePartial].filter(Boolean).join(' ') : result?.text ?? ''
   const wordCount = displayText.trim() ? displayText.trim().split(/\s+/).length : 0
-  const sarvamReady = providers.some((item) => item.id === 'sarvam' && item.available)
+  const liveProviders = providers.filter((item) => ['sarvam', 'gnani'].includes(item.id) && item.available)
+  const liveReady = liveProviders.length > 0
+  const liveProviderName = liveProviders.find((item) => item.id === provider)?.name ?? provider
 
   return (
     <div className="space-y-5">
@@ -277,7 +322,7 @@ export const STTView: React.FC<STTViewProps> = ({ languages, providers }) => {
         icon={<Mic className="h-4 w-4" />}
         tileClass="border-clay-500/30 bg-clay-500/10 text-clay-300"
         title="Speech to Text"
-        blurb="Transcribe a recording or speak live with Sarvam Realtime."
+        blurb="Transcribe a recording or speak live with a streaming speech provider."
         glyph="ई"
       />
 
@@ -286,8 +331,8 @@ export const STTView: React.FC<STTViewProps> = ({ languages, providers }) => {
           <div className="flex gap-1 rounded-xl border border-ink-700 bg-ink-900/70 p-1 text-xs">
             <button type="button" onClick={() => setMode('file')} disabled={liveState !== 'idle'}
               className={`flex-1 rounded-lg px-3 py-2 font-semibold transition ${mode === 'file' ? 'bg-ink-700 text-parchment-100' : 'text-parchment-500 hover:text-parchment-200'}`}>Audio file</button>
-            <button type="button" onClick={() => { setMode('live'); setProvider('sarvam'); setModelId('') }}
-              disabled={!sarvamReady || liveState !== 'idle'}
+            <button type="button" onClick={() => { setMode('live'); setProvider(liveProviders.some((item) => item.id === provider) ? provider : liveProviders[0]?.id ?? 'sarvam'); setModelId('') }}
+              disabled={!liveReady || liveState !== 'idle'}
               className={`flex-1 rounded-lg px-3 py-2 font-semibold transition ${mode === 'live' ? 'bg-ink-700 text-parchment-100' : 'text-parchment-500 hover:text-parchment-200'}`}>Live microphone</button>
           </div>
           {mode === 'live' && (
@@ -304,7 +349,7 @@ export const STTView: React.FC<STTViewProps> = ({ languages, providers }) => {
                 {liveState === 'listening' ? 'Listening to your microphone' : liveState === 'connecting' ? 'Connecting microphone…' : liveState === 'stopping' ? 'Finishing transcript…' : 'Microphone ready'}
               </p>
               <p className="mt-1 text-xs text-parchment-500">
-                {liveState === 'listening' ? 'The ring responds to your voice' : 'Sarvam Realtime · 16 kHz audio'}
+                {liveState === 'listening' ? 'The ring responds to your voice' : `${liveProviderName} · 16 kHz audio`}
               </p>
             </div>
           )}
@@ -389,7 +434,7 @@ export const STTView: React.FC<STTViewProps> = ({ languages, providers }) => {
 
             <Field
               label="Engine"
-              action={
+              action={mode === 'live' && provider === 'gnani' ? undefined : (
                 <button
                   type="button"
                   onClick={() => setShowModelConfig(!showModelConfig)}
@@ -398,9 +443,11 @@ export const STTView: React.FC<STTViewProps> = ({ languages, providers }) => {
                   <Sliders className="h-3 w-3" />
                   {showModelConfig ? 'Hide Model' : 'Custom Model'}
                 </button>
-              }
+              )}
             >
-              {mode === 'live' ? <div className="field !py-2.5 text-xs">Sarvam AI Realtime</div> : <div className="relative">
+              {mode === 'live' ? <div className="relative"><select value={provider} onChange={(event) => { setProvider(event.target.value); setModelId('') }} className="field !py-2.5 text-xs">
+                {liveProviders.map((item) => <option key={item.id} value={item.id}>{item.name} streaming</option>)}
+              </select><ChevronDown className="pointer-events-none absolute right-3 top-3 h-3.5 w-3.5 text-parchment-500" /></div> : <div className="relative">
                 <select
                   value={provider}
                   onChange={(event) => {
@@ -453,7 +500,7 @@ export const STTView: React.FC<STTViewProps> = ({ languages, providers }) => {
             </>}
           </div>
 
-          <ModelDrawer
+          {(mode !== 'live' || provider === 'sarvam') && <ModelDrawer
             open={showModelConfig}
             title="STT Model ID Override"
             presets={activeModelPresets}
@@ -468,7 +515,7 @@ export const STTView: React.FC<STTViewProps> = ({ languages, providers }) => {
                     ? 'Default: base (or tiny, small, medium, large-v3)'
                     : 'Enter model ID override...'
             }
-          />
+          />}
 
           {mode === 'live' ? <button type="button"
             disabled={liveState === 'connecting' || liveState === 'stopping'}
@@ -535,8 +582,8 @@ export const STTView: React.FC<STTViewProps> = ({ languages, providers }) => {
             ) : (
               <EmptyState
                 icon={mode === 'live' ? <Mic className="h-8 w-8 opacity-60" /> : <FileAudio2 className="h-8 w-8 opacity-60" />}
-                title="No audio transcribed yet"
-                hint={mode === 'live' ? 'Start the microphone to see words appear' : 'Upload a clip and press Transcribe'}
+                title={noSpeech && mode === 'live' ? 'No speech detected' : 'No audio transcribed yet'}
+                hint={noSpeech && mode === 'live' ? 'Try again and speak near your microphone' : mode === 'live' ? 'Start the microphone to see words appear' : 'Upload a clip and press Transcribe'}
               />
             )}
             {mode === 'file' && result && (
@@ -550,7 +597,7 @@ export const STTView: React.FC<STTViewProps> = ({ languages, providers }) => {
               />
             )}
             {mode === 'live' && liveModel && <MetaTable rows={[
-              ['Provider', 'Sarvam AI'], ['Model ID', liveModel], ['Mode', 'Live microphone'],
+            ['Provider', liveProviderName], ['Model ID', liveModel || 'Default'], ['Mode', 'Live microphone'],
             ]} />}
           </ResultPanel>
         </div>

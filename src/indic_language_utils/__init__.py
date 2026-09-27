@@ -55,6 +55,7 @@ from .providers import (
     BhashiniConfig,
     CapabilityDeclaration,
     CapabilityId,
+    GnaniConfig,
     NavanaConfig,
     ProviderFactoryRegistry,
     ProviderRegistry,
@@ -65,6 +66,7 @@ from .stt import (
     BhashiniSTTProvider,
     FasterWhisperSTTConfig,
     FasterWhisperSTTProvider,
+    GnaniSTTProvider,
     GoogleFreeSTTConfig,
     GoogleFreeSTTProvider,
     ProviderSTTResult,
@@ -141,6 +143,7 @@ from .transliteration import (
 )
 from .tts import (
     BhashiniTTSProvider,
+    GnaniTTSProvider,
     NavanaTTSProvider,
     ProviderTTSResult,
     SarvamTTSProvider,
@@ -190,6 +193,9 @@ __all__ = [
     "FastTextDetectionProvider",
     "FasterWhisperSTTConfig",
     "FasterWhisperSTTProvider",
+    "GnaniConfig",
+    "GnaniSTTProvider",
+    "GnaniTTSProvider",
     "GoogleFreeSTTConfig",
     "GoogleFreeSTTProvider",
     "GoogleTranslateConfig",

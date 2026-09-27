@@ -78,6 +78,11 @@ endpoint = "https://tts.navana.ai"
 timeout_seconds = 120.0
 max_concurrency = 8
 
+[providers.gnani]
+endpoint = "https://api.vachana.ai"
+timeout_seconds = 120.0
+max_concurrency = 8
+
 [providers.my_adapter.options]
 region = "south"
 batch_limit = 12
@@ -156,6 +161,15 @@ export NAVANA_API_KEY="your-navana-api-key"
 export NAVANA_ENDPOINT_URL="https://tts.navana.ai"
 export NAVANA_TIMEOUT_SECONDS="120"
 export NAVANA_MAX_CONCURRENCY="8"
+```
+
+Gnani STT and TTS credentials and runtime overrides:
+
+```bash
+export GNANI_API_KEY="your-gnani-api-key"
+export GNANI_ENDPOINT_URL="https://api.vachana.ai"
+export GNANI_TIMEOUT_SECONDS="120"
+export GNANI_MAX_CONCURRENCY="8"
 ```
 
 # Google Free STT overrides

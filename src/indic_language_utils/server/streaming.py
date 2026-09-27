@@ -21,6 +21,7 @@ from .routes import _get_env_overrides
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api")
 MAX_AUDIO_CHUNK_BYTES = 64 * 1024
+GNANI_STT_COMPLETION_TIMEOUT_SECONDS = 8.0
 
 
 class StreamStart(BaseModel):
@@ -33,7 +34,7 @@ class StreamStart(BaseModel):
 
 
 class STTStreamStart(StreamStart):
-    sampling_rate: int = Field(default=16000, ge=8000, le=16000)
+    sampling_rate: int = Field(default=16000, ge=8000, le=48000)
 
 
 class TTSStreamStart(StreamStart):
@@ -53,11 +54,15 @@ def _stream_env(start: StreamStart) -> dict[str, str]:
     if start.api_key:
         if start.provider == "navana":
             env["NAVANA_API_KEY"] = start.api_key
+        elif start.provider == "gnani":
+            env["GNANI_API_KEY"] = start.api_key
         else:
             env["SARVAM_API_KEY"] = start.api_key
     if start.endpoint:
         if start.provider == "navana":
             env["NAVANA_ENDPOINT_URL"] = start.endpoint
+        elif start.provider == "gnani":
+            env["GNANI_ENDPOINT_URL"] = start.endpoint
         else:
             env["SARVAM_ENDPOINT_URL"] = start.endpoint
     return env
@@ -81,7 +86,17 @@ async def stream_stt(websocket: WebSocket) -> None:
     try:
         start = await _start_message(websocket, STTStreamStart)
         assert isinstance(start, STTStreamStart)
-        client = get_stt_client(env=_stream_env(start))
+        env = _stream_env(start)
+        settings = Settings.load(env=env)
+        if start.provider:
+            settings = replace(
+                settings,
+                routes={
+                    **settings.routes,
+                    CapabilityId.SPEECH_TO_TEXT.value: (start.provider,),
+                },
+            )
+        client = get_stt_client(settings=settings, env=env)
         async with client:
             async with client.stream(
                 language=start.language,
@@ -90,6 +105,7 @@ async def stream_stt(websocket: WebSocket) -> None:
                 model_id=start.model_id,
             ) as stream:
                 await websocket.send_json({"type": "ready"})
+                transcript_count = 0
 
                 async def receive_audio() -> None:
                     while True:
@@ -114,7 +130,10 @@ async def stream_stt(websocket: WebSocket) -> None:
                         raise ValueError("Expected PCM audio or a finish message")
 
                 async def send_events() -> None:
+                    nonlocal transcript_count
                     async for event in stream.events():
+                        if event.kind == "final" and event.text and event.text.strip():
+                            transcript_count += 1
                         await websocket.send_json(
                             {
                                 "type": "event",
@@ -127,8 +146,14 @@ async def stream_stt(websocket: WebSocket) -> None:
                             }
                         )
 
-                await _run_pair(receive_audio(), send_events())
-                await websocket.send_json({"type": "done"})
+                await _run_pair(
+                    receive_audio(),
+                    send_events(),
+                    completion_timeout=(
+                        GNANI_STT_COMPLETION_TIMEOUT_SECONDS if start.provider == "gnani" else None
+                    ),
+                )
+                await websocket.send_json({"type": "done", "transcript_count": transcript_count})
     except WebSocketDisconnect:
         return
     except Exception as exc:
@@ -206,7 +231,9 @@ async def stream_tts(websocket: WebSocket) -> None:
         await _send_error(websocket, exc)
 
 
-async def _run_pair(receiver: object, sender: object) -> None:
+async def _run_pair(
+    receiver: object, sender: object, *, completion_timeout: float | None = None
+) -> None:
     """Keep sending output after input flush, but stop input if output ends first."""
     assert asyncio.iscoroutine(receiver) and asyncio.iscoroutine(sender)
     receive_task = asyncio.create_task(receiver)
@@ -216,7 +243,10 @@ async def _run_pair(receiver: object, sender: object) -> None:
         for task in done:
             task.result()
         if receive_task in done:
-            await send_task
+            try:
+                await asyncio.wait_for(send_task, timeout=completion_timeout)
+            except TimeoutError as exc:
+                raise ValueError("Transcription did not finish in time") from exc
         else:
             receive_task.cancel()
             await asyncio.gather(receive_task, return_exceptions=True)

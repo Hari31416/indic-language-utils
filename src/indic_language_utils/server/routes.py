@@ -25,6 +25,7 @@ from ..errors import ConfigurationError, LanguageUtilsError
 from ..languages import DEFAULT_LANGUAGE_REGISTRY
 from ..providers import CapabilityId
 from ..providers.bhashini import BhashiniConfig
+from ..providers.gnani import GnaniConfig
 from ..providers.navana import NavanaConfig
 from ..providers.sarvam import SarvamConfig
 from ..routing import OrderedRouter
@@ -97,6 +98,12 @@ def _apply_request_overrides(env: dict[str, str], request: Request | None) -> di
         navana_endpoint = request.headers.get("x-navana-endpoint")
         if navana_endpoint:
             env["NAVANA_ENDPOINT_URL"] = navana_endpoint.strip()
+        gnani_key = request.headers.get("x-gnani-api-key")
+        if gnani_key:
+            env["GNANI_API_KEY"] = gnani_key.strip()
+        gnani_endpoint = request.headers.get("x-gnani-endpoint")
+        if gnani_endpoint:
+            env["GNANI_ENDPOINT_URL"] = gnani_endpoint.strip()
     return env
 
 
@@ -402,6 +409,15 @@ async def list_providers(request: Request) -> ProvidersResponse:
             navana_details = "Non-streaming and WebSocket synthesis"
         except ConfigurationError as exc:
             navana_details = str(exc)
+    gnani_configured = False
+    gnani_details = "Requires GNANI_API_KEY"
+    if env.get("GNANI_API_KEY"):
+        try:
+            GnaniConfig.from_settings(Settings.load(env=env), env=env)
+            gnani_configured = True
+            gnani_details = "STT REST and WebSocket; TTS inference, WebSocket, and SSE"
+        except ConfigurationError as exc:
+            gnani_details = str(exc)
     edge_tts_error: str | None = None
     if HAVE_EDGE_TTS:
         try:
@@ -441,6 +457,12 @@ async def list_providers(request: Request) -> ProvidersResponse:
                 else "Requires 'faster-whisper' package"
             ),
         ),
+        ProviderInfo(
+            id="gnani",
+            name="Gnani AI STT",
+            available=gnani_configured,
+            details=gnani_details,
+        ),
     ]
     tts_providers = [
         ProviderInfo(
@@ -474,6 +496,12 @@ async def list_providers(request: Request) -> ProvidersResponse:
             name="Navana AI TTS",
             available=navana_configured,
             details=navana_details,
+        ),
+        ProviderInfo(
+            id="gnani",
+            name="Gnani AI TTS",
+            available=gnani_configured,
+            details=gnani_details,
         ),
     ]
 
@@ -802,9 +830,12 @@ async def transcribe_audio(body: STTRequestBody, request: Request) -> STTRespons
             env["SARVAM_API_KEY"] = body.api_key
         elif body.provider == "bhashini":
             env["BHASHINI_API_KEY"] = body.api_key
+        elif body.provider == "gnani":
+            env["GNANI_API_KEY"] = body.api_key
         else:
             env["SARVAM_API_KEY"] = body.api_key
             env["BHASHINI_API_KEY"] = body.api_key
+            env["GNANI_API_KEY"] = body.api_key
 
     if body.model_id:
         if body.provider == "sarvam" or not body.provider or body.provider == "auto":
@@ -870,10 +901,13 @@ async def synthesize_speech(body: TTSRequestBody, request: Request) -> TTSRespon
             env["BHASHINI_API_KEY"] = body.api_key
         elif body.provider == "navana":
             env["NAVANA_API_KEY"] = body.api_key
+        elif body.provider == "gnani":
+            env["GNANI_API_KEY"] = body.api_key
         else:
             env["SARVAM_API_KEY"] = body.api_key
             env["BHASHINI_API_KEY"] = body.api_key
             env["NAVANA_API_KEY"] = body.api_key
+            env["GNANI_API_KEY"] = body.api_key
 
     if body.provider == "navana":
         env.pop("BHASHINI_API_KEY", None)
@@ -890,6 +924,8 @@ async def synthesize_speech(body: TTSRequestBody, request: Request) -> TTSRespon
             env["EDGE_TTS_VOICE"] = body.model_id
         if body.provider == "navana":
             parameters["voice"] = body.model_id
+        if body.provider == "gnani":
+            parameters["model"] = body.model_id
 
     try:
         request_obj = TTSRequest(
@@ -902,12 +938,12 @@ async def synthesize_speech(body: TTSRequestBody, request: Request) -> TTSRespon
 
     try:
         settings = Settings.load(env=env)
-        if body.provider == "navana":
+        if body.provider in ("navana", "gnani"):
             settings = replace(
                 settings,
                 routes={
                     **settings.routes,
-                    CapabilityId.TEXT_TO_SPEECH.value: ("navana",),
+                    CapabilityId.TEXT_TO_SPEECH.value: (body.provider,),
                 },
             )
         cache = None

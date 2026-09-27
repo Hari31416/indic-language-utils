@@ -32,6 +32,8 @@ export interface ApiKeysConfig {
   bhashiniEndpoint: string
   navanaApiKey: string
   navanaEndpoint: string
+  gnaniApiKey: string
+  gnaniEndpoint: string
 }
 
 export interface TTSRequest {
@@ -81,6 +83,7 @@ export interface STTResponse {
 
 export interface STTStreamMessage {
   type: 'ready' | 'event' | 'done' | 'error'
+  transcript_count?: number
   kind?: 'speech_start' | 'speech_end' | 'partial' | 'final'
   text?: string | null
   language?: string | null

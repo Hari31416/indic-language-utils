@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 from indic_language_utils.languages import DEFAULT_LANGUAGE_REGISTRY
 from indic_language_utils.server.app import create_app
 from indic_language_utils.stt import STTStreamEvent
+from indic_language_utils.stt.gnani import GnaniSTTProvider
 from indic_language_utils.stt.sarvam import SarvamSTTProvider
 from indic_language_utils.tts import TTSStreamEvent
 from indic_language_utils.tts.navana import NavanaTTSProvider
@@ -67,8 +68,81 @@ def test_stt_websocket_forwards_pcm_and_events(
         assert event["kind"] == "final"
         assert event["text"] == "नमस्ते"
         assert event["request_id"] == "request-1"
-        assert websocket.receive_json() == {"type": "done"}
+        assert websocket.receive_json() == {"type": "done", "transcript_count": 1}
     assert chunks == [b"\0\1"]
+
+
+def test_gnani_stt_websocket_finishes_without_speech(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class SilentSession:
+        def __init__(self) -> None:
+            self.finished = asyncio.Event()
+
+        async def send_audio(self, pcm: bytes) -> None:
+            pass
+
+        async def finish(self) -> None:
+            self.finished.set()
+
+        async def events(self) -> AsyncIterator[STTStreamEvent]:
+            await self.finished.wait()
+            yield STTStreamEvent("partial", "", None, "gnani", "gnani-stt-stream", "req")
+
+    @asynccontextmanager
+    async def fake_open(self: GnaniSTTProvider, **_: object) -> AsyncIterator[SilentSession]:
+        yield SilentSession()
+
+    monkeypatch.setattr(GnaniSTTProvider, "open_stream", fake_open)
+    with client.websocket_connect("/api/stt/stream") as websocket:
+        websocket.send_json(
+            {
+                "type": "start",
+                "provider": "gnani",
+                "language": "hi",
+                "sampling_rate": 16000,
+                "api_key": "test-key",
+            }
+        )
+        assert websocket.receive_json() == {"type": "ready"}
+        websocket.send_text('{"type":"finish"}')
+        assert websocket.receive_json()["kind"] == "partial"
+        assert websocket.receive_json() == {"type": "done", "transcript_count": 0}
+
+
+def test_gnani_stt_websocket_reports_stalled_completion(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from indic_language_utils.server import streaming
+
+    monkeypatch.setattr(streaming, "GNANI_STT_COMPLETION_TIMEOUT_SECONDS", 0.01)
+
+    class StalledSession:
+        async def send_audio(self, pcm: bytes) -> None:
+            pass
+
+        async def finish(self) -> None:
+            pass
+
+        async def events(self) -> AsyncIterator[STTStreamEvent]:
+            await asyncio.Event().wait()
+            yield STTStreamEvent("final", "", None, "gnani", "gnani-stt-stream", "req")
+
+    @asynccontextmanager
+    async def fake_open(self: GnaniSTTProvider, **_: object) -> AsyncIterator[StalledSession]:
+        yield StalledSession()
+
+    monkeypatch.setattr(GnaniSTTProvider, "open_stream", fake_open)
+    with client.websocket_connect("/api/stt/stream") as websocket:
+        websocket.send_json(
+            {"type": "start", "provider": "gnani", "language": "hi", "api_key": "test-key"}
+        )
+        assert websocket.receive_json() == {"type": "ready"}
+        websocket.send_text('{"type":"finish"}')
+        assert websocket.receive_json() == {
+            "type": "error",
+            "message": "Transcription did not finish in time",
+        }
 
 
 def test_tts_websocket_forwards_text_and_audio(

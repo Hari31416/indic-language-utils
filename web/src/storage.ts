@@ -9,6 +9,8 @@ export const DEFAULT_API_KEYS: ApiKeysConfig = {
   bhashiniEndpoint: '',
   navanaApiKey: '',
   navanaEndpoint: '',
+  gnaniApiKey: '',
+  gnaniEndpoint: '',
 }
 
 export function loadApiKeys(): ApiKeysConfig {
@@ -23,6 +25,8 @@ export function loadApiKeys(): ApiKeysConfig {
       bhashiniEndpoint: typeof parsed.bhashiniEndpoint === 'string' ? parsed.bhashiniEndpoint : '',
       navanaApiKey: typeof parsed.navanaApiKey === 'string' ? parsed.navanaApiKey : '',
       navanaEndpoint: typeof parsed.navanaEndpoint === 'string' ? parsed.navanaEndpoint : '',
+      gnaniApiKey: typeof parsed.gnaniApiKey === 'string' ? parsed.gnaniApiKey : '',
+      gnaniEndpoint: typeof parsed.gnaniEndpoint === 'string' ? parsed.gnaniEndpoint : '',
     }
   } catch {
     return { ...DEFAULT_API_KEYS }
@@ -66,6 +70,12 @@ export function getApiKeyHeaders(keys?: ApiKeysConfig): Record<string, string> {
   }
   if (current.navanaEndpoint.trim()) {
     headers['X-Navana-Endpoint'] = current.navanaEndpoint.trim()
+  }
+  if (current.gnaniApiKey.trim()) {
+    headers['X-Gnani-Api-Key'] = current.gnaniApiKey.trim()
+  }
+  if (current.gnaniEndpoint.trim()) {
+    headers['X-Gnani-Endpoint'] = current.gnaniEndpoint.trim()
   }
 
   return headers
