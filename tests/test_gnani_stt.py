@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -9,7 +10,7 @@ import pytest
 
 from indic_language_utils import GnaniConfig, GnaniSTTProvider, Secret, get_stt_client
 from indic_language_utils.languages import DEFAULT_LANGUAGE_REGISTRY
-from indic_language_utils.stt.gnani_stream import open_gnani_stt_stream
+from indic_language_utils.stt.gnani_stream import GnaniSTTStream, open_gnani_stt_stream
 
 
 def config() -> GnaniConfig:
@@ -45,9 +46,11 @@ async def test_gnani_rest_posts_audio_and_maps_transcript() -> None:
 class FakeSocket:
     def __init__(self) -> None:
         self.sent: list[bytes] = []
+        self.sent_at: list[float] = []
 
     async def send(self, payload: bytes) -> None:
         self.sent.append(payload)
+        self.sent_at.append(asyncio.get_running_loop().time())
 
     def __aiter__(self) -> AsyncIterator[str]:
         async def events() -> AsyncIterator[str]:
@@ -80,7 +83,7 @@ async def test_gnani_stream_sends_raw_pcm_and_maps_transcript(
         sampling_rate=16000,
         request_id="req",
     ) as stream:
-        await stream.send_audio(b"\x00\x01")
+        await stream.send_audio(b"\x00\x01" * 1600)
         await stream.finish()
         events = [event async for event in stream.events()]
 
@@ -90,7 +93,53 @@ async def test_gnani_stream_sends_raw_pcm_and_maps_transcript(
         "lang_code": "hi-IN",
         "x-sample-rate": "16000",
     }
-    assert socket.sent[0] == b"\x00\x01"
-    assert b"".join(socket.sent[1:]) == bytes(16000)
-    assert all(len(chunk) <= 1024 for chunk in socket.sent[1:])
+    sent = b"".join(socket.sent)
+    assert sent.startswith(b"\x00\x01" * 1600)
+    assert sent[3200:] == bytes(len(sent) - 3200)
+    assert len(sent) - 3200 >= 16000
+    assert all(len(chunk) == 1024 for chunk in socket.sent)
+    assert all(
+        later - earlier >= 0.025
+        for earlier, later in zip(socket.sent_at, socket.sent_at[1:], strict=False)
+    )
     assert [(event.kind, event.text) for event in events] == [("final", "hello")]
+
+
+@pytest.mark.parametrize("prior_transcript", [False, True])
+@pytest.mark.asyncio
+async def test_gnani_stream_finish_without_new_transcript_ends(
+    monkeypatch: pytest.MonkeyPatch,
+    prior_transcript: bool,
+) -> None:
+    monkeypatch.setattr(
+        "indic_language_utils.stt.gnani_stream._FINAL_TRANSCRIPT_TIMEOUT_SECONDS", 0.01
+    )
+    waiting = asyncio.Event()
+
+    class QuietSocket(FakeSocket):
+        def __aiter__(self) -> AsyncIterator[str]:
+            async def messages() -> AsyncIterator[str]:
+                if prior_transcript:
+                    yield json.dumps({"type": "transcript", "text": "already received"})
+                await waiting.wait()
+
+            return messages()
+
+    stream = GnaniSTTStream(
+        QuietSocket(),
+        language=DEFAULT_LANGUAGE_REGISTRY.normalize("hi"),
+        sampling_rate=16000,
+        request_id="req",
+    )
+    events = stream.events()
+    if prior_transcript:
+        first = await anext(events)
+        assert first.text == "already received"
+    else:
+        pending = asyncio.create_task(anext(events, None))
+        await asyncio.sleep(0)
+    await stream.finish()
+    if prior_transcript:
+        assert await asyncio.wait_for(anext(events, None), timeout=0.1) is None
+    else:
+        assert await asyncio.wait_for(pending, timeout=0.1) is None
