@@ -42,21 +42,21 @@ translation = translate_sync("Welcome to India", "en", "hi")
 print(translation.text)
 ```
 
-Short samples can confuse language detection even when the script is clear. FastText may download its local model on first use. Google Translate is an unofficial network adapter suited to development. For Bhashini or Sarvam, install the core package, set the provider's API key and required service or model IDs in environment variables, then use the same high-level calls. The [configuration guide](https://raw.githubusercontent.com/hari31416/indic-language-utils/main/docs/configuration.md) lists exact variable names and route settings.
+Short samples can confuse language detection even when the script is clear. FastText may download its local model on first use. Google Translate is an unofficial network adapter suited to development. For cloud providers (Bhashini, Sarvam, Gnani, Navana), install the core package, set the provider's API key and required service or model IDs in environment variables, then use the same high-level calls. The [configuration guide](https://raw.githubusercontent.com/hari31416/indic-language-utils/main/docs/configuration.md) lists exact variable names and route settings.
 
 ## Choose the capability and provider
 
 The core install is `indic-language-utils`. Add only the extra the chosen provider needs:
 
-| Task                    | Entry point                              | Provider choices                                                                                      |
-| ----------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| Text language detection | `detect_sync`, `detect`, `detect_script` | FastText `[local-tld]`; Bhashini or Sarvam with credentials. `detect_script` needs no provider.       |
-| Translation             | `translate_sync`, `translate`            | Bhashini or Sarvam with credentials; Google Translate `[googletrans]` for development.                |
-| Transliteration         | `transliterate_sync`, `transliterate`    | Aksharamukha `[local-transliteration]`; Bhashini with credentials.                                    |
-| Speech to text          | `get_stt_client`                         | Faster-Whisper `[stt-whisper]`; Google Free `[stt-google-free]`; Bhashini or Sarvam with credentials. |
-| Text to speech          | `get_tts_client`                         | Edge TTS `[tts-edge]`; Bhashini or Sarvam with credentials.                                           |
+| Task                    | Entry point                              | Provider choices                                                                                                    |
+| ----------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Text language detection | `detect_sync`, `detect`, `detect_script` | FastText `[local-tld]`; Bhashini or Sarvam with credentials. `detect_script` needs no provider.                     |
+| Translation             | `translate_sync`, `translate`            | Bhashini or Sarvam with credentials; Google Translate `[googletrans]` for development.                              |
+| Transliteration         | `transliterate_sync`, `transliterate`    | Aksharamukha `[local-transliteration]`; Bhashini with credentials.                                                  |
+| Speech to text          | `get_stt_client`                         | Faster-Whisper `[stt-whisper]`; Google Free `[stt-google-free]`; Bhashini, Sarvam, or Gnani with credentials.       |
+| Text to speech          | `get_tts_client`                         | Edge TTS `[tts-edge]`; Bhashini, Sarvam, Gnani, or Navana with credentials.                                         |
 
-Select a provider whose language, model, and format support fit the request. The [provider reference](https://raw.githubusercontent.com/hari31416/indic-language-utils/main/docs/provider-reference.md) and capability guides contain those limits. Optional local models can require a download on first use; the unofficial Google and Edge adapters require network access.
+Select a provider whose language, model, and format support fit the request. The [provider reference](https://raw.githubusercontent.com/hari31416/indic-language-utils/main/docs/provider-reference.md) and capability guides contain those limits. Optional local models can require a download on first use; the unofficial Google and Edge adapters require network access. Realtime WebSocket streaming for Sarvam, Gnani, or Navana requires `[streaming]`.
 
 ## Integrate
 
@@ -66,7 +66,7 @@ Select a provider whose language, model, and format support fit the request. The
 4. Use the structured results: translation, transliteration, and STT expose `.text`; TTS exposes `.audio` plus `.audio_format`. Preserve provider and error details where the application needs diagnostics.
 5. Verify the feature with a provider-independent test or an injected fake provider. Make a live provider call only when the task calls for it and credentials and network access are available.
 
-For speech, pass audio bytes with the actual `audio_format` and `sampling_rate`; the library does not resample input. Treat generated TTS bytes according to the returned `audio_format`, which varies by provider. Use provider-specific `TTSOptions` only after checking the selected provider's guide.
+For speech, pass audio bytes with the actual `audio_format` and `sampling_rate`; the library does not resample input. Treat generated TTS bytes according to the returned `audio_format`, which varies by provider. Use provider-specific `TTSOptions` only after checking the selected provider's guide. For live STT or TTS streaming sessions, install `indic-language-utils[streaming]` and use `client.stream()`.
 
 ## Find the relevant detail
 
