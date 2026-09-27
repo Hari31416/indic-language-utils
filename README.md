@@ -1,8 +1,12 @@
 # indic-language-utils
 
-Provider-neutral foundations for Indian language operations in Python.
+`indic-language-utils` is a provider-neutral Python library for Indic text and speech processing. It unifies language detection, translation, transliteration, script identification, and speech tools under a single, standardized interface, abstracting local and cloud engines so you can switch providers without rewriting code.
 
-`indic-language-utils` standardizes language detection, translation, transliteration, speech, script identification, and text processing across Indian languages. It abstracts cloud and local engines behind shared interfaces.
+[![PyPI version](https://img.shields.io/pypi/v/indic-language-utils)](https://pypi.org/project/indic-language-utils/)
+[![Downloads](https://pepy.tech/badge/indic-language-utils)](https://pepy.tech/projects/indic-language-utils)
+[![Python](https://img.shields.io/pypi/pyversions/indic-language-utils)](https://pypi.org/project/indic-language-utils/)
+[![License](https://img.shields.io/pypi/l/indic-language-utils)](https://github.com/Hari31416/indic-language-utils/blob/main/LICENSE)
+[![CI](https://github.com/Hari31416/indic-language-utils/actions/workflows/ci.yml/badge.svg)](https://github.com/Hari31416/indic-language-utils/actions/workflows/ci.yml)
 
 ## Key Features
 
