@@ -343,3 +343,48 @@ async def test_stt_client_provider_with_only_segment_timestamps() -> None:
     assert res.segments[0].start == 0.0
     assert res.segments[0].end == 1.0
     assert res.words == ()
+
+
+@pytest.mark.asyncio
+async def test_stt_client_provider_with_wrapped_legacy_kwargs() -> None:
+    from typing import Any
+
+    from indic_language_utils.models import ProviderIdentity
+    from indic_language_utils.providers import CapabilityDeclaration, CapabilityId
+    from indic_language_utils.stt import ProviderSTTResult
+
+    def legacy_inner(
+        audio: tuple[bytes, ...],
+        *,
+        language: object,
+        audio_format: str,
+        sampling_rate: int,
+        request_id: str,
+    ) -> tuple[ProviderSTTResult, ...]:
+        return (
+            ProviderSTTResult(
+                text="wrapped legacy text",
+                model_id="wrapped-model",
+                request_id="wrapped-req",
+            ),
+        )
+
+    class WrappedLegacyProvider:
+        identity = ProviderIdentity("wrapped_legacy", "Wrapped Legacy Provider", unofficial=False)
+        capabilities = (CapabilityDeclaration(CapabilityId.SPEECH_TO_TEXT),)
+
+        async def transcribe_batch(
+            self,
+            audio: tuple[bytes, ...],
+            **kwargs: Any,
+        ) -> tuple[ProviderSTTResult, ...]:
+            # Forward kwargs to legacy inner function which accepts neither timestamp kwarg
+            return legacy_inner(audio, **kwargs)
+
+    client = get_stt_client(providers=[WrappedLegacyProvider()])  # type: ignore[list-item]
+    res = await client.transcribe(
+        b"audio", language="en", with_timestamps=True, word_timestamps=True
+    )
+    assert res.text == "wrapped legacy text"
+    assert res.segments == ()
+    assert res.words == ()

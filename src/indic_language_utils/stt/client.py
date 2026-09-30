@@ -167,27 +167,24 @@ class STTClient:
                     if "word_timestamps" in supported:
                         transcribe_kwargs["word_timestamps"] = request.word_timestamps
 
-                    try:
-                        response = await provider.transcribe_batch(
-                            (request.audio,),
-                            **transcribe_kwargs,
-                        )
-                    except TypeError as exc:
-                        exc_msg = str(exc)
-                        if "unexpected keyword argument" in exc_msg:
-                            retry_kwargs = dict(transcribe_kwargs)
-                            if "word_timestamps" in exc_msg:
-                                retry_kwargs.pop("word_timestamps", None)
-                            if "with_timestamps" in exc_msg:
-                                retry_kwargs.pop("with_timestamps", None)
-                            if retry_kwargs != transcribe_kwargs:
-                                response = await provider.transcribe_batch(
-                                    (request.audio,),
-                                    **retry_kwargs,
-                                )
-                            else:
-                                raise
-                        else:
+                    retry_kwargs = dict(transcribe_kwargs)
+                    while True:
+                        try:
+                            response = await provider.transcribe_batch(
+                                (request.audio,),
+                                **retry_kwargs,
+                            )
+                            break
+                        except TypeError as exc:
+                            exc_msg = str(exc)
+                            if "unexpected keyword argument" in exc_msg:
+                                modified = False
+                                for kw in ("word_timestamps", "with_timestamps"):
+                                    if kw in exc_msg and kw in retry_kwargs:
+                                        retry_kwargs.pop(kw, None)
+                                        modified = True
+                                if modified:
+                                    continue
                             raise
                     if len(response) != 1 or not isinstance(response[0].text, str):
                         raise OutputValidationError(
