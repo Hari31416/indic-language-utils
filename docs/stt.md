@@ -208,7 +208,7 @@ for segment in result.segments:
 
 Supported providers:
 
-- **Faster-Whisper**: Extracts segment timestamps (`start`, `end`) and word timestamps (`word`, `start`, `end`, `probability`) when `with_timestamps=True` or `word_timestamps=True`.
+- **Faster-Whisper**: Extracts segment timestamps (`start`, `end`) when `with_timestamps=True`, and word-level timestamps (`word`, `start`, `end`, `probability`) when `word_timestamps=True` (or when enabled via `FasterWhisperSTTConfig.word_timestamps`).
 - **Sarvam AI**: Requests aligned timestamps with `with_timestamps="true"` and parses chunk intervals and word timestamps into `segments` and `words`.
 - **Bhashini, Gnani, and Google Free**: Return empty `segments` and `words` tuples gracefully when timestamps are requested or routed to them as fallbacks.
 

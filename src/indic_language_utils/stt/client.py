@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
+from typing import Any
 
 from ..errors import (
     ConfigurationError,
@@ -28,6 +30,17 @@ _FALLBACK_ERRORS = (
     MalformedProviderResponseError,
     OutputValidationError,
 )
+
+
+def _supports_timestamp_kwargs(func: object) -> bool:
+    try:
+        sig = inspect.signature(func)  # type: ignore[arg-type]
+    except (ValueError, TypeError):
+        return True
+    params = sig.parameters
+    if any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values()):
+        return True
+    return "with_timestamps" in params or "word_timestamps" in params
 
 
 class STTClient:
@@ -140,18 +153,26 @@ class STTClient:
                 if not isinstance(provider, STTProvider):
                     continue
                 try:
+                    transcribe_kwargs: dict[str, Any] = {
+                        "language": language,
+                        "audio_format": request.audio_format,
+                        "sampling_rate": request.sampling_rate,
+                        "request_id": request.context.request_id,
+                    }
+                    if _supports_timestamp_kwargs(provider.transcribe_batch):
+                        transcribe_kwargs["with_timestamps"] = request.with_timestamps
+                        transcribe_kwargs["word_timestamps"] = request.word_timestamps
+
                     try:
                         response = await provider.transcribe_batch(
                             (request.audio,),
-                            language=language,
-                            audio_format=request.audio_format,
-                            sampling_rate=request.sampling_rate,
-                            request_id=request.context.request_id,
-                            with_timestamps=request.with_timestamps,
-                            word_timestamps=request.word_timestamps,
+                            **transcribe_kwargs,
                         )
                     except TypeError as exc:
-                        if "with_timestamps" in str(exc) or "word_timestamps" in str(exc):
+                        exc_msg = str(exc)
+                        if "unexpected keyword argument" in exc_msg and (
+                            "with_timestamps" in exc_msg or "word_timestamps" in exc_msg
+                        ):
                             response = await provider.transcribe_batch(
                                 (request.audio,),
                                 language=language,

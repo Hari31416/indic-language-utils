@@ -308,19 +308,26 @@ async def test_faster_whisper_with_timestamps() -> None:
     provider = FasterWhisperSTTProvider(model=mock_model)
     client = get_stt_client(providers=[provider])
 
+    # Segment timestamps only: does not trigger word alignment
     res = await client.transcribe(b"audio", language="hi", with_timestamps=True)
     assert res.text == "namaste duniya"
+    assert mock_model.recorded_kwargs.get("word_timestamps") is not True
     assert len(res.segments) == 2
     assert res.segments[0].text == "namaste"
     assert res.segments[0].start == 0.0
     assert res.segments[0].end == 1.0
+    assert res.segments[0].words == ()
     assert res.segments[1].text == "duniya"
     assert res.segments[1].start == 1.0
     assert res.segments[1].end == 2.0
-    assert len(res.words) == 2
-    assert res.words[0].word == "namaste"
-    assert res.words[1].word == "duniya"
+    assert len(res.words) == 0
 
+    # Word timestamps: triggers word alignment and returns words
     res_words = await client.transcribe(b"audio", language="hi", word_timestamps=True)
     assert mock_model.recorded_kwargs.get("word_timestamps") is True
     assert len(res_words.words) == 2
+    assert res_words.words[0].word == "namaste"
+    assert res_words.words[1].word == "duniya"
+    assert len(res_words.segments) == 2
+    assert len(res_words.segments[0].words) == 1
+    assert res_words.segments[0].words[0].word == "namaste"

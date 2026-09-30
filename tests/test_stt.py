@@ -228,3 +228,74 @@ def test_stt_request_positional_context() -> None:
     req_words = STTRequest(b"audio", "hi", word_timestamps=True)
     assert req_words.with_timestamps is True
     assert req_words.word_timestamps is True
+
+
+@pytest.mark.asyncio
+async def test_stt_client_legacy_provider_signature() -> None:
+    from indic_language_utils.models import ProviderIdentity
+    from indic_language_utils.providers import CapabilityDeclaration, CapabilityId
+    from indic_language_utils.stt import ProviderSTTResult
+
+    class LegacyProvider:
+        identity = ProviderIdentity("legacy", "Legacy Provider", unofficial=False)
+        capabilities = (CapabilityDeclaration(CapabilityId.SPEECH_TO_TEXT),)
+
+        async def transcribe_batch(
+            self,
+            audio: tuple[bytes, ...],
+            *,
+            language: object,
+            audio_format: str,
+            sampling_rate: int,
+            request_id: str,
+        ) -> tuple[ProviderSTTResult, ...]:
+            return (
+                ProviderSTTResult(
+                    text="legacy text",
+                    model_id="legacy-model",
+                    request_id="legacy-req",
+                ),
+            )
+
+    # Intentionally tests runtime backward compatibility with legacy provider signatures
+    client = get_stt_client(providers=[LegacyProvider()])  # type: ignore[list-item]
+    res = await client.transcribe(b"audio", language="en", with_timestamps=True)
+    assert res.text == "legacy text"
+    assert res.segments == ()
+    assert res.words == ()
+
+
+@pytest.mark.asyncio
+async def test_stt_client_internal_type_error_not_retried() -> None:
+    from indic_language_utils.models import ProviderIdentity
+    from indic_language_utils.providers import CapabilityDeclaration, CapabilityId
+    from indic_language_utils.stt import ProviderSTTResult, STTProvider
+
+    call_count = 0
+
+    class BuggyProvider(STTProvider):
+        identity = ProviderIdentity("buggy", "Buggy Provider", unofficial=False)
+        capabilities = (CapabilityDeclaration(CapabilityId.SPEECH_TO_TEXT),)
+
+        async def transcribe_batch(
+            self,
+            audio: tuple[bytes, ...],
+            *,
+            language: object,
+            audio_format: str,
+            sampling_rate: int,
+            request_id: str,
+            with_timestamps: bool = False,
+            word_timestamps: bool = False,
+        ) -> tuple[ProviderSTTResult, ...]:
+            nonlocal call_count
+            call_count += 1
+            # Internal TypeError mentioning with_timestamps
+            raise TypeError("internal operation failed on with_timestamps")
+
+    client = get_stt_client(providers=[BuggyProvider()])
+    with pytest.raises(TypeError, match="internal operation failed on with_timestamps"):
+        await client.transcribe(b"audio", language="en", with_timestamps=True)
+
+    # Should not have retried
+    assert call_count == 1

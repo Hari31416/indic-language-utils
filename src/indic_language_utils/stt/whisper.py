@@ -283,6 +283,7 @@ class FasterWhisperSTTProvider(STTProvider):
 
         lang_code = whisper_language_code(language)
         want_timestamps = with_timestamps or word_timestamps or self.config.word_timestamps
+        need_words = word_timestamps or (self.config.word_timestamps and want_timestamps)
 
         def _transcribe_one(
             clip: bytes,
@@ -295,7 +296,7 @@ class FasterWhisperSTTProvider(STTProvider):
                     "beam_size": self.config.beam_size,
                     "vad_filter": self.config.vad_filter,
                 }
-                if want_timestamps:
+                if need_words:
                     transcribe_kwargs["word_timestamps"] = True
 
                 segments, info = model.transcribe(audio_stream, **transcribe_kwargs)
@@ -310,22 +311,23 @@ class FasterWhisperSTTProvider(STTProvider):
 
                     if want_timestamps:
                         seg_words: list[STTWord] = []
-                        raw_words = getattr(s, "words", None)
-                        if raw_words:
-                            for w in raw_words:
-                                w_word = str(getattr(w, "word", ""))
-                                w_start = float(getattr(w, "start", 0.0))
-                                w_end = float(getattr(w, "end", 0.0))
-                                w_prob = getattr(w, "probability", None)
-                                w_prob_val = float(w_prob) if w_prob is not None else None
-                                word_obj = STTWord(
-                                    word=w_word,
-                                    start=w_start,
-                                    end=w_end,
-                                    probability=w_prob_val,
-                                )
-                                seg_words.append(word_obj)
-                                all_words.append(word_obj)
+                        if need_words:
+                            raw_words = getattr(s, "words", None)
+                            if raw_words:
+                                for w in raw_words:
+                                    w_word = str(getattr(w, "word", ""))
+                                    w_start = float(getattr(w, "start", 0.0))
+                                    w_end = float(getattr(w, "end", 0.0))
+                                    w_prob = getattr(w, "probability", None)
+                                    w_prob_val = float(w_prob) if w_prob is not None else None
+                                    word_obj = STTWord(
+                                        word=w_word,
+                                        start=w_start,
+                                        end=w_end,
+                                        probability=w_prob_val,
+                                    )
+                                    seg_words.append(word_obj)
+                                    all_words.append(word_obj)
 
                         start_sec = float(getattr(s, "start", 0.0))
                         end_sec = float(getattr(s, "end", 0.0))

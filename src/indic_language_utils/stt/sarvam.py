@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager
 
@@ -23,6 +24,8 @@ from ..providers.sarvam import SarvamConfig, _raise_sarvam_status, sarvam_langua
 from ..retry import retry
 from .models import ProviderSTTResult, STTSegment, STTWord
 from .sarvam_stream import SarvamSTTStream, open_sarvam_stt_stream
+
+logger = logging.getLogger(__name__)
 
 
 class SarvamSTTProvider:
@@ -159,40 +162,9 @@ class SarvamSTTProvider:
                 )
                 segments: list[STTSegment] = []
                 words: list[STTWord] = []
-                raw_timestamps = data.get("timestamps")
-                if isinstance(raw_timestamps, Mapping):
-                    raw_words = raw_timestamps.get("words")
-                    raw_starts = raw_timestamps.get("start_time_seconds")
-                    raw_ends = raw_timestamps.get("end_time_seconds")
-                    if (
-                        isinstance(raw_words, (list, tuple))
-                        and isinstance(raw_starts, (list, tuple))
-                        and isinstance(raw_ends, (list, tuple))
-                    ):
-                        for w_text, s_time, e_time in zip(
-                            raw_words, raw_starts, raw_ends, strict=False
-                        ):
-                            try:
-                                s_float = float(s_time)
-                                e_float = float(e_time)
-                            except (TypeError, ValueError):
-                                continue
-                            word_item = STTWord(
-                                word=str(w_text),
-                                start=s_float,
-                                end=e_float,
-                            )
-                            words.append(word_item)
-                            segments.append(
-                                STTSegment(
-                                    text=str(w_text),
-                                    start=s_float,
-                                    end=e_float,
-                                    words=(word_item,),
-                                )
-                            )
+
                 raw_segments = data.get("segments")
-                if isinstance(raw_segments, (list, tuple)) and not segments:
+                if isinstance(raw_segments, (list, tuple)):
                     for seg in raw_segments:
                         if isinstance(seg, Mapping):
                             s_text = str(seg.get("text", seg.get("transcript", "")))
@@ -204,6 +176,66 @@ class SarvamSTTProvider:
                             except (TypeError, ValueError):
                                 continue
                             segments.append(STTSegment(text=s_text, start=s_start, end=s_end))
+
+                raw_timestamps = data.get("timestamps")
+                if isinstance(raw_timestamps, Mapping):
+                    raw_words = raw_timestamps.get("words")
+                    raw_starts = raw_timestamps.get("start_time_seconds")
+                    raw_ends = raw_timestamps.get("end_time_seconds")
+                    if (
+                        isinstance(raw_words, (list, tuple))
+                        and isinstance(raw_starts, (list, tuple))
+                        and isinstance(raw_ends, (list, tuple))
+                    ):
+                        if len(raw_words) == len(raw_starts) == len(raw_ends):
+                            for w_text, s_time, e_time in zip(
+                                raw_words, raw_starts, raw_ends, strict=True
+                            ):
+                                try:
+                                    s_float = float(s_time)
+                                    e_float = float(e_time)
+                                except (TypeError, ValueError):
+                                    continue
+                                word_item = STTWord(
+                                    word=str(w_text),
+                                    start=s_float,
+                                    end=e_float,
+                                )
+                                words.append(word_item)
+                        else:
+                            logger.warning(
+                                "Sarvam returned mismatched timestamp array lengths: "
+                                "words=%d, start_time_seconds=%d, end_time_seconds=%d",
+                                len(raw_words),
+                                len(raw_starts),
+                                len(raw_ends),
+                            )
+
+                if segments and words:
+                    updated_segments: list[STTSegment] = []
+                    for seg in segments:
+                        seg_words = tuple(
+                            w for w in words if seg.start <= w.start and w.end <= seg.end + 0.05
+                        )
+                        updated_segments.append(
+                            STTSegment(
+                                text=seg.text,
+                                start=seg.start,
+                                end=seg.end,
+                                words=seg_words,
+                            )
+                        )
+                    segments = updated_segments
+                elif not segments and words:
+                    segments = [
+                        STTSegment(
+                            text=w.word,
+                            start=w.start,
+                            end=w.end,
+                            words=(w,),
+                        )
+                        for w in words
+                    ]
 
                 results.append(
                     ProviderSTTResult(
