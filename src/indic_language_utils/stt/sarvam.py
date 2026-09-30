@@ -21,7 +21,7 @@ from ..providers import CapabilityDeclaration, CapabilityId
 from ..providers.bhashini import JsonResponse, _header
 from ..providers.sarvam import SarvamConfig, _raise_sarvam_status, sarvam_language_code
 from ..retry import retry
-from .models import ProviderSTTResult
+from .models import ProviderSTTResult, STTSegment, STTWord
 from .sarvam_stream import SarvamSTTStream, open_sarvam_stt_stream
 
 
@@ -106,11 +106,14 @@ class SarvamSTTProvider:
         if client is None:
             client = httpx.AsyncClient()
         results: list[ProviderSTTResult] = []
+        want_timestamps = with_timestamps or word_timestamps
         try:
             for clip in audio:
                 form = {"model": model_id, "mode": "transcribe"}
                 if language is not None:
                     form["language_code"] = sarvam_language_code(language)
+                if want_timestamps:
+                    form["with_timestamps"] = "true"
 
                 async def send(form: dict[str, str] = form, clip: bytes = clip) -> JsonResponse:
                     async with self._limiter.slot("sarvam", CapabilityId.SPEECH_TO_TEXT):
@@ -154,6 +157,54 @@ class SarvamSTTProvider:
                     if isinstance(raw_language, str) and raw_language != "unknown"
                     else None
                 )
+                segments: list[STTSegment] = []
+                words: list[STTWord] = []
+                raw_timestamps = data.get("timestamps")
+                if isinstance(raw_timestamps, Mapping):
+                    raw_words = raw_timestamps.get("words")
+                    raw_starts = raw_timestamps.get("start_time_seconds")
+                    raw_ends = raw_timestamps.get("end_time_seconds")
+                    if (
+                        isinstance(raw_words, (list, tuple))
+                        and isinstance(raw_starts, (list, tuple))
+                        and isinstance(raw_ends, (list, tuple))
+                    ):
+                        for w_text, s_time, e_time in zip(
+                            raw_words, raw_starts, raw_ends, strict=False
+                        ):
+                            try:
+                                s_float = float(s_time)
+                                e_float = float(e_time)
+                            except (TypeError, ValueError):
+                                continue
+                            word_item = STTWord(
+                                word=str(w_text),
+                                start=s_float,
+                                end=e_float,
+                            )
+                            words.append(word_item)
+                            segments.append(
+                                STTSegment(
+                                    text=str(w_text),
+                                    start=s_float,
+                                    end=e_float,
+                                    words=(word_item,),
+                                )
+                            )
+                raw_segments = data.get("segments")
+                if isinstance(raw_segments, (list, tuple)) and not segments:
+                    for seg in raw_segments:
+                        if isinstance(seg, Mapping):
+                            s_text = str(seg.get("text", seg.get("transcript", "")))
+                            try:
+                                raw_s = seg.get("start_time_seconds", seg.get("start", 0.0))
+                                raw_e = seg.get("end_time_seconds", seg.get("end", 0.0))
+                                s_start = float(raw_s)
+                                s_end = float(raw_e)
+                            except (TypeError, ValueError):
+                                continue
+                            segments.append(STTSegment(text=s_text, start=s_start, end=s_end))
+
                 results.append(
                     ProviderSTTResult(
                         data["transcript"],
@@ -162,6 +213,8 @@ class SarvamSTTProvider:
                         if isinstance(response_id, str)
                         else _header(response.headers, "x-request-id"),
                         detected_language,
+                        segments=tuple(segments),
+                        words=tuple(words),
                     )
                 )
             return tuple(results)
