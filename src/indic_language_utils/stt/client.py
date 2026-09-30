@@ -32,15 +32,15 @@ _FALLBACK_ERRORS = (
 )
 
 
-def _supports_timestamp_kwargs(func: object) -> bool:
+def _supported_kwargs(func: object, *arg_names: str) -> set[str]:
     try:
         sig = inspect.signature(func)  # type: ignore[arg-type]
     except (ValueError, TypeError):
-        return True
+        return set(arg_names)
     params = sig.parameters
     if any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values()):
-        return True
-    return "with_timestamps" in params or "word_timestamps" in params
+        return set(arg_names)
+    return {name for name in arg_names if name in params}
 
 
 class STTClient:
@@ -159,8 +159,12 @@ class STTClient:
                         "sampling_rate": request.sampling_rate,
                         "request_id": request.context.request_id,
                     }
-                    if _supports_timestamp_kwargs(provider.transcribe_batch):
+                    supported = _supported_kwargs(
+                        provider.transcribe_batch, "with_timestamps", "word_timestamps"
+                    )
+                    if "with_timestamps" in supported:
                         transcribe_kwargs["with_timestamps"] = request.with_timestamps
+                    if "word_timestamps" in supported:
                         transcribe_kwargs["word_timestamps"] = request.word_timestamps
 
                     try:
@@ -170,16 +174,19 @@ class STTClient:
                         )
                     except TypeError as exc:
                         exc_msg = str(exc)
-                        if "unexpected keyword argument" in exc_msg and (
-                            "with_timestamps" in exc_msg or "word_timestamps" in exc_msg
-                        ):
-                            response = await provider.transcribe_batch(
-                                (request.audio,),
-                                language=language,
-                                audio_format=request.audio_format,
-                                sampling_rate=request.sampling_rate,
-                                request_id=request.context.request_id,
-                            )
+                        if "unexpected keyword argument" in exc_msg:
+                            retry_kwargs = dict(transcribe_kwargs)
+                            if "word_timestamps" in exc_msg:
+                                retry_kwargs.pop("word_timestamps", None)
+                            if "with_timestamps" in exc_msg:
+                                retry_kwargs.pop("with_timestamps", None)
+                            if retry_kwargs != transcribe_kwargs:
+                                response = await provider.transcribe_batch(
+                                    (request.audio,),
+                                    **retry_kwargs,
+                                )
+                            else:
+                                raise
                         else:
                             raise
                     if len(response) != 1 or not isinstance(response[0].text, str):

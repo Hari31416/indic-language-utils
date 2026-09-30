@@ -299,3 +299,47 @@ async def test_stt_client_internal_type_error_not_retried() -> None:
 
     # Should not have retried
     assert call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_stt_client_provider_with_only_segment_timestamps() -> None:
+    from indic_language_utils.models import ProviderIdentity
+    from indic_language_utils.providers import CapabilityDeclaration, CapabilityId
+    from indic_language_utils.stt import ProviderSTTResult, STTSegment
+
+    class SegmentOnlyProvider:
+        identity = ProviderIdentity("segment_only", "Segment Only Provider", unofficial=False)
+        capabilities = (CapabilityDeclaration(CapabilityId.SPEECH_TO_TEXT),)
+
+        async def transcribe_batch(
+            self,
+            audio: tuple[bytes, ...],
+            *,
+            language: object,
+            audio_format: str,
+            sampling_rate: int,
+            request_id: str,
+            with_timestamps: bool = False,
+        ) -> tuple[ProviderSTTResult, ...]:
+            seg = STTSegment(text="seg text", start=0.0, end=1.0)
+            return (
+                ProviderSTTResult(
+                    text="seg text",
+                    model_id="seg-model",
+                    request_id="seg-req",
+                    segments=(seg,) if with_timestamps else (),
+                ),
+            )
+
+    client = get_stt_client(providers=[SegmentOnlyProvider()])  # type: ignore[list-item]
+    # Requesting both timestamp types
+    res = await client.transcribe(
+        b"audio", language="en", with_timestamps=True, word_timestamps=True
+    )
+    assert res.text == "seg text"
+    # Supported with_timestamps should NOT have been dropped
+    assert len(res.segments) == 1
+    assert res.segments[0].text == "seg text"
+    assert res.segments[0].start == 0.0
+    assert res.segments[0].end == 1.0
+    assert res.words == ()
