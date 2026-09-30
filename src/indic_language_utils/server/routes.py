@@ -162,6 +162,20 @@ class TTSResponseBody(BaseModel):
     cache_backend: str
 
 
+class STTWordModel(BaseModel):
+    word: str
+    start: float
+    end: float
+    probability: float | None = None
+
+
+class STTSegmentModel(BaseModel):
+    text: str
+    start: float
+    end: float
+    words: list[STTWordModel] = Field(default_factory=list)
+
+
 class STTRequestBody(BaseModel):
     audio_base64: str = Field(
         ...,
@@ -175,6 +189,8 @@ class STTRequestBody(BaseModel):
     audio_format: str = Field(default="wav", description="Audio container format")
     sampling_rate: int = Field(default=16000, gt=0, description="Audio sample rate in Hz")
     provider: str | None = Field(default=None, description="Provider ID or null for auto routing")
+    with_timestamps: bool = Field(default=False, description="Enable segment timestamps")
+    word_timestamps: bool = Field(default=False, description="Enable word timestamps")
 
 
 class STTResponseBody(BaseModel):
@@ -187,6 +203,8 @@ class STTResponseBody(BaseModel):
     fallback_count: int
     cached: bool
     cache_backend: str
+    segments: list[STTSegmentModel] = Field(default_factory=list)
+    words: list[STTWordModel] = Field(default_factory=list)
 
 
 class TranslateRequestBody(BaseModel):
@@ -820,7 +838,14 @@ async def transcribe_audio(body: STTRequestBody, request: Request) -> STTRespons
         raise HTTPException(status_code=413, detail="Audio exceeds the 10 MiB limit")
 
     try:
-        request_obj = STTRequest(audio, body.language, body.audio_format, body.sampling_rate)
+        request_obj = STTRequest(
+            audio,
+            body.language,
+            body.audio_format,
+            body.sampling_rate,
+            with_timestamps=body.with_timestamps,
+            word_timestamps=body.word_timestamps,
+        )
     except (LanguageUtilsError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -888,6 +913,32 @@ async def transcribe_audio(body: STTRequestBody, request: Request) -> STTRespons
         fallback_count=result.fallback_count,
         cached=False,
         cache_backend="none",
+        segments=[
+            STTSegmentModel(
+                text=seg.text,
+                start=seg.start,
+                end=seg.end,
+                words=[
+                    STTWordModel(
+                        word=w.word,
+                        start=w.start,
+                        end=w.end,
+                        probability=w.probability,
+                    )
+                    for w in seg.words
+                ],
+            )
+            for seg in result.segments
+        ],
+        words=[
+            STTWordModel(
+                word=w.word,
+                start=w.start,
+                end=w.end,
+                probability=w.probability,
+            )
+            for w in result.words
+        ],
     )
 
 
