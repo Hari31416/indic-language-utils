@@ -30,9 +30,9 @@ class STTRequest:
     language: LanguageTag | None
     audio_format: str = "wav"
     sampling_rate: int = 16000
+    context: OperationContext = field(default_factory=OperationContext)
     with_timestamps: bool = False
     word_timestamps: bool = False
-    context: OperationContext = field(default_factory=OperationContext)
 
     def __init__(
         self,
@@ -40,10 +40,10 @@ class STTRequest:
         language: LanguageTag | str | None = None,
         audio_format: str = "wav",
         sampling_rate: int = 16000,
-        with_timestamps: bool = False,
-        word_timestamps: bool = False,
         context: OperationContext | None = None,
         *,
+        with_timestamps: bool = False,
+        word_timestamps: bool = False,
         language_registry: LanguageRegistry | None = None,
     ) -> None:
         if not isinstance(audio, bytes) or not audio:
@@ -62,9 +62,9 @@ class STTRequest:
         )
         object.__setattr__(self, "audio_format", audio_format)
         object.__setattr__(self, "sampling_rate", sampling_rate)
+        object.__setattr__(self, "context", context or OperationContext())
         object.__setattr__(self, "with_timestamps", bool(with_timestamps or word_timestamps))
         object.__setattr__(self, "word_timestamps", bool(word_timestamps))
-        object.__setattr__(self, "context", context or OperationContext())
 
 
 @dataclass(frozen=True, slots=True)

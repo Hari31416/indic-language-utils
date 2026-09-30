@@ -283,7 +283,6 @@ class FasterWhisperSTTProvider(STTProvider):
 
         lang_code = whisper_language_code(language)
         want_timestamps = with_timestamps or word_timestamps or self.config.word_timestamps
-        need_word_timestamps = word_timestamps or self.config.word_timestamps
 
         def _transcribe_one(
             clip: bytes,
@@ -296,7 +295,7 @@ class FasterWhisperSTTProvider(STTProvider):
                     "beam_size": self.config.beam_size,
                     "vad_filter": self.config.vad_filter,
                 }
-                if need_word_timestamps:
+                if want_timestamps:
                     transcribe_kwargs["word_timestamps"] = True
 
                 segments, info = model.transcribe(audio_stream, **transcribe_kwargs)

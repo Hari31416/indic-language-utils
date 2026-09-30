@@ -208,3 +208,23 @@ async def test_stt_client_propagates_timestamps() -> None:
     assert len(res_with_words.words) == 1
     assert res_with_words.words[0].word == "test"
     assert res_with_words.words[0].end == 0.4
+
+
+def test_stt_request_positional_context() -> None:
+    from indic_language_utils.models import OperationContext
+
+    ctx = OperationContext(request_id="custom-req-id")
+    # Call with 5 positional arguments (the legacy signature)
+    req = STTRequest(b"audio", "hi", "wav", 16000, ctx)
+    assert req.context.request_id == "custom-req-id"
+    assert req.with_timestamps is False
+    assert req.word_timestamps is False
+
+    # Calling with keyword-only timestamp arguments
+    req_ts = STTRequest(b"audio", "hi", with_timestamps=True)
+    assert req_ts.with_timestamps is True
+    assert req_ts.word_timestamps is False
+
+    req_words = STTRequest(b"audio", "hi", word_timestamps=True)
+    assert req_words.with_timestamps is True
+    assert req_words.word_timestamps is True

@@ -59,15 +59,7 @@ class MockWhisperModel:
         segments: tuple[str, ...] = ("नमस्ते", "दुनिया"),
         detected_lang: str = "hi",
     ) -> None:
-        self.segments = [
-            MockSegment(
-                s,
-                start=i * 1.0,
-                end=(i + 1) * 1.0,
-                words=[MockWord(s, i * 1.0, (i + 1) * 1.0)],
-            )
-            for i, s in enumerate(segments)
-        ]
+        self.raw_texts = segments
         self.info = MockInfo(detected_lang)
         self.recorded_lang: str | None = None
         self.recorded_beam_size: int | None = None
@@ -86,7 +78,17 @@ class MockWhisperModel:
         self.recorded_lang = language
         self.recorded_beam_size = beam_size
         self.recorded_kwargs = kwargs
-        return iter(self.segments), self.info
+        has_word_timestamps = kwargs.get("word_timestamps", False)
+        segments = [
+            MockSegment(
+                s,
+                start=i * 1.0,
+                end=(i + 1) * 1.0,
+                words=[MockWord(s, i * 1.0, (i + 1) * 1.0)] if has_word_timestamps else None,
+            )
+            for i, s in enumerate(self.raw_texts)
+        ]
+        return iter(segments), self.info
 
 
 def test_faster_whisper_config_defaults() -> None:
