@@ -274,6 +274,8 @@ class GoogleFreeSTTProvider(STTProvider):
         audio_format: str,
         sampling_rate: int,
         request_id: str,
+        with_timestamps: bool = False,
+        word_timestamps: bool = False,
     ) -> tuple[ProviderSTTResult, ...]:
         if not audio or any(not isinstance(item, bytes) or not item for item in audio):
             raise InvalidInputError(

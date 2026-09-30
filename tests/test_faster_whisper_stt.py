@@ -26,9 +26,26 @@ from indic_language_utils.stt.whisper import (
 )
 
 
+class MockWord:
+    def __init__(self, word: str, start: float, end: float, probability: float = 0.9) -> None:
+        self.word = word
+        self.start = start
+        self.end = end
+        self.probability = probability
+
+
 class MockSegment:
-    def __init__(self, text: str) -> None:
+    def __init__(
+        self,
+        text: str,
+        start: float = 0.0,
+        end: float = 1.0,
+        words: list[MockWord] | None = None,
+    ) -> None:
         self.text = text
+        self.start = start
+        self.end = end
+        self.words = words or []
 
 
 class MockInfo:
@@ -42,10 +59,11 @@ class MockWhisperModel:
         segments: tuple[str, ...] = ("नमस्ते", "दुनिया"),
         detected_lang: str = "hi",
     ) -> None:
-        self.segments = [MockSegment(s) for s in segments]
+        self.raw_texts = segments
         self.info = MockInfo(detected_lang)
         self.recorded_lang: str | None = None
         self.recorded_beam_size: int | None = None
+        self.recorded_kwargs: dict[str, Any] = {}
         self.call_count = 0
 
     def transcribe(
@@ -54,11 +72,23 @@ class MockWhisperModel:
         language: str | None = None,
         beam_size: int = 5,
         vad_filter: bool = False,
+        **kwargs: Any,
     ) -> tuple[Any, MockInfo]:
         self.call_count += 1
         self.recorded_lang = language
         self.recorded_beam_size = beam_size
-        return iter(self.segments), self.info
+        self.recorded_kwargs = kwargs
+        has_word_timestamps = kwargs.get("word_timestamps", False)
+        segments = [
+            MockSegment(
+                s,
+                start=i * 1.0,
+                end=(i + 1) * 1.0,
+                words=[MockWord(s, i * 1.0, (i + 1) * 1.0)] if has_word_timestamps else None,
+            )
+            for i, s in enumerate(self.raw_texts)
+        ]
+        return iter(segments), self.info
 
 
 def test_faster_whisper_config_defaults() -> None:
@@ -270,3 +300,34 @@ async def test_faster_whisper_client_integration() -> None:
     assert res.text == "integrated test"
     assert res.provider == "faster_whisper"
     assert res.model_id == "faster-whisper-base"
+
+
+@pytest.mark.asyncio
+async def test_faster_whisper_with_timestamps() -> None:
+    mock_model = MockWhisperModel(segments=("namaste", "duniya"), detected_lang="hi")
+    provider = FasterWhisperSTTProvider(model=mock_model)
+    client = get_stt_client(providers=[provider])
+
+    # Segment timestamps only: does not trigger word alignment
+    res = await client.transcribe(b"audio", language="hi", with_timestamps=True)
+    assert res.text == "namaste duniya"
+    assert mock_model.recorded_kwargs.get("word_timestamps") is not True
+    assert len(res.segments) == 2
+    assert res.segments[0].text == "namaste"
+    assert res.segments[0].start == 0.0
+    assert res.segments[0].end == 1.0
+    assert res.segments[0].words == ()
+    assert res.segments[1].text == "duniya"
+    assert res.segments[1].start == 1.0
+    assert res.segments[1].end == 2.0
+    assert len(res.words) == 0
+
+    # Word timestamps: triggers word alignment and returns words
+    res_words = await client.transcribe(b"audio", language="hi", word_timestamps=True)
+    assert mock_model.recorded_kwargs.get("word_timestamps") is True
+    assert len(res_words.words) == 2
+    assert res_words.words[0].word == "namaste"
+    assert res_words.words[1].word == "duniya"
+    assert len(res_words.segments) == 2
+    assert len(res_words.segments[0].words) == 1
+    assert res_words.segments[0].words[0].word == "namaste"

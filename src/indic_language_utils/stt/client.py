@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
+from typing import Any
 
 from ..errors import (
     ConfigurationError,
@@ -28,6 +30,17 @@ _FALLBACK_ERRORS = (
     MalformedProviderResponseError,
     OutputValidationError,
 )
+
+
+def _supported_kwargs(func: object, *arg_names: str) -> set[str]:
+    try:
+        sig = inspect.signature(func)  # type: ignore[arg-type]
+    except (ValueError, TypeError):
+        return set(arg_names)
+    params = sig.parameters
+    if any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values()):
+        return set(arg_names)
+    return {name for name in arg_names if name in params}
 
 
 class STTClient:
@@ -104,6 +117,8 @@ class STTClient:
         language: LanguageTag | str | None = None,
         audio_format: str = "wav",
         sampling_rate: int = 16000,
+        with_timestamps: bool = False,
+        word_timestamps: bool = False,
     ) -> STTResult:
         if isinstance(audio, STTRequest):
             request = audio
@@ -113,6 +128,8 @@ class STTClient:
                 language,
                 audio_format,
                 sampling_rate,
+                with_timestamps=with_timestamps,
+                word_timestamps=word_timestamps,
                 language_registry=self._language_registry,
             )
         return (await self.transcribe_batch((request,)))[0]
@@ -136,13 +153,39 @@ class STTClient:
                 if not isinstance(provider, STTProvider):
                     continue
                 try:
-                    response = await provider.transcribe_batch(
-                        (request.audio,),
-                        language=language,
-                        audio_format=request.audio_format,
-                        sampling_rate=request.sampling_rate,
-                        request_id=request.context.request_id,
+                    transcribe_kwargs: dict[str, Any] = {
+                        "language": language,
+                        "audio_format": request.audio_format,
+                        "sampling_rate": request.sampling_rate,
+                        "request_id": request.context.request_id,
+                    }
+                    supported = _supported_kwargs(
+                        provider.transcribe_batch, "with_timestamps", "word_timestamps"
                     )
+                    if "with_timestamps" in supported:
+                        transcribe_kwargs["with_timestamps"] = request.with_timestamps
+                    if "word_timestamps" in supported:
+                        transcribe_kwargs["word_timestamps"] = request.word_timestamps
+
+                    retry_kwargs = dict(transcribe_kwargs)
+                    while True:
+                        try:
+                            response = await provider.transcribe_batch(
+                                (request.audio,),
+                                **retry_kwargs,
+                            )
+                            break
+                        except TypeError as exc:
+                            exc_msg = str(exc)
+                            if "unexpected keyword argument" in exc_msg:
+                                modified = False
+                                for kw in ("word_timestamps", "with_timestamps"):
+                                    if kw in exc_msg and kw in retry_kwargs:
+                                        retry_kwargs.pop(kw, None)
+                                        modified = True
+                                if modified:
+                                    continue
+                            raise
                     if len(response) != 1 or not isinstance(response[0].text, str):
                         raise OutputValidationError(
                             "STT provider returned invalid output",
@@ -159,6 +202,8 @@ class STTClient:
                             request.context.request_id,
                             item.request_id,
                             fallback_count,
+                            segments=item.segments,
+                            words=item.words,
                         )
                     )
                     break

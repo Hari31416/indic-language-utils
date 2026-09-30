@@ -24,7 +24,7 @@ from ..languages import DEFAULT_LANGUAGE_REGISTRY, LanguageTag
 from ..models import ProviderIdentity
 from ..providers import CapabilityDeclaration, CapabilityId
 from ..retry import RetryPolicy, retry
-from .models import ProviderSTTResult
+from .models import ProviderSTTResult, STTSegment, STTWord
 from .protocols import STTProvider
 
 try:
@@ -96,6 +96,7 @@ class FasterWhisperSTTConfig:
     download_root: str | None = None
     beam_size: int = 5
     vad_filter: bool = False
+    word_timestamps: bool = False
     timeout_seconds: float = 60.0
     max_concurrency: int = 2
     retry_policy: RetryPolicy = field(default_factory=RetryPolicy)
@@ -121,6 +122,11 @@ class FasterWhisperSTTConfig:
                 "1",
                 "yes",
             )
+            word_timestamps = values.get("FASTER_WHISPER_WORD_TIMESTAMPS", "false").lower() in (
+                "true",
+                "1",
+                "yes",
+            )
             timeout = float(values.get("FASTER_WHISPER_TIMEOUT_SECONDS", "60"))
             concurrency = int(values.get("FASTER_WHISPER_MAX_CONCURRENCY", "2"))
             download_root = values.get("FASTER_WHISPER_DOWNLOAD_ROOT")
@@ -134,6 +140,7 @@ class FasterWhisperSTTConfig:
             num_workers=num_workers,
             beam_size=beam_size,
             vad_filter=vad_filter,
+            word_timestamps=word_timestamps,
             timeout_seconds=timeout,
             max_concurrency=concurrency,
             download_root=download_root,
@@ -176,6 +183,11 @@ class FasterWhisperSTTConfig:
                 "1",
                 "yes",
             )
+            word_timestamps = values.get("FASTER_WHISPER_WORD_TIMESTAMPS", "false").lower() in (
+                "true",
+                "1",
+                "yes",
+            )
             download_root = values.get("FASTER_WHISPER_DOWNLOAD_ROOT")
         except ValueError as exc:
             raise ConfigurationError("Faster-Whisper configuration is invalid") from exc
@@ -192,6 +204,7 @@ class FasterWhisperSTTConfig:
             num_workers=num_workers,
             beam_size=beam_size,
             vad_filter=vad_filter,
+            word_timestamps=word_timestamps,
             timeout_seconds=timeout,
             max_concurrency=concurrency,
             download_root=download_root,
@@ -257,6 +270,8 @@ class FasterWhisperSTTProvider(STTProvider):
         audio_format: str,
         sampling_rate: int,
         request_id: str,
+        with_timestamps: bool = False,
+        word_timestamps: bool = False,
     ) -> tuple[ProviderSTTResult, ...]:
         if not audio or any(not isinstance(item, bytes) or not item for item in audio):
             raise InvalidInputError(
@@ -267,24 +282,65 @@ class FasterWhisperSTTProvider(STTProvider):
             )
 
         lang_code = whisper_language_code(language)
+        want_timestamps = with_timestamps or word_timestamps or self.config.word_timestamps
+        need_words = word_timestamps or (self.config.word_timestamps and want_timestamps)
 
-        def _transcribe_one(clip: bytes) -> tuple[str, LanguageTag | None]:
+        def _transcribe_one(
+            clip: bytes,
+        ) -> tuple[str, LanguageTag | None, tuple[STTSegment, ...], tuple[STTWord, ...]]:
             try:
                 model = self._get_model()
                 audio_stream = io.BytesIO(clip)
-                segments, info = model.transcribe(
-                    audio_stream,
-                    language=lang_code,
-                    beam_size=self.config.beam_size,
-                    vad_filter=self.config.vad_filter,
-                )
+                transcribe_kwargs: dict[str, Any] = {
+                    "language": lang_code,
+                    "beam_size": self.config.beam_size,
+                    "vad_filter": self.config.vad_filter,
+                }
+                if need_words:
+                    transcribe_kwargs["word_timestamps"] = True
+
+                segments, info = model.transcribe(audio_stream, **transcribe_kwargs)
                 text_parts: list[str] = []
+                extracted_segments: list[STTSegment] = []
+                all_words: list[STTWord] = []
+
                 for s in segments:
                     seg_text = getattr(s, "text", "")
                     if seg_text and seg_text.strip():
                         text_parts.append(seg_text.strip())
-                text = " ".join(text_parts).strip()
 
+                    if want_timestamps:
+                        seg_words: list[STTWord] = []
+                        if need_words:
+                            raw_words = getattr(s, "words", None)
+                            if raw_words:
+                                for w in raw_words:
+                                    w_word = str(getattr(w, "word", ""))
+                                    w_start = float(getattr(w, "start", 0.0))
+                                    w_end = float(getattr(w, "end", 0.0))
+                                    w_prob = getattr(w, "probability", None)
+                                    w_prob_val = float(w_prob) if w_prob is not None else None
+                                    word_obj = STTWord(
+                                        word=w_word,
+                                        start=w_start,
+                                        end=w_end,
+                                        probability=w_prob_val,
+                                    )
+                                    seg_words.append(word_obj)
+                                    all_words.append(word_obj)
+
+                        start_sec = float(getattr(s, "start", 0.0))
+                        end_sec = float(getattr(s, "end", 0.0))
+                        extracted_segments.append(
+                            STTSegment(
+                                text=seg_text.strip() if seg_text else "",
+                                start=start_sec,
+                                end=end_sec,
+                                words=tuple(seg_words),
+                            )
+                        )
+
+                text = " ".join(text_parts).strip()
                 detected: LanguageTag | None = language
                 if detected is None and hasattr(info, "language") and info.language:
                     try:
@@ -292,7 +348,7 @@ class FasterWhisperSTTProvider(STTProvider):
                     except Exception:
                         detected = None
 
-                return text, detected
+                return text, detected, tuple(extracted_segments), tuple(all_words)
             except Exception as exc:
                 raise TransientProviderError(
                     f"Faster-Whisper STT failed: {exc}",
@@ -301,12 +357,18 @@ class FasterWhisperSTTProvider(STTProvider):
                     request_id=request_id,
                 ) from exc
 
-        async def _run_clip(clip: bytes) -> tuple[str, LanguageTag | None]:
+        async def _run_clip(
+            clip: bytes,
+        ) -> tuple[str, LanguageTag | None, tuple[STTSegment, ...], tuple[STTWord, ...]]:
             async with self._limiter.slot("faster_whisper", CapabilityId.SPEECH_TO_TEXT):
                 return await asyncio.to_thread(_transcribe_one, clip)
 
-        async def _transcribe_clip(clip_data: bytes) -> tuple[str, LanguageTag | None]:
-            async def _execute() -> tuple[str, LanguageTag | None]:
+        async def _transcribe_clip(
+            clip_data: bytes,
+        ) -> tuple[str, LanguageTag | None, tuple[STTSegment, ...], tuple[STTWord, ...]]:
+            async def _execute() -> tuple[
+                str, LanguageTag | None, tuple[STTSegment, ...], tuple[STTWord, ...]
+            ]:
                 task = asyncio.create_task(_run_clip(clip_data))
                 try:
                     return await asyncio.wait_for(
@@ -332,13 +394,15 @@ class FasterWhisperSTTProvider(STTProvider):
 
         results: list[ProviderSTTResult] = []
         for clip in audio:
-            text, detected_lang = await _transcribe_clip(clip)
+            text, detected_lang, segs, words = await _transcribe_clip(clip)
             results.append(
                 ProviderSTTResult(
                     text=text,
                     model_id=f"faster-whisper-{self.config.model_size_or_path}",
                     request_id=request_id,
                     detected_language=detected_lang,
+                    segments=segs,
+                    words=words,
                 )
             )
 

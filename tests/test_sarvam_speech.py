@@ -89,6 +89,130 @@ async def test_sarvam_stt_omits_language_when_unspecified() -> None:
     assert b'name="language_code"' not in requests[0].content
 
 
+@pytest.mark.asyncio
+async def test_sarvam_stt_with_timestamps() -> None:
+    requests: list[httpx.Request] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(
+            200,
+            json={
+                "transcript": "namaste bharat",
+                "request_id": "provider-ts",
+                "language_code": "hi-IN",
+                "timestamps": {
+                    "words": ["namaste", "bharat"],
+                    "start_time_seconds": [0.1, 0.7],
+                    "end_time_seconds": [0.6, 1.2],
+                },
+            },
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as http_client:
+        provider = SarvamSTTProvider(config(), client=http_client)
+        result = await provider.transcribe_batch(
+            (WAV,),
+            language=STTRequest(WAV, "hi").language,
+            audio_format="wav",
+            sampling_rate=16000,
+            request_id="req",
+            with_timestamps=True,
+        )
+    assert result[0].text == "namaste bharat"
+    assert len(result[0].segments) == 2
+    assert result[0].segments[0].text == "namaste"
+    assert result[0].segments[0].start == 0.1
+    assert result[0].segments[0].end == 0.6
+    assert result[0].segments[1].text == "bharat"
+    assert result[0].segments[1].start == 0.7
+    assert result[0].segments[1].end == 1.2
+    assert len(result[0].words) == 2
+    assert result[0].words[0].word == "namaste"
+    assert result[0].words[1].word == "bharat"
+
+    request = requests[0]
+    assert b'name="with_timestamps"' in request.content
+    assert b"true" in request.content
+
+
+@pytest.mark.asyncio
+async def test_sarvam_stt_preserves_chunk_segments_with_word_timestamps() -> None:
+    def respond(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "transcript": "namaste bharat",
+                "request_id": "provider-chunks",
+                "language_code": "hi-IN",
+                "segments": [
+                    {
+                        "text": "namaste bharat",
+                        "start_time_seconds": 0.1,
+                        "end_time_seconds": 1.2,
+                    }
+                ],
+                "timestamps": {
+                    "words": ["namaste", "bharat"],
+                    "start_time_seconds": [0.1, 0.7],
+                    "end_time_seconds": [0.6, 1.2],
+                },
+            },
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as http_client:
+        provider = SarvamSTTProvider(config(), client=http_client)
+        result = await provider.transcribe_batch(
+            (WAV,),
+            language=STTRequest(WAV, "hi").language,
+            audio_format="wav",
+            sampling_rate=16000,
+            request_id="req",
+            with_timestamps=True,
+        )
+    assert result[0].text == "namaste bharat"
+    # Chunk-level segments are preserved rather than replaced with word-sized segments
+    assert len(result[0].segments) == 1
+    assert result[0].segments[0].text == "namaste bharat"
+    assert result[0].segments[0].start == 0.1
+    assert result[0].segments[0].end == 1.2
+    assert len(result[0].segments[0].words) == 2
+    assert len(result[0].words) == 2
+
+
+@pytest.mark.asyncio
+async def test_sarvam_stt_mismatched_timestamps_arrays_handled() -> None:
+    def respond(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "transcript": "namaste bharat",
+                "request_id": "provider-mismatch",
+                "language_code": "hi-IN",
+                "timestamps": {
+                    "words": ["namaste", "bharat"],
+                    "start_time_seconds": [0.1],  # mismatched length
+                    "end_time_seconds": [0.6, 1.2],
+                },
+            },
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as http_client:
+        provider = SarvamSTTProvider(config(), client=http_client)
+        result = await provider.transcribe_batch(
+            (WAV,),
+            language=STTRequest(WAV, "hi").language,
+            audio_format="wav",
+            sampling_rate=16000,
+            request_id="req",
+            with_timestamps=True,
+        )
+    assert result[0].text == "namaste bharat"
+    # Malformed array lengths are rejected, not silently truncated
+    assert len(result[0].words) == 0
+    assert len(result[0].segments) == 0
+
+
 @dataclass
 class FakeJsonTransport:
     responses: list[JsonResponse]

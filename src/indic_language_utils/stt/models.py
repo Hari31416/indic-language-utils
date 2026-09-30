@@ -9,12 +9,30 @@ from ..models import OperationContext
 
 
 @dataclass(frozen=True, slots=True)
+class STTWord:
+    word: str
+    start: float
+    end: float
+    probability: float | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class STTSegment:
+    text: str
+    start: float
+    end: float
+    words: tuple[STTWord, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class STTRequest:
     audio: bytes
     language: LanguageTag | None
     audio_format: str = "wav"
     sampling_rate: int = 16000
     context: OperationContext = field(default_factory=OperationContext)
+    with_timestamps: bool = False
+    word_timestamps: bool = False
 
     def __init__(
         self,
@@ -24,6 +42,8 @@ class STTRequest:
         sampling_rate: int = 16000,
         context: OperationContext | None = None,
         *,
+        with_timestamps: bool = False,
+        word_timestamps: bool = False,
         language_registry: LanguageRegistry | None = None,
     ) -> None:
         if not isinstance(audio, bytes) or not audio:
@@ -43,6 +63,8 @@ class STTRequest:
         object.__setattr__(self, "audio_format", audio_format)
         object.__setattr__(self, "sampling_rate", sampling_rate)
         object.__setattr__(self, "context", context or OperationContext())
+        object.__setattr__(self, "with_timestamps", bool(with_timestamps or word_timestamps))
+        object.__setattr__(self, "word_timestamps", bool(word_timestamps))
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,6 +73,8 @@ class ProviderSTTResult:
     model_id: str | None = None
     request_id: str | None = None
     detected_language: LanguageTag | None = None
+    segments: tuple[STTSegment, ...] = ()
+    words: tuple[STTWord, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,3 +86,5 @@ class STTResult:
     request_id: str
     provider_request_id: str | None = None
     fallback_count: int = 0
+    segments: tuple[STTSegment, ...] = ()
+    words: tuple[STTWord, ...] = ()

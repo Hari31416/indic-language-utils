@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager
 
@@ -21,8 +22,10 @@ from ..providers import CapabilityDeclaration, CapabilityId
 from ..providers.bhashini import JsonResponse, _header
 from ..providers.sarvam import SarvamConfig, _raise_sarvam_status, sarvam_language_code
 from ..retry import retry
-from .models import ProviderSTTResult
+from .models import ProviderSTTResult, STTSegment, STTWord
 from .sarvam_stream import SarvamSTTStream, open_sarvam_stt_stream
+
+logger = logging.getLogger(__name__)
 
 
 class SarvamSTTProvider:
@@ -93,6 +96,8 @@ class SarvamSTTProvider:
         audio_format: str,
         sampling_rate: int,
         request_id: str,
+        with_timestamps: bool = False,
+        word_timestamps: bool = False,
     ) -> tuple[ProviderSTTResult, ...]:
         if not audio or any(not isinstance(item, bytes) or not item for item in audio):
             raise InvalidInputError(
@@ -104,11 +109,14 @@ class SarvamSTTProvider:
         if client is None:
             client = httpx.AsyncClient()
         results: list[ProviderSTTResult] = []
+        want_timestamps = with_timestamps or word_timestamps
         try:
             for clip in audio:
                 form = {"model": model_id, "mode": "transcribe"}
                 if language is not None:
                     form["language_code"] = sarvam_language_code(language)
+                if want_timestamps:
+                    form["with_timestamps"] = "true"
 
                 async def send(form: dict[str, str] = form, clip: bytes = clip) -> JsonResponse:
                     async with self._limiter.slot("sarvam", CapabilityId.SPEECH_TO_TEXT):
@@ -152,6 +160,83 @@ class SarvamSTTProvider:
                     if isinstance(raw_language, str) and raw_language != "unknown"
                     else None
                 )
+                segments: list[STTSegment] = []
+                words: list[STTWord] = []
+
+                raw_segments = data.get("segments")
+                if isinstance(raw_segments, (list, tuple)):
+                    for seg in raw_segments:
+                        if isinstance(seg, Mapping):
+                            s_text = str(seg.get("text", seg.get("transcript", "")))
+                            try:
+                                raw_s = seg.get("start_time_seconds", seg.get("start", 0.0))
+                                raw_e = seg.get("end_time_seconds", seg.get("end", 0.0))
+                                s_start = float(raw_s)
+                                s_end = float(raw_e)
+                            except (TypeError, ValueError):
+                                continue
+                            segments.append(STTSegment(text=s_text, start=s_start, end=s_end))
+
+                raw_timestamps = data.get("timestamps")
+                if isinstance(raw_timestamps, Mapping):
+                    raw_words = raw_timestamps.get("words")
+                    raw_starts = raw_timestamps.get("start_time_seconds")
+                    raw_ends = raw_timestamps.get("end_time_seconds")
+                    if (
+                        isinstance(raw_words, (list, tuple))
+                        and isinstance(raw_starts, (list, tuple))
+                        and isinstance(raw_ends, (list, tuple))
+                    ):
+                        if len(raw_words) == len(raw_starts) == len(raw_ends):
+                            for w_text, s_time, e_time in zip(
+                                raw_words, raw_starts, raw_ends, strict=True
+                            ):
+                                try:
+                                    s_float = float(s_time)
+                                    e_float = float(e_time)
+                                except (TypeError, ValueError):
+                                    continue
+                                word_item = STTWord(
+                                    word=str(w_text),
+                                    start=s_float,
+                                    end=e_float,
+                                )
+                                words.append(word_item)
+                        else:
+                            logger.warning(
+                                "Sarvam returned mismatched timestamp array lengths: "
+                                "words=%d, start_time_seconds=%d, end_time_seconds=%d",
+                                len(raw_words),
+                                len(raw_starts),
+                                len(raw_ends),
+                            )
+
+                if segments and words:
+                    updated_segments: list[STTSegment] = []
+                    for seg in segments:
+                        seg_words = tuple(
+                            w for w in words if seg.start <= w.start and w.end <= seg.end + 0.05
+                        )
+                        updated_segments.append(
+                            STTSegment(
+                                text=seg.text,
+                                start=seg.start,
+                                end=seg.end,
+                                words=seg_words,
+                            )
+                        )
+                    segments = updated_segments
+                elif not segments and words:
+                    segments = [
+                        STTSegment(
+                            text=w.word,
+                            start=w.start,
+                            end=w.end,
+                            words=(w,),
+                        )
+                        for w in words
+                    ]
+
                 results.append(
                     ProviderSTTResult(
                         data["transcript"],
@@ -160,6 +245,8 @@ class SarvamSTTProvider:
                         if isinstance(response_id, str)
                         else _header(response.headers, "x-request-id"),
                         detected_language,
+                        segments=tuple(segments),
+                        words=tuple(words),
                     )
                 )
             return tuple(results)
