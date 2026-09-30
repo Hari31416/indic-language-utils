@@ -185,7 +185,32 @@ print(f"Transcript: {result.text}")
 print(f"Detected language: {result.language}")
 ```
 
-Available model sizes include `tiny`, `base`, `small`, `medium`, and `large-v3`. Setting `device="cuda"` with `compute_type="float16"` enables GPU acceleration.
+Available model sizes include `tiny`, `base`, `small`, `medium`, and `large-v3`. Setting `device="cuda"` with `compute_type="float16"` enables GPU acceleration. Set `word_timestamps=True` in `FasterWhisperSTTConfig` or `FASTER_WHISPER_WORD_TIMESTAMPS=true` in the environment to enable word timing extraction by default.
+
+## Timestamps
+
+Transcriptions can return segment-level and word-level timestamps when supported by the provider:
+
+```python
+result = await client.transcribe(
+    audio,
+    language="hi",
+    with_timestamps=True,
+    word_timestamps=True,
+)
+
+for segment in result.segments:
+    print(f"[{segment.start:.2f}s - {segment.end:.2f}s] {segment.text}")
+    for word in segment.words:
+        prob = f" (p={word.probability:.2f})" if word.probability else ""
+        print(f"  {word.start:.2f}s - {word.end:.2f}s: {word.word}{prob}")
+```
+
+Supported providers:
+
+- **Faster-Whisper**: Extracts segment timestamps (`start`, `end`) and word timestamps (`word`, `start`, `end`, `probability`) when `with_timestamps=True` or `word_timestamps=True`.
+- **Sarvam AI**: Requests aligned timestamps with `with_timestamps="true"` and parses chunk intervals and word timestamps into `segments` and `words`.
+- **Bhashini, Gnani, and Google Free**: Return empty `segments` and `words` tuples gracefully when timestamps are requested or routed to them as fallbacks.
 
 ## FastAPI and demo app
 
@@ -199,11 +224,42 @@ The FastAPI route accepts the same input as JSON:
   "language": "hi",
   "audio_format": "wav",
   "sampling_rate": 16000,
-  "provider": "google_free"
+  "provider": "faster_whisper",
+  "with_timestamps": true,
+  "word_timestamps": true
 }
 ```
 
-Send it to `POST /api/stt`. The response includes the transcript, normalized language, provider, model ID, and request IDs.
+Send it to `POST /api/stt`. The response includes the transcript, normalized language, provider, model ID, request IDs, and timestamp arrays:
+
+```json
+{
+  "text": "namaste duniya",
+  "language": "hi-IN",
+  "provider": "faster_whisper",
+  "model_id": "faster-whisper-base",
+  "request_id": "req-1",
+  "provider_request_id": "provider-1",
+  "fallback_count": 0,
+  "cached": false,
+  "cache_backend": "none",
+  "segments": [
+    {
+      "text": "namaste duniya",
+      "start": 0.0,
+      "end": 1.2,
+      "words": [
+        {"word": "namaste", "start": 0.0, "end": 0.6, "probability": 0.98},
+        {"word": "duniya", "start": 0.6, "end": 1.2, "probability": 0.95}
+      ]
+    }
+  ],
+  "words": [
+    {"word": "namaste", "start": 0.0, "end": 0.6, "probability": 0.98},
+    {"word": "duniya", "start": 0.6, "end": 1.2, "probability": 0.95}
+  ]
+}
+```
 
 The repository includes CLI demos for each provider:
 
