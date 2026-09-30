@@ -21,6 +21,8 @@ class STTProvider(Provider, Protocol):
         audio_format: str,
         sampling_rate: int,
         request_id: str,
+        with_timestamps: bool = False,
+        word_timestamps: bool = False,
     ) -> tuple[ProviderSTTResult, ...]: ...
 
 

@@ -104,6 +104,8 @@ class STTClient:
         language: LanguageTag | str | None = None,
         audio_format: str = "wav",
         sampling_rate: int = 16000,
+        with_timestamps: bool = False,
+        word_timestamps: bool = False,
     ) -> STTResult:
         if isinstance(audio, STTRequest):
             request = audio
@@ -113,6 +115,8 @@ class STTClient:
                 language,
                 audio_format,
                 sampling_rate,
+                with_timestamps=with_timestamps,
+                word_timestamps=word_timestamps,
                 language_registry=self._language_registry,
             )
         return (await self.transcribe_batch((request,)))[0]
@@ -136,13 +140,27 @@ class STTClient:
                 if not isinstance(provider, STTProvider):
                     continue
                 try:
-                    response = await provider.transcribe_batch(
-                        (request.audio,),
-                        language=language,
-                        audio_format=request.audio_format,
-                        sampling_rate=request.sampling_rate,
-                        request_id=request.context.request_id,
-                    )
+                    try:
+                        response = await provider.transcribe_batch(
+                            (request.audio,),
+                            language=language,
+                            audio_format=request.audio_format,
+                            sampling_rate=request.sampling_rate,
+                            request_id=request.context.request_id,
+                            with_timestamps=request.with_timestamps,
+                            word_timestamps=request.word_timestamps,
+                        )
+                    except TypeError as exc:
+                        if "with_timestamps" in str(exc) or "word_timestamps" in str(exc):
+                            response = await provider.transcribe_batch(
+                                (request.audio,),
+                                language=language,
+                                audio_format=request.audio_format,
+                                sampling_rate=request.sampling_rate,
+                                request_id=request.context.request_id,
+                            )
+                        else:
+                            raise
                     if len(response) != 1 or not isinstance(response[0].text, str):
                         raise OutputValidationError(
                             "STT provider returned invalid output",
@@ -159,6 +177,8 @@ class STTClient:
                             request.context.request_id,
                             item.request_id,
                             fallback_count,
+                            segments=item.segments,
+                            words=item.words,
                         )
                     )
                     break

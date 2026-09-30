@@ -11,7 +11,7 @@ from .google_speech import (
     GoogleSpeechSTTProvider,
 )
 from .helpers import get_stt_client
-from .models import ProviderSTTResult, STTRequest, STTResult
+from .models import ProviderSTTResult, STTRequest, STTResult, STTSegment, STTWord
 from .protocols import StreamingSTTProvider, STTProvider
 from .sarvam import SarvamSTTProvider
 from .streaming import STTStream, STTStreamEvent
@@ -39,8 +39,10 @@ __all__ = [
     "STTProvider",
     "STTRequest",
     "STTResult",
+    "STTSegment",
     "STTStream",
     "STTStreamEvent",
+    "STTWord",
     "SarvamSTTProvider",
     "StreamingSTTProvider",
     "WhisperSTTConfig",

@@ -136,3 +136,75 @@ async def test_stt_without_language_uses_default_model() -> None:
     assert result.model_id == "default"
     task = transport.payloads[0]["pipelineTasks"][0]  # type: ignore[index]
     assert "language" not in task["config"]
+
+
+def test_stt_timestamp_data_models() -> None:
+    from indic_language_utils.stt import STTSegment, STTWord
+
+    word = STTWord(word="hello", start=0.0, end=0.5, probability=0.98)
+    assert word.word == "hello"
+    assert word.start == 0.0
+    assert word.end == 0.5
+    assert word.probability == 0.98
+
+    seg = STTSegment(text="hello world", start=0.0, end=1.2, words=(word,))
+    assert seg.text == "hello world"
+    assert seg.start == 0.0
+    assert seg.end == 1.2
+    assert seg.words == (word,)
+
+
+@pytest.mark.asyncio
+async def test_stt_client_propagates_timestamps() -> None:
+    from indic_language_utils.models import ProviderIdentity
+    from indic_language_utils.providers import CapabilityDeclaration, CapabilityId
+    from indic_language_utils.stt import (
+        ProviderSTTResult,
+        STTProvider,
+        STTSegment,
+        STTWord,
+    )
+
+    class FakeTimestampProvider(STTProvider):
+        identity = ProviderIdentity("fake", "Fake Provider", unofficial=False)
+        capabilities = (CapabilityDeclaration(CapabilityId.SPEECH_TO_TEXT),)
+
+        async def transcribe_batch(
+            self,
+            audio: tuple[bytes, ...],
+            *,
+            language: object,
+            audio_format: str,
+            sampling_rate: int,
+            request_id: str,
+            with_timestamps: bool = False,
+            word_timestamps: bool = False,
+        ) -> tuple[ProviderSTTResult, ...]:
+            word = STTWord(word="test", start=0.1, end=0.4, probability=0.95)
+            seg = STTSegment(text="test", start=0.1, end=0.4, words=(word,))
+            return (
+                ProviderSTTResult(
+                    text="test",
+                    model_id="fake-model",
+                    request_id="fake-req",
+                    segments=(seg,) if with_timestamps else (),
+                    words=(word,) if word_timestamps else (),
+                ),
+            )
+
+    provider = FakeTimestampProvider()
+    client = get_stt_client(providers=[provider])
+
+    res_no_ts = await client.transcribe(b"audio", language="en")
+    assert res_no_ts.segments == ()
+    assert res_no_ts.words == ()
+
+    res_with_ts = await client.transcribe(b"audio", language="en", with_timestamps=True)
+    assert len(res_with_ts.segments) == 1
+    assert res_with_ts.segments[0].text == "test"
+    assert res_with_ts.segments[0].start == 0.1
+
+    res_with_words = await client.transcribe(b"audio", language="en", word_timestamps=True)
+    assert len(res_with_words.words) == 1
+    assert res_with_words.words[0].word == "test"
+    assert res_with_words.words[0].end == 0.4

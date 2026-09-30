@@ -76,8 +76,10 @@ from .stt import (
     STTProvider,
     STTRequest,
     STTResult,
+    STTSegment,
     STTStream,
     STTStreamEvent,
+    STTWord,
     get_stt_client,
 )
 from .translation import (
@@ -236,8 +238,10 @@ __all__ = [
     "STTProvider",
     "STTRequest",
     "STTResult",
+    "STTSegment",
     "STTStream",
     "STTStreamEvent",
+    "STTWord",
     "SarvamConfig",
     "SarvamDetectionProvider",
     "SarvamSTTProvider",
